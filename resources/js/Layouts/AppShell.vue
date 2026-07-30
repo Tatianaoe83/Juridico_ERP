@@ -1,6 +1,6 @@
 <script setup>
 import { Link, usePage } from '@inertiajs/vue3';
-import { Bell, CalendarDays, ChevronRight, Moon, PanelLeft, Sun } from 'lucide-vue-next';
+import { Bell, CalendarCheck, CalendarDays, ChevronRight, Moon, PanelLeft, Sun } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import SidebarLink from '@/components/app/SidebarLink.vue';
@@ -31,7 +31,10 @@ watch(
     { deep: true, immediate: true },
 );
 
-const nav = [{ href: '/calendario', label: 'Calendario', icon: CalendarDays }];
+const nav = [
+    { href: '/calendario', label: 'Calendario', icon: CalendarDays },
+    { href: '/eventos', label: 'Eventos', icon: CalendarCheck },
+];
 </script>
 
 <template>
@@ -112,6 +115,14 @@ const nav = [{ href: '/calendario', label: 'Calendario', icon: CalendarDays }];
                     >
                         <CalendarDays class="size-4" />
                     </Link>
+                    <Link
+                        href="/eventos"
+                        class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        aria-label="Eventos"
+                    >
+                        <CalendarCheck class="size-4" />
+                    </Link>
+
                     <button
                         type="button"
                         class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"

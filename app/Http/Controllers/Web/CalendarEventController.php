@@ -13,6 +13,12 @@ use Throwable;
 
 class CalendarEventController extends Controller
 {
+    /**
+     * Ventana del caché. Corta a propósito: los cambios hechos desde Outlook no
+     * avisan a la app, así que este es el retraso máximo con el que se ven.
+     */
+    private const CACHE_MINUTES = 2;
+
     public function __construct(private readonly MicrosoftGraph $graph) {}
 
     /** GET /calendario/eventos?start=&end= — eventos de Outlook del rango visible. */
@@ -21,6 +27,9 @@ class CalendarEventController extends Controller
         $data = $request->validate([
             'start' => ['required', 'date'],
             'end' => ['required', 'date', 'after:start'],
+            // El botón Actualizar lo manda: los cambios hechos desde Outlook no
+            // pasan por la app, así que nada invalida el caché por su cuenta.
+            'fresh' => ['sometimes', 'boolean'],
         ]);
 
         $from = Carbon::parse($data['start'])->startOfDay();
@@ -35,11 +44,16 @@ class CalendarEventController extends Controller
         }
 
         $mailbox = $request->user()->email;
-        $scope = $application ? "app:{$mailbox}" : "user:{$account->id}";
+        // La versión hace que un evento recién creado invalide lo cacheado.
+        $scope = $application ? "app:{$mailbox}" : "user:{$account->id}:v{$account->calendarVersion()}";
         $key = "graph:events:{$scope}:{$from->toDateString()}:{$to->toDateString()}";
 
+        if ($request->boolean('fresh')) {
+            Cache::forget($key);
+        }
+
         try {
-            $events = Cache::remember($key, now()->addMinutes(5), fn () => $application
+            $events = Cache::remember($key, now()->addMinutes(self::CACHE_MINUTES), fn () => $application
                 ? $this->graph->calendarViewForMailbox($mailbox, $from, $to)
                 : $this->graph->calendarView($account, $from, $to));
         } catch (RequestException $e) {

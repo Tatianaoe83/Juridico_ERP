@@ -3,6 +3,7 @@
 use App\Http\Controllers\Web\Auth\MicrosoftController;
 use App\Http\Controllers\Web\CalendarController;
 use App\Http\Controllers\Web\CalendarEventController;
+use App\Http\Controllers\Web\EventController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -29,6 +30,13 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/calendario', CalendarController::class)->name('calendar.index');
     Route::get('/calendario/eventos', CalendarEventController::class)->name('calendar.events');
+
+    // Eventos: se crean, editan y borran directo en el calendario de Outlook.
+    // El id de Graph viaja en el cuerpo, no en la URL: es base64url y trae / y +.
+    Route::get('/eventos', [EventController::class, 'index'])->name('events.index');
+    Route::post('/eventos', [EventController::class, 'store'])->name('events.store');
+    Route::patch('/eventos', [EventController::class, 'update'])->name('events.update');
+    Route::delete('/eventos', [EventController::class, 'destroy'])->name('events.destroy');
 
     // Vinculación con Microsoft 365
     Route::get('/auth/microsoft/redirect', [MicrosoftController::class, 'redirect'])

@@ -19,11 +19,11 @@ class MicrosoftOAuth
     public const LOGIN_SCOPES = 'openid profile email offline_access User.Read';
 
     /**
-     * Identidad + lectura del calendario.
-     * Calendars.Read exige consentimiento de administrador en el tenant,
+     * Identidad + lectura y alta de eventos.
+     * Calendars.ReadWrite exige consentimiento de administrador en el tenant,
      * por eso va aparte: si se pidiera en el login, nadie podría entrar.
      */
-    public const CALENDAR_SCOPES = self::LOGIN_SCOPES.' Calendars.Read';
+    public const CALENDAR_SCOPES = self::LOGIN_SCOPES.' Calendars.ReadWrite';
 
     public function configured(): bool
     {

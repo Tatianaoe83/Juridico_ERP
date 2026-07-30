@@ -84,7 +84,9 @@ function hour(event) {
     return event.all_day ? 'Todo el día' : (event.start ?? '').slice(11, 16);
 }
 
-async function load() {
+/** `fresh` salta el caché: es lo que hace útil al botón Actualizar cuando el
+ *  cambio se hizo desde Outlook y la app no se enteró. */
+async function load(fresh = false) {
     if (!props.connection) return;
 
     loading.value = true;
@@ -92,7 +94,11 @@ async function load() {
 
     try {
         const { data } = await axios.get('/calendario/eventos', {
-            params: { start: days.value[0].key, end: days.value.at(-1).key },
+            params: {
+                start: days.value[0].key,
+                end: days.value.at(-1).key,
+                ...(fresh ? { fresh: 1 } : {}),
+            },
         });
         events.value = data.data;
     } catch (e) {
@@ -112,8 +118,10 @@ function disconnect() {
     }
 }
 
-watch(cursor, load);
-onMounted(load);
+// Envueltas a propósito: watch y onMounted pasan argumentos que load()
+// interpretaría como `fresh` y saltarían el caché en cada cambio de mes.
+watch(cursor, () => load());
+onMounted(() => load());
 </script>
 
 <template>
@@ -127,16 +135,20 @@ onMounted(load);
                     <CalendarDays class="size-5" />
                 </span>
                 <div>
+
                     <h1 class="text-2xl font-semibold tracking-tight">Calendario</h1>
+                    <p class="text-sm font-medium mt-4 ">Correos Registrados:</p>
                     <p class="text-sm text-muted-foreground">
-                        <template v-if="connection">{{ connection.email }} · {{ timezone }}</template>
-                        <template v-else>Conecta tu cuenta para ver tu agenda</template>
+                        <template v-if="connection">{{ connection.email }} </template>
+                        <template class="mb-4" v-else>Conecta tu cuenta para ver tu agenda</template>
                     </p>
+                    <P class="text-sm font-medium mt-4" >Zona horaria:</P>
+                    <p class="text-sm text-muted-foreground" > {{ timezone }}</p>
                 </div>
             </div>
 
             <div v-if="connection" class="flex items-center gap-2">
-                <Button variant="outline" size="sm" :disabled="loading" @click="load">
+                <Button variant="outline" size="sm" :disabled="loading" @click="load(true)">
                     <RefreshCw class="size-4" :class="loading && 'animate-spin'" />
                     Actualizar
                 </Button>
