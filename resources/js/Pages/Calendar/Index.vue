@@ -3,16 +3,21 @@ import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
     CalendarDays,
+    CalendarPlus,
     ChevronLeft,
     ChevronRight,
     ExternalLink,
     Loader2,
+    Pencil,
     RefreshCw,
+    Trash2,
     Unlink,
 } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
+import EventFormDialog from '@/components/app/EventFormDialog.vue';
 import { Button } from '@/components/ui/button';
+import { useSwal } from '@/composables/useSwal';
 
 const props = defineProps({
     /** null cuando el usuario aún no vincula su cuenta de Microsoft. */
@@ -23,6 +28,24 @@ const props = defineProps({
 });
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Calendario' }];
+
+const { confirmDelete } = useSwal();
+
+/* ---------- Alta y edición ---------- */
+
+const dialogOpen = ref(false);
+const dialogEvent = ref(null);
+
+function create() {
+    dialogEvent.value = null;
+    dialogOpen.value = true;
+}
+
+/** La rejilla ya trae el evento completo de Graph: no hace falta ir por él. */
+function edit(event) {
+    dialogEvent.value = event;
+    dialogOpen.value = true;
+}
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
@@ -112,10 +135,47 @@ function move(months) {
     cursor.value = new Date(cursor.value.getFullYear(), cursor.value.getMonth() + months, 1);
 }
 
-function disconnect() {
-    if (confirm('¿Desvincular tu cuenta de Outlook? Se borran los tokens guardados.')) {
-        router.delete('/auth/microsoft');
-    }
+/**
+ * Borra en Outlook y recarga la rejilla. La respuesta del servidor sube la
+ * versión del caché, así que el evento ya no vuelve en la siguiente lectura.
+ */
+async function destroy(event) {
+    const ok = await confirmDelete({
+        title: '¿Eliminar evento?',
+        text: `"${event.title}" se borra de tu calendario de Outlook. Si tiene invitados, se les manda la cancelación.`,
+    });
+
+    if (!ok) return;
+
+    router.delete('/eventos', {
+        data: { event_id: event.id },
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => load(true),
+    });
+}
+
+async function disconnect() {
+    const ok = await confirmDelete({
+        title: '¿Desvincular cuenta?',
+        // Se detalla qué sobrevive: sin eso la gente asume que borra su agenda.
+        html: `
+            <p class="mb-3 text-sm">Se desconecta <strong>${props.connection.email}</strong>.</p>
+            <p class="mb-1 text-sm font-medium">Se pierde:</p>
+            <ul class="mb-3 list-disc pl-5 text-left text-sm">
+                <li>El acceso guardado a tu cuenta de Microsoft</li>
+                <li>La vista del calendario y el alta de eventos, hasta reconectar</li>
+            </ul>
+            <p class="mb-1 text-sm font-medium">No se toca:</p>
+            <ul class="list-disc pl-5 text-left text-sm">
+                <li>Tus eventos, que siguen en Outlook</li>
+                <li>El calendario y con quién está compartido</li>
+            </ul>
+        `,
+        confirmText: 'Desvincular',
+    });
+
+    if (ok) router.delete('/auth/microsoft');
 }
 
 // Envueltas a propósito: watch y onMounted pasan argumentos que load()
@@ -137,17 +197,19 @@ onMounted(() => load());
                 <div>
 
                     <h1 class="text-2xl font-semibold tracking-tight">Calendario</h1>
-                    <p class="text-sm font-medium mt-4 ">Correos Registrados:</p>
+                    <p class="text-sm font-medium mt-4 ">Correo Principal:</p>
                     <p class="text-sm text-muted-foreground">
                         <template v-if="connection">{{ connection.email }} </template>
                         <template class="mb-4" v-else>Conecta tu cuenta para ver tu agenda</template>
                     </p>
-                    <P class="text-sm font-medium mt-4" >Zona horaria:</P>
-                    <p class="text-sm text-muted-foreground" > {{ timezone }}</p>
                 </div>
             </div>
 
             <div v-if="connection" class="flex items-center gap-2">
+                <Button size="sm" @click="create">
+                    <CalendarPlus class="size-4" />
+                    Nuevo evento
+                </Button>
                 <Button variant="outline" size="sm" :disabled="loading" @click="load(true)">
                     <RefreshCw class="size-4" :class="loading && 'animate-spin'" />
                     Actualizar
@@ -214,7 +276,7 @@ onMounted(() => load());
                     <div
                         v-for="cell in days"
                         :key="cell.key"
-                        class="min-h-28 border-b border-r p-1.5"
+                        class="min-h-15 border-b border-r p-1.5"
                         :class="cell.outside && 'bg-muted/20'"
                     >
                         <span
@@ -228,12 +290,16 @@ onMounted(() => load());
                         </span>
 
                         <ul class="mt-1 space-y-1">
-                            <li v-for="event in (byDay[cell.key] ?? []).slice(0, 3)" :key="event.id">
+                            <li
+                                v-for="event in (byDay[cell.key] ?? []).slice(0, 3)"
+                                :key="event.id"
+                                class="group relative rounded hover:bg-accent"
+                            >
                                 <a
                                     :href="event.url"
                                     target="_blank"
                                     rel="noopener"
-                                    class="group flex items-start gap-1 rounded px-1 py-0.5 text-[0.7rem] leading-tight hover:bg-accent"
+                                    class="flex items-start gap-1 rounded px-1 py-0.5 text-[0.7rem] leading-tight"
                                     :title="`${hour(event)} · ${event.title}${event.location ? ' · ' + event.location : ''}`"
                                 >
                                     <span class="mt-1 size-1.5 shrink-0 rounded-full bg-[#459AF7]" />
@@ -243,6 +309,30 @@ onMounted(() => load());
                                     </span>
                                     <ExternalLink class="mt-0.5 size-3 shrink-0 opacity-0 group-hover:opacity-60" />
                                 </a>
+
+                                <!-- Flotan sobre el evento: las celdas no tienen alto para una fila propia -->
+                                <div
+                                    class="absolute right-0.5 top-0.5 hidden gap-0.5 rounded bg-card/95 p-0.5 shadow-sm group-hover:flex group-focus-within:flex"
+                                >
+                                    <button
+                                        type="button"
+                                        class="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                        title="Editar"
+                                        aria-label="Editar evento"
+                                        @click="edit(event)"
+                                    >
+                                        <Pencil class="size-3" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                                        title="Eliminar"
+                                        aria-label="Eliminar evento"
+                                        @click="destroy(event)"
+                                    >
+                                        <Trash2 class="size-3" />
+                                    </button>
+                                </div>
                             </li>
                             <li
                                 v-if="(byDay[cell.key] ?? []).length > 3"
@@ -258,6 +348,8 @@ onMounted(() => load());
             <p v-if="connection.synced_at" class="mt-3 text-xs text-muted-foreground">
                 Última sincronización: {{ new Date(connection.synced_at).toLocaleString('es-MX') }}
             </p>
+
+            <EventFormDialog v-model:open="dialogOpen" :event="dialogEvent" @saved="load(true)" />
         </template>
     </AppShell>
 </template>

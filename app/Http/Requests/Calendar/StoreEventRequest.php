@@ -4,6 +4,7 @@ namespace App\Http\Requests\Calendar;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 class StoreEventRequest extends FormRequest
 {
@@ -28,6 +29,10 @@ class StoreEventRequest extends FormRequest
             'ends_at' => ['required', 'date', $allDay ? 'after_or_equal:starts_at' : 'after:starts_at'],
             'location' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],
+            // Outlook acepta más, pero pasado cierto punto la invitación se
+            // trata como correo masivo y acaba en spam.
+            'attendees' => ['sometimes', 'array', 'max:50'],
+            'attendees.*' => ['email'],
         ];
     }
 
@@ -53,13 +58,15 @@ class StoreEventRequest extends FormRequest
             'ends_at' => 'fin',
             'location' => 'ubicación',
             'description' => 'descripción',
+            'attendees' => 'invitados',
+            'attendees.*' => 'correo del invitado',
         ];
     }
 
     /**
      * Lo que espera MicrosoftGraph::createEvent().
      *
-     * @return array{title: string, description: ?string, location: ?string, all_day: bool, start: Carbon, end: Carbon}
+     * @return array{title: string, description: ?string, location: ?string, all_day: bool, start: Carbon, end: Carbon, attendees: array<int, string>}
      */
     public function event(): array
     {
@@ -70,6 +77,12 @@ class StoreEventRequest extends FormRequest
             'all_day' => $this->boolean('all_day'),
             'start' => Carbon::parse($this->input('starts_at')),
             'end' => Carbon::parse($this->input('ends_at')),
+            'attendees' => collect($this->input('attendees', []))
+                ->map(fn (string $email) => Str::lower(trim($email)))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all(),
         ];
     }
 }

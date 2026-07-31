@@ -35,6 +35,8 @@ class EventController extends Controller
 
         $upcoming = [];
         $loadError = null;
+        $editing = null;
+        $sharedWith = [];
 
         // Sin permiso de escritura no tiene sentido leer: la página solo va a
         // pedir que reconecte la cuenta.
@@ -49,6 +51,25 @@ class EventController extends Controller
                 report($e);
                 $loadError = 'No se pudieron leer los próximos eventos de Outlook.';
             }
+
+            // Quiénes tienen acceso al calendario. Falla en silencio: no poder
+            // leer los permisos no debe tumbar la página de eventos.
+            try {
+                $sharedWith = $this->graph->calendarPermissions($account);
+            } catch (Throwable $e) {
+                report($e);
+            }
+
+            // ?event= llega desde el botón de editar del calendario. Se busca
+            // aparte porque puede caer fuera de la ventana de próximos días.
+            if ($request->filled('event')) {
+                try {
+                    $editing = $this->graph->findEvent($account, $request->string('event')->value());
+                } catch (Throwable $e) {
+                    report($e);
+                    $loadError = 'Ese evento ya no existe en Outlook.';
+                }
+            }
         }
 
         return Inertia::render('Events/Index', [
@@ -56,6 +77,10 @@ class EventController extends Controller
             'canWrite' => $canWrite,
             'timezone' => config('app.timezone'),
             'upcoming' => $upcoming,
+            'editing' => $editing,
+            'sharedWith' => $sharedWith,
+            // Sin calendario dedicado, compartir afectaría la agenda personal.
+            'dedicatedCalendar' => filled($account?->calendar_id),
             'loadError' => $loadError,
         ]);
     }
@@ -78,18 +103,18 @@ class EventController extends Controller
     public function update(UpdateEventRequest $request): RedirectResponse
     {
         $account = $request->user()->microsoftAccount;
+        $eventId = $request->string('event_id')->value();
 
         try {
-            $event = $this->graph->updateEvent(
-                $account,
-                $request->string('event_id')->value(),
-                $request->event(),
-            );
+            // Se lee antes del PATCH para poder contar qué cambió: después ya
+            // no hay forma de saber cómo estaba.
+            $previous = $this->graph->findEvent($account, $eventId);
+            $event = $this->graph->updateEvent($account, $eventId, $request->event());
         } catch (Throwable $e) {
             return $this->failed($e);
         }
 
-        $this->announce($account, CalendarEventNotification::UPDATED, $event);
+        $this->announce($account, CalendarEventNotification::UPDATED, $event, $previous);
 
         return back()->with('success', 'Evento actualizado. Te llegó un correo de confirmación.');
     }
@@ -117,19 +142,67 @@ class EventController extends Controller
      * que el usuario asocia con su agenda (puede no ser la de su cuenta local).
      *
      * @param  array<string, mixed>  $event
+     * @param  array<string, mixed>|null  $previous  Cómo estaba antes de editarlo.
      */
-    private function announce(MicrosoftAccount $account, string $action, array $event): void
-    {
-        // Un fallo de correo no debe deshacer un cambio que Outlook ya aceptó.
-        try {
-            Notification::route('mail', $account->email)
-                ->notify(new CalendarEventNotification($action, $event));
-        } catch (Throwable $e) {
-            report($e);
+    private function announce(
+        MicrosoftAccount $account,
+        string $action,
+        array $event,
+        ?array $previous = null,
+    ): void {
+        $recipients = [mb_strtolower($account->email), ...$this->sharedAudience($account, $event)];
+
+        foreach (array_unique($recipients) as $email) {
+            // Un fallo de correo no debe deshacer un cambio que Outlook ya
+            // aceptó, ni impedir que los demás destinatarios reciban el suyo.
+            try {
+                Notification::route('mail', $email)
+                    ->notify(new CalendarEventNotification($action, $event, $previous));
+            } catch (Throwable $e) {
+                report($e);
+            }
         }
 
         // El calendario cachea por rango; sin esto el cambio no se ve.
         $account->bumpCalendarVersion();
+    }
+
+    /**
+     * A quién más avisar: los que tienen acceso al calendario, menos el dueño
+     * (ya va aparte) y menos los invitados del evento, que reciben la
+     * invitación nativa de Outlook y tendrían dos correos por lo mismo.
+     *
+     * @param  array<string, mixed>  $event
+     * @return array<int, string>
+     */
+    private function sharedAudience(MicrosoftAccount $account, array $event): array
+    {
+        try {
+            $shared = $this->graph->calendarPermissions($account);
+        } catch (Throwable $e) {
+            // Sin la lista se avisa solo al dueño: mejor eso que no avisar.
+            report($e);
+
+            return [];
+        }
+
+        $invited = collect($event['attendees'] ?? [])
+            ->pluck('email')
+            ->filter()
+            ->map(fn (string $email) => mb_strtolower($email))
+            ->all();
+
+        return collect($shared)
+            ->pluck('email')
+            ->filter()
+            ->map(fn (string $email) => mb_strtolower($email))
+            // Outlook mete entradas sin correo real, como el acceso público.
+            ->filter(fn (string $email) => (bool) filter_var($email, FILTER_VALIDATE_EMAIL))
+            ->reject(fn (string $email) => $email === mb_strtolower($account->email))
+            ->reject(fn (string $email) => in_array($email, $invited, true))
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function failed(Throwable $e): RedirectResponse

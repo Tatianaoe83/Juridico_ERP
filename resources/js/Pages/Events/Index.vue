@@ -7,16 +7,17 @@ import {
     Loader2,
     MapPin,
     Pencil,
-    Save,
     Trash2,
-    X,
+    UserPlus,
 } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { onMounted, ref } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
+import EventFormDialog from '@/components/app/EventFormDialog.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useSwal } from '@/composables/useSwal';
 
 const props = defineProps({
     /** Hay cuenta de Microsoft vinculada. */
@@ -26,113 +27,47 @@ const props = defineProps({
     timezone: { type: String, default: 'UTC' },
     /** Próximos 30 días, tal como los devuelve Graph. */
     upcoming: { type: Array, default: () => [] },
+    /** Llega con ?event= — el botón de editar del calendario. */
+    editing: { type: Object, default: null },
+    /** Quiénes tienen acceso al calendario, según Outlook. */
+    sharedWith: { type: Array, default: () => [] },
+    /** false = los eventos viven en la agenda personal, compartir no aplica. */
+    dedicatedCalendar: { type: Boolean, default: false },
     loadError: { type: String, default: null },
 });
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Eventos' }];
 
-/* ---------- Formulario ---------- */
+const { confirmDelete } = useSwal();
 
-const pad = (n) => String(n).padStart(2, '0');
+/* ---------- Alta y edición ---------- */
 
-function toInput(date, withTime = true) {
-    const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+// El formulario vive en EventFormDialog: esta página solo lo abre.
+const dialogOpen = ref(false);
+const dialogEvent = ref(null);
 
-    return withTime ? `${day}T${pad(date.getHours())}:${pad(date.getMinutes())}` : day;
-}
-
-/** Próxima hora en punto: el valor por defecto más útil al abrir la página. */
-function nextHour() {
-    const date = new Date();
-    date.setMinutes(0, 0, 0);
-    date.setHours(date.getHours() + 1);
-
-    return date;
-}
-
-const start = nextHour();
-const end = new Date(start.getTime() + 60 * 60 * 1000);
-
-const form = useForm({
-    /** null = alta · id de Graph = edición del evento existente. */
-    event_id: null,
-    title: '',
-    all_day: false,
-    starts_at: toInput(start),
-    ends_at: toInput(end),
-    location: '',
-    description: '',
-});
-
-const editing = computed(() => form.event_id !== null);
-const dateType = computed(() => (form.all_day ? 'date' : 'datetime-local'));
-
-/**
- * Al cambiar el modo hay que recortar o reponer la hora: los inputs date y
- * datetime-local no aceptan el formato del otro. Va en el evento del checkbox
- * y no en un watch para que cargar un evento en el formulario no lo dispare.
- */
-function toggleAllDay(allDay) {
-    form.all_day = allDay;
-
-    if (allDay) {
-        form.starts_at = form.starts_at.slice(0, 10);
-        form.ends_at = form.ends_at.slice(0, 10);
-    } else {
-        form.starts_at = `${form.starts_at.slice(0, 10)}T09:00`;
-        form.ends_at = `${form.ends_at.slice(0, 10)}T10:00`;
-    }
-}
-
-function submit() {
-    const options = { preserveScroll: true, onSuccess: () => reset() };
-
-    editing.value ? form.patch('/eventos', options) : form.post('/eventos', options);
-}
-
-function reset() {
-    form.reset();
-    form.clearErrors();
-}
-
-/** Carga un evento existente en el formulario. */
+/** La lista ya trae el evento completo de Graph: no hace falta ir por él. */
 function edit(event) {
-    const allDay = Boolean(event.all_day);
-    // Graph devuelve '2026-07-31T14:00:00.0000000'; los inputs quieren
-    // 'YYYY-MM-DD' o 'YYYY-MM-DDTHH:mm'.
-    const trim = (iso) => (allDay ? (iso ?? '').slice(0, 10) : (iso ?? '').slice(0, 16));
-
-    // En todo el día Graph guarda el fin exclusivo (día siguiente); se resta
-    // para que el formulario muestre el último día real.
-    let ends = trim(event.end);
-
-    if (allDay && ends) {
-        const date = new Date(`${ends}T00:00:00`);
-        date.setDate(date.getDate() - 1);
-        ends = toInput(date, false);
-    }
-
-    form.clearErrors();
-    form.event_id = event.id;
-    form.title = event.title;
-    form.all_day = allDay;
-    form.starts_at = trim(event.start);
-    form.ends_at = ends;
-    form.location = event.location ?? '';
-    form.description = event.description ?? '';
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    dialogEvent.value = event;
+    dialogOpen.value = true;
 }
 
-function destroy(event) {
-    if (!confirm(`¿Eliminar "${event.title}" de tu calendario de Outlook?`)) return;
+/** Tras crear o editar hay que releer: Graph es la única fuente. */
+function refresh() {
+    router.reload({ only: ['upcoming', 'sharedWith'] });
+}
+
+async function destroy(event) {
+    const ok = await confirmDelete({
+        title: '¿Eliminar evento?',
+        text: `"${event.title}" se borra de tu calendario de Outlook. Si tiene invitados, se les manda la cancelación.`,
+    });
+
+    if (!ok) return;
 
     router.delete('/eventos', {
         data: { event_id: event.id },
         preserveScroll: true,
-        onSuccess: () => {
-            if (form.event_id === event.id) reset();
-        },
     });
 }
 
@@ -152,6 +87,67 @@ function timeLabel(event) {
     return event.all_day
         ? 'Todo el día'
         : `${(event.start ?? '').slice(11, 16)}–${(event.end ?? '').slice(11, 16)}`;
+}
+
+/** Estados de RSVP que devuelve Graph en attendees[].status.response. */
+const RESPONSES = {
+    accepted: { label: 'Aceptó', dot: 'bg-emerald-500' },
+    declined: { label: 'Rechazó', dot: 'bg-red-500' },
+    tentativelyAccepted: { label: 'Quizá', dot: 'bg-amber-500' },
+    organizer: { label: 'Organizador', dot: 'bg-[#459AF7]' },
+    none: { label: 'Sin responder', dot: 'bg-muted-foreground/40' },
+};
+
+/** Invitados sin el organizador, que siempre se incluye a sí mismo. */
+function guests(event) {
+    return (event.attendees ?? []).filter((attendee) => attendee.response !== 'organizer');
+}
+
+/** Con fallback: un estado nuevo de Graph no debe romper la vista. */
+function response(guest) {
+    return RESPONSES[guest.response] ?? RESPONSES.none;
+}
+
+// Con ?event= en la URL el diálogo abre directo sobre ese evento.
+onMounted(() => {
+    if (props.editing) edit(props.editing);
+});
+
+/* ---------- Compartir el calendario ---------- */
+
+const ROLES = [
+    { value: 'read', label: 'Ver los detalles' },
+    { value: 'freeBusyRead', label: 'Solo disponibilidad' },
+    { value: 'limitedRead', label: 'Título y horario' },
+    { value: 'write', label: 'Editar eventos' },
+];
+
+const share = useForm({ email: '', role: 'read' });
+
+function submitShare() {
+    share.post('/calendario/compartir', {
+        preserveScroll: true,
+        onSuccess: () => share.reset('email'),
+    });
+}
+
+async function unshare(permission) {
+    const ok = await confirmDelete({
+        title: '¿Revocar acceso?',
+        text: `${permission.email} deja de ver este calendario.`,
+        confirmText: 'Revocar',
+    });
+
+    if (!ok) return;
+
+    router.delete('/calendario/compartir', {
+        data: { permission_id: permission.id },
+        preserveScroll: true,
+    });
+}
+
+function roleLabel(role) {
+    return ROLES.find((option) => option.value === role)?.label ?? role;
 }
 </script>
 
@@ -208,84 +204,9 @@ function timeLabel(event) {
             </a>
         </div>
 
-        <div v-else class="grid gap-5 lg:grid-cols-3">
-            <!-- Formulario -->
-            <form class="rounded-xl border bg-card p-5 lg:col-span-2" @submit.prevent="submit">
-                <div class="mb-4 flex items-center justify-between gap-3">
-                    <h2 class="font-medium">{{ editing ? 'Editar evento' : 'Nuevo evento' }}</h2>
-                    <Button v-if="editing" type="button" variant="ghost" size="sm" @click="reset">
-                        <X class="size-4" />
-                        Cancelar
-                    </Button>
-                </div>
-
-                <div class="grid gap-4">
-                    <div class="grid gap-1.5">
-                        <Label for="title">Título</Label>
-                        <Input id="title" v-model="form.title" required autofocus maxlength="255" />
-                        <InputError :message="form.errors.title" />
-                    </div>
-
-                    <label class="flex w-fit items-center gap-2 text-sm">
-                        <input
-                            type="checkbox"
-                            class="size-4 rounded border-input accent-[#459AF7]"
-                            :checked="form.all_day"
-                            @change="toggleAllDay($event.target.checked)"
-                        />
-                        Todo el día
-                    </label>
-
-                    <div class="grid gap-4 sm:grid-cols-2">
-                        <div class="grid gap-1.5">
-                            <Label for="starts_at">Inicio</Label>
-                            <Input id="starts_at" v-model="form.starts_at" :type="dateType" required />
-                            <InputError :message="form.errors.starts_at" />
-                        </div>
-
-                        <div class="grid gap-1.5">
-                            <Label for="ends_at">Fin</Label>
-                            <Input id="ends_at" v-model="form.ends_at" :type="dateType" required />
-                            <InputError :message="form.errors.ends_at" />
-                        </div>
-                    </div>
-
-                    <div class="grid gap-1.5">
-                        <Label for="location">Ubicación <span class="text-muted-foreground">(opcional)</span></Label>
-                        <Input id="location" v-model="form.location" maxlength="255" placeholder="Sala de juntas" />
-                        <InputError :message="form.errors.location" />
-                    </div>
-
-                    <div class="grid gap-1.5">
-                        <Label for="description">
-                            Descripción <span class="text-muted-foreground">(opcional)</span>
-                        </Label>
-                        <textarea
-                            id="description"
-                            v-model="form.description"
-                            rows="3"
-                            maxlength="2000"
-                            class="w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-                        />
-                        <InputError :message="form.errors.description" />
-                    </div>
-
-                    <div class="flex items-center gap-3 pt-1">
-                        <Button type="submit" :disabled="form.processing">
-                            <Loader2 v-if="form.processing" class="size-4 animate-spin" />
-                            <Save v-else-if="editing" class="size-4" />
-                            <CalendarPlus v-else class="size-4" />
-                            {{ editing ? 'Guardar cambios' : 'Crear evento' }}
-                        </Button>
-                        <p class="text-xs text-muted-foreground">
-                            Se aplica en Outlook al instante y te llega un correo.
-                        </p>
-                    </div>
-                </div>
-            </form>
-
+        <div v-else class="grid items-start gap-5 lg:grid-cols-3">
             <!-- Próximos -->
-            <section class="rounded-xl border bg-card p-5">
+            <section class="rounded-xl border bg-card p-5 lg:order-2 min-h-128">
                 <h2 class="mb-4 font-medium">Próximos 30 días</h2>
 
                 <p v-if="loadError" class="text-sm text-destructive">{{ loadError }}</p>
@@ -299,7 +220,7 @@ function timeLabel(event) {
                         v-for="event in upcoming"
                         :key="event.id"
                         class="group/item border-l-2 pl-3"
-                        :class="form.event_id === event.id ? 'border-foreground' : 'border-[#459AF7]'"
+                        :class="dialogEvent?.id === event.id ? 'border-foreground' : 'border-[#459AF7]'"
                     >
                         <a
                             :href="event.url"
@@ -317,6 +238,18 @@ function timeLabel(event) {
                             <MapPin class="size-3 shrink-0" />
                             <span class="truncate">{{ event.location }}</span>
                         </p>
+
+                        <ul v-if="guests(event).length" class="mt-1 space-y-0.5">
+                            <li
+                                v-for="guest in guests(event)"
+                                :key="guest.email"
+                                class="flex items-center gap-1.5 text-xs text-muted-foreground"
+                                :title="response(guest).label"
+                            >
+                                <span class="size-1.5 shrink-0 rounded-full" :class="response(guest).dot" />
+                                <span class="truncate">{{ guest.name || guest.email }}</span>
+                            </li>
+                        </ul>
 
                         <div class="mt-1 flex gap-1 opacity-0 transition-opacity group-hover/item:opacity-100 focus-within:opacity-100">
                             <button
@@ -339,6 +272,100 @@ function timeLabel(event) {
                     </li>
                 </ul>
             </section>
+
+            <!-- Compartido con -->
+            <section class="rounded-xl border bg-card p-5 lg:order-1 lg:col-span-2 ">
+                <h2 class="font-medium">Compartido con</h2>
+                <p class="mb-4 mt-1 text-sm text-muted-foreground">
+                    Outlook mantiene esta lista. A quien agregues le llega una invitación para
+                    añadir el calendario, y desde ahí ve los cambios sin que la app haga nada.
+                </p>
+
+                <!-- Sin calendario dedicado, compartir expondría la agenda personal -->
+                <p
+                    v-if="!dedicatedCalendar"
+                    class="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground"
+                >
+                    Los eventos viven en tu calendario principal, así que compartirlo expondría toda
+                    tu agenda. Crea uno dedicado con
+                    <code class="rounded bg-muted px-1 py-0.5 text-xs">php artisan calendario:crear</code>
+                    y pon el id en <code class="rounded bg-muted px-1 py-0.5 text-xs">MS_CALENDAR_ID</code>.
+                </p>
+
+                <template v-else>
+                    <form class="flex flex-wrap items-end gap-3" @submit.prevent="submitShare">
+                        <div class="grid min-w-56 flex-1 gap-1.5">
+                            <Label for="share_email">Correo</Label>
+                            <Input
+                                id="share_email"
+                                v-model="share.email"
+                                type="email"
+                                required
+                                placeholder="alguien@proser.com.mx"
+                            />
+                            <InputError :message="share.errors.email" />
+                        </div>
+
+                        <div class="grid min-w-48 gap-1.5">
+                            <Label for="share_role">Puede</Label>
+                            <!-- Mismas clases que el componente Input, para que no desentone.
+                                 Las opciones llevan color propio: la lista la pinta el sistema
+                                 y no hereda el del select, así que salía blanco sobre blanco. -->
+                            <select
+                                id="share_role"
+                                v-model="share.role"
+                                class="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent py-1 pl-2.5 pr-8 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+                            >
+                                <option
+                                    v-for="option in ROLES"
+                                    :key="option.value"
+                                    :value="option.value"
+                                    class="bg-popover text-popover-foreground"
+                                >
+                                    {{ option.label }}
+                                </option>
+                            </select>
+                            <InputError :message="share.errors.role" />
+                        </div>
+
+                        <Button type="submit" :disabled="share.processing">
+                            <Loader2 v-if="share.processing" class="size-4 animate-spin" />
+                            <UserPlus v-else class="size-4" />
+                            Compartir
+                        </Button>
+                    </form>
+
+                    <p v-if="!sharedWith.length" class="mt-4 text-sm text-muted-foreground">
+                        Todavía no lo compartes con nadie.
+                    </p>
+
+                    <ul v-else class="mt-4 divide-y border-t">
+                        <li
+                            v-for="permission in sharedWith"
+                            :key="permission.id"
+                            class="flex items-center gap-3 py-2"
+                        >
+                            <span class="min-w-0 flex-1 truncate text-sm">{{ permission.email }}</span>
+                            <span class="shrink-0 text-xs text-muted-foreground">
+                                {{ roleLabel(permission.role) }}
+                            </span>
+                            <button
+                                v-if="permission.removable"
+                                type="button"
+                                class="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                                :aria-label="`Revocar acceso de ${permission.email}`"
+                                title="Revocar acceso"
+                                @click="unshare(permission)"
+                            >
+                                <Trash2 class="size-3.5" />
+                            </button>
+                            <span v-else class="shrink-0 text-xs text-muted-foreground">Propietario</span>
+                        </li>
+                    </ul>
+                </template>
+            </section>
+
+            <EventFormDialog v-model:open="dialogOpen" :event="dialogEvent" @saved="refresh" />
         </div>
     </AppShell>
 </template>

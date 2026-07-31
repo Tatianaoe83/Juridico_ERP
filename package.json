@@ -23,6 +23,7 @@
         "lucide-vue-next": "^0.446.0",
         "reka-ui": "^2.9.5",
         "shadcn-vue": "^2.8.0",
+        "sweetalert2": "^11.26.25",
         "tailwind-merge": "^2.5.4",
         "three": "^0.161.0",
         "vue": "^3.4.0",

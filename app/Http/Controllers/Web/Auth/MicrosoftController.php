@@ -86,7 +86,7 @@ class MicrosoftController extends Controller
         // resuelve a quién pertenece el perfil (y lo da de alta si hace falta).
         $user = Auth::user() ?? $this->identity->resolveUser($profile, $email);
 
-        MicrosoftAccount::updateOrCreate(
+        $account = MicrosoftAccount::updateOrCreate(
             ['user_id' => $user->id],
             [
                 'microsoft_id' => $profile['id'],
@@ -99,6 +99,19 @@ class MicrosoftController extends Controller
                 'scopes' => $scopes,
             ],
         );
+
+        // Vincular la cuenta deja listo su calendario dedicado, que es el que
+        // se comparte. Solo es posible con permiso de escritura: quien entra
+        // por SSO todavía no lo concedió y lo obtendrá al conectar su agenda.
+        if ($account->canWriteCalendar()) {
+            try {
+                $this->graph->ensureCalendar($account);
+            } catch (Throwable $e) {
+                // Que falle no debe impedir el acceso: la app funciona sobre el
+                // calendario principal y se reintenta en la siguiente conexión.
+                report($e);
+            }
+        }
 
         if (! Auth::check()) {
             Auth::login($user, remember: true);

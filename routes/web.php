@@ -3,6 +3,7 @@
 use App\Http\Controllers\Web\Auth\MicrosoftController;
 use App\Http\Controllers\Web\CalendarController;
 use App\Http\Controllers\Web\CalendarEventController;
+use App\Http\Controllers\Web\CalendarShareController;
 use App\Http\Controllers\Web\EventController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -37,6 +38,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/eventos', [EventController::class, 'store'])->name('events.store');
     Route::patch('/eventos', [EventController::class, 'update'])->name('events.update');
     Route::delete('/eventos', [EventController::class, 'destroy'])->name('events.destroy');
+
+    // Con quién se comparte el calendario. La lista la mantiene Outlook.
+    Route::post('/calendario/compartir', [CalendarShareController::class, 'store'])
+        ->name('calendar.share');
+    Route::delete('/calendario/compartir', [CalendarShareController::class, 'destroy'])
+        ->name('calendar.unshare');
 
     // Vinculación con Microsoft 365
     Route::get('/auth/microsoft/redirect', [MicrosoftController::class, 'redirect'])

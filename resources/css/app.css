@@ -132,3 +132,45 @@
     @apply font-sans;
     }
 }
+
+/*
+ * Cambio de tema con fundido.
+ *
+ * La clase la pone useTheme() solo durante el cambio y la quita al terminar.
+ * Poner la transición de forma permanente haría que cada hover arrastrara los
+ * 200 ms, y en un DOM grande cuesta rendimiento sin ganar nada.
+ *
+ * Solo se anima lo que depende del tema: fondo, texto, bordes y los iconos SVG.
+ */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+    transition:
+        background-color 200ms ease,
+        border-color 200ms ease,
+        color 200ms ease,
+        fill 200ms ease,
+        stroke 200ms ease !important;
+    transition-delay: 0ms !important;
+}
+
+/* Navegadores con View Transitions: el fundido es de la página completa. */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 220ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .theme-transition,
+    .theme-transition *,
+    .theme-transition *::before,
+    .theme-transition *::after {
+        transition: none !important;
+    }
+
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+        animation: none;
+    }
+}
