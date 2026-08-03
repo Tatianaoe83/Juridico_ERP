@@ -39,8 +39,11 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => [
+                // `resolve()` y no `new`: el recurso envuelve en `data` y el front
+                // acabaría leyendo auth.user.data.roles, que es lo que hacía que
+                // el menú mostrara «Sin rol» con un admin dentro.
                 'user' => $request->user()
-                    ? new UserResource($request->user()->load('roles'))
+                    ? (new UserResource($request->user()->load('roles.permissions')))->resolve($request)
                     : null,
             ],
             'flash' => [

@@ -8,15 +8,19 @@ import {
     ChevronRight,
     ExternalLink,
     Loader2,
+    MapPin,
     Pencil,
     RefreshCw,
     Trash2,
     Unlink,
+    X,
 } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import EventFormDialog from '@/components/app/EventFormDialog.vue';
 import { Button } from '@/components/ui/button';
+import { useEventDisplay } from '@/composables/useEventDisplay';
+import { usePermissions } from '@/composables/usePermissions';
 import { useSwal } from '@/composables/useSwal';
 
 const props = defineProps({
@@ -30,6 +34,7 @@ const props = defineProps({
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Calendario' }];
 
 const { confirmDelete } = useSwal();
+const { can } = usePermissions();
 
 /* ---------- Alta y edición ---------- */
 
@@ -103,9 +108,90 @@ const byDay = computed(() =>
     }, {}),
 );
 
-function hour(event) {
-    return event.all_day ? 'Todo el día' : (event.start ?? '').slice(11, 16);
+const { guests, response, longDayLabel, timeLabel, startLabel } = useEventDisplay();
+
+/** Cuántos eventos caben en una celda antes de resumir el resto. */
+const PER_CELL = 3;
+
+/* ---------- Tooltip y popover flotantes ---------- */
+
+/**
+ * Los dos paneles van en `position: fixed` y fuera de la rejilla: dentro de una
+ * celda los recortaría el `overflow-hidden` del contenedor del calendario.
+ */
+const tip = ref(null);
+const tipEvent = ref(null);
+const tipStyle = ref({});
+
+const pop = ref(null);
+const popDay = ref(null);
+const popStyle = ref({});
+
+const popEvents = computed(() => (popDay.value ? (byDay.value[popDay.value.key] ?? []) : []));
+
+/**
+ * Coloca un panel bajo el elemento, o encima si no cabe. Se mide después de
+ * pintar porque el alto depende del contenido: un evento con seis invitados
+ * ocupa el doble que uno sin ninguno.
+ */
+async function anchorTo(target, panel, style, width) {
+    const pad = 10;
+    const rect = target.getBoundingClientRect();
+
+    const left = Math.max(pad, Math.min(rect.left, window.innerWidth - width - pad));
+    style.value = { left: `${left}px`, top: `${rect.bottom + 6}px` };
+
+    await nextTick();
+
+    const height = panel.value?.offsetHeight ?? 0;
+    const fitsBelow = rect.bottom + 6 + height + pad <= window.innerHeight;
+    const top = fitsBelow ? rect.bottom + 6 : Math.max(pad, rect.top - height - 6);
+
+    style.value = { left: `${left}px`, top: `${top}px` };
 }
+
+function showTip(event, mouseEvent) {
+    // El popover abierto manda: un tooltip encima lo taparía.
+    if (popDay.value) return;
+
+    tipEvent.value = event;
+    anchorTo(mouseEvent.currentTarget, tip, tipStyle, 256);
+}
+
+function hideTip() {
+    tipEvent.value = null;
+}
+
+function openDay(cell, mouseEvent) {
+    hideTip();
+    popDay.value = popDay.value?.key === cell.key ? null : cell;
+
+    if (popDay.value) anchorTo(mouseEvent.currentTarget, pop, popStyle, 256);
+}
+
+function closeDay() {
+    popDay.value = null;
+}
+
+function onKeydown(e) {
+    if (e.key === 'Escape') closeDay();
+}
+
+onMounted(() => {
+    document.addEventListener('click', closeDay);
+    document.addEventListener('keydown', onKeydown);
+});
+
+onBeforeUnmount(() => {
+    document.removeEventListener('click', closeDay);
+    document.removeEventListener('keydown', onKeydown);
+});
+
+// Cambiar de mes o recargar deja los paneles apuntando a nada.
+watch(events, () => {
+    hideTip();
+    closeDay();
+});
 
 /** `fresh` salta el caché: es lo que hace útil al botón Actualizar cuando el
  *  cambio se hizo desde Outlook y la app no se enteró. */
@@ -159,18 +245,38 @@ async function disconnect() {
     const ok = await confirmDelete({
         title: '¿Desvincular cuenta?',
         // Se detalla qué sobrevive: sin eso la gente asume que borra su agenda.
+        // Dos tarjetas contrastadas en vez de dos listas seguidas, que se leían
+        // como una sola y obligaban a fijarse en el encabezado para separarlas.
         html: `
-            <p class="mb-3 text-sm">Se desconecta <strong>${props.connection.email}</strong>.</p>
-            <p class="mb-1 text-sm font-medium">Se pierde:</p>
-            <ul class="mb-3 list-disc pl-5 text-left text-sm">
-                <li>El acceso guardado a tu cuenta de Microsoft</li>
-                <li>La vista del calendario y el alta de eventos, hasta reconectar</li>
-            </ul>
-            <p class="mb-1 text-sm font-medium">No se toca:</p>
-            <ul class="list-disc pl-5 text-left text-sm">
-                <li>Tus eventos, que siguen en Outlook</li>
-                <li>El calendario y con quién está compartido</li>
-            </ul>
+            <p class="mb-4 text-center text-sm text-muted-foreground">
+                Se desconecta <span class="font-medium text-foreground">${props.connection.email}</span>
+            </p>
+
+            <div class="flex flex-col gap-2.5 text-left">
+                <div class="rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-3">
+                    <p class="mb-1.5 text-[0.7rem] font-semibold uppercase tracking-wider text-destructive">
+                        Se pierde
+                    </p>
+                    <ul class="list-disc space-y-1 pl-4 text-sm text-foreground marker:text-destructive/50">
+                        <li>El acceso guardado a tu cuenta de Microsoft</li>
+                        <li>La vista del calendario y el alta de eventos, hasta reconectar</li>
+                    </ul>
+                </div>
+
+                <div class="rounded-lg border bg-muted/30 px-3.5 py-3">
+                    <p class="mb-1.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                        No se toca
+                    </p>
+                    <ul class="list-disc space-y-1 pl-4 text-sm text-foreground marker:text-muted-foreground/50">
+                        <li>Tus eventos, que siguen en Outlook</li>
+                        <li>El calendario y con quién está compartido</li>
+                    </ul>
+                </div>
+            </div>
+
+            <p class="mt-3.5 text-center text-xs text-muted-foreground">
+                Al reconectar se recupera todo, incluida la lista de compartidos.
+            </p>
         `,
         confirmText: 'Desvincular',
     });
@@ -189,24 +295,28 @@ onMounted(() => load());
 
     <AppShell :breadcrumbs="breadcrumbs">
         <!-- Encabezado -->
-        <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-                <span class="grid size-10 place-content-center rounded-lg bg-accent text-accent-foreground">
-                    <CalendarDays class="size-5" />
-                </span>
-                <div>
-
+        <div class="mb-5 flex flex-wrap items-start justify-between gap-4">
+            <div class="flex flex-col gap-3">
+                <!-- Icono y título -->
+                <div class="flex items-center gap-3">
+                    <span class="grid size-10 place-content-center rounded-lg bg-accent text-accent-foreground">
+                        <CalendarDays class="size-5" />
+                    </span>
                     <h1 class="text-2xl font-semibold tracking-tight">Calendario</h1>
-                    <p class="text-sm font-medium mt-4 ">Correo Principal:</p>
-                    <p class="text-sm text-muted-foreground">
-                        <template v-if="connection">{{ connection.email }} </template>
-                        <template class="mb-4" v-else>Conecta tu cuenta para ver tu agenda</template>
+                </div>
+
+                <!-- Cuenta registrada -->
+                <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                    <p v-if="connection">
+                        <span class="text-muted-foreground">Correo principal:</span>
+                        <span class="ml-1 font-medium">{{ connection.email }}</span>
                     </p>
+                    <p v-else class="text-muted-foreground">Conecta tu cuenta para ver tu agenda</p>
                 </div>
             </div>
 
             <div v-if="connection" class="flex items-center gap-2">
-                <Button size="sm" @click="create">
+                <Button v-if="can('events.create')" size="sm" @click="create">
                     <CalendarPlus class="size-4" />
                     Nuevo evento
                 </Button>
@@ -214,7 +324,7 @@ onMounted(() => load());
                     <RefreshCw class="size-4" :class="loading && 'animate-spin'" />
                     Actualizar
                 </Button>
-                <Button v-if="mode === 'delegated'" variant="outline" size="sm" @click="disconnect">
+                <Button v-if="mode === 'delegated' && can('calendar.link')" variant="outline" size="sm" @click="disconnect">
                     <Unlink class="size-4" />
                     Desvincular
                 </Button>
@@ -291,23 +401,30 @@ onMounted(() => load());
 
                         <ul class="mt-1 space-y-1">
                             <li
-                                v-for="event in (byDay[cell.key] ?? []).slice(0, 3)"
+                                v-for="event in (byDay[cell.key] ?? []).slice(0, PER_CELL)"
                                 :key="event.id"
                                 class="group relative rounded hover:bg-accent"
                             >
+                                <!-- Sin `title`: lo sustituye el tooltip, y el nativo del
+                                     navegador se encimaría con medio segundo de retraso -->
                                 <a
                                     :href="event.url"
                                     target="_blank"
                                     rel="noopener"
-                                    class="flex items-start gap-1 rounded px-1 py-0.5 text-[0.7rem] leading-tight"
-                                    :title="`${hour(event)} · ${event.title}${event.location ? ' · ' + event.location : ''}`"
+                                    class="flex items-center gap-1 rounded px-1 py-0.5 text-[0.7rem] leading-tight"
+                                    @mouseenter="showTip(event, $event)"
+                                    @mouseleave="hideTip"
+                                    @focus="showTip(event, $event)"
+                                    @blur="hideTip"
                                 >
-                                    <span class="mt-1 size-1.5 shrink-0 rounded-full bg-[#459AF7]" />
-                                    <span class="min-w-0">
-                                        <span class="text-muted-foreground">{{ hour(event) }}</span>
-                                        <span class="ml-1 line-clamp-2">{{ event.title }}</span>
+                                    <span class="size-1.5 shrink-0 rounded-full bg-[#459AF7]" />
+                                    <!-- Una sola línea: el título se corta con puntos suspensivos
+                                         y el detalle completo lo da el tooltip -->
+                                    <span class="min-w-0 flex-1 truncate">
+                                        <span class="text-muted-foreground">{{ startLabel(event) }}</span>
+                                        <span class="ml-1">{{ event.title }}</span>
                                     </span>
-                                    <ExternalLink class="mt-0.5 size-3 shrink-0 opacity-0 group-hover:opacity-60" />
+                                    <ExternalLink class="size-3 shrink-0 opacity-0 group-hover:opacity-60" />
                                 </a>
 
                                 <!-- Flotan sobre el evento: las celdas no tienen alto para una fila propia -->
@@ -318,6 +435,7 @@ onMounted(() => load());
                                         type="button"
                                         class="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                                         title="Editar"
+                                        v-if="can('events.update')"
                                         aria-label="Editar evento"
                                         @click="edit(event)"
                                     >
@@ -327,6 +445,7 @@ onMounted(() => load());
                                         type="button"
                                         class="rounded p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                                         title="Eliminar"
+                                        v-if="can('events.delete')"
                                         aria-label="Eliminar evento"
                                         @click="destroy(event)"
                                     >
@@ -334,15 +453,124 @@ onMounted(() => load());
                                     </button>
                                 </div>
                             </li>
-                            <li
-                                v-if="(byDay[cell.key] ?? []).length > 3"
-                                class="px-1 text-[0.7rem] text-muted-foreground"
-                            >
-                                +{{ byDay[cell.key].length - 3 }} más
+                            <li v-if="(byDay[cell.key] ?? []).length > PER_CELL">
+                                <button
+                                    type="button"
+                                    class="w-full rounded px-1 py-0.5 text-left text-[0.7rem] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                    :class="popDay?.key === cell.key && 'bg-accent text-foreground'"
+                                    @click.stop="openDay(cell, $event)"
+                                >
+                                    +{{ byDay[cell.key].length - PER_CELL }} más
+                                </button>
                             </li>
                         </ul>
                     </div>
                 </div>
+            </div>
+
+            <!-- Detalle del evento al pasar el cursor -->
+            <div
+                ref="tip"
+                class="pointer-events-none fixed z-40 w-64 rounded-xl border bg-card p-3 shadow-lg transition-opacity duration-150"
+                :class="tipEvent ? 'opacity-100' : 'opacity-0'"
+                :style="tipStyle"
+                aria-hidden="true"
+            >
+                <template v-if="tipEvent">
+                    <p class="text-sm font-medium leading-tight">{{ tipEvent.title }}</p>
+                    <p class="mt-0.5 text-xs capitalize text-muted-foreground">
+                        {{ longDayLabel(tipEvent.start) }} · {{ timeLabel(tipEvent) }}
+                    </p>
+
+                    <p v-if="tipEvent.location" class="mt-1.5 flex items-start gap-1.5 text-xs">
+                        <MapPin class="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+                        <span>{{ tipEvent.location }}</span>
+                    </p>
+
+                    <p v-if="tipEvent.organizer" class="mt-1 text-xs text-muted-foreground">
+                        Organiza {{ tipEvent.organizer }}
+                    </p>
+
+                    <div v-if="guests(tipEvent).length" class="mt-2 space-y-1 border-t pt-2">
+                        <p
+                            v-for="guest in guests(tipEvent).slice(0, 5)"
+                            :key="guest.email"
+                            class="flex items-center gap-1.5 text-xs"
+                        >
+                            <span class="size-1.5 shrink-0 rounded-full" :class="response(guest).dot" />
+                            <span class="min-w-0 truncate">{{ guest.name || guest.email }}</span>
+                            <span class="ml-auto shrink-0 text-[0.65rem] text-muted-foreground">
+                                {{ response(guest).label }}
+                            </span>
+                        </p>
+                        <p
+                            v-if="guests(tipEvent).length > 5"
+                            class="text-[0.65rem] text-muted-foreground"
+                        >
+                            +{{ guests(tipEvent).length - 5 }} invitados más
+                        </p>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Todos los eventos del día -->
+            <div
+                v-show="popDay"
+                ref="pop"
+                class="fixed z-50 w-64 overflow-hidden rounded-xl border bg-card shadow-xl"
+                :style="popStyle"
+                @click.stop
+            >
+                <div class="flex items-center justify-between gap-2 border-b px-3 py-2">
+                    <p class="truncate text-xs font-medium capitalize">
+                        {{ popDay ? longDayLabel(popDay.key) : '' }}
+                    </p>
+                    <button
+                        type="button"
+                        class="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        aria-label="Cerrar"
+                        @click="closeDay"
+                    >
+                        <X class="size-3.5" />
+                    </button>
+                </div>
+
+                <ul class="max-h-64 overflow-y-auto p-1.5">
+                    <li v-for="event in popEvents" :key="event.id" class="group/row flex items-start gap-2 rounded p-1.5 hover:bg-accent">
+                        <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-[#459AF7]" />
+                        <a
+                            :href="event.url"
+                            target="_blank"
+                            rel="noopener"
+                            class="min-w-0 flex-1"
+                        >
+                            <span class="block truncate text-xs font-medium">{{ event.title }}</span>
+                            <span class="block text-[0.65rem] text-muted-foreground">
+                                {{ timeLabel(event) }}<template v-if="event.location"> · {{ event.location }}</template>
+                            </span>
+                        </a>
+                        <span class="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100">
+                            <button
+                                type="button"
+                                class="rounded p-0.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                                v-if="can('events.update')"
+                                aria-label="Editar evento"
+                                @click="closeDay(); edit(event)"
+                            >
+                                <Pencil class="size-3" />
+                            </button>
+                            <button
+                                type="button"
+                                class="rounded p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                                v-if="can('events.delete')"
+                                aria-label="Eliminar evento"
+                                @click="closeDay(); destroy(event)"
+                            >
+                                <Trash2 class="size-3" />
+                            </button>
+                        </span>
+                    </li>
+                </ul>
             </div>
 
             <p v-if="connection.synced_at" class="mt-3 text-xs text-muted-foreground">

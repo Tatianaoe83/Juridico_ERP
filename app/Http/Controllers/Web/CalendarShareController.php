@@ -72,6 +72,10 @@ class CalendarShareController extends Controller
 
         $message = $e instanceof RequestException
             ? match ($e->response->status()) {
+                // Los niveles intermedios son de Exchange Online: una cuenta
+                // personal de Outlook solo admite ver detalles y editar.
+                400 => 'Esa cuenta de Microsoft no admite ese nivel de acceso. '
+                    .'Prueba con "Ver los detalles" o "Editar eventos".',
                 401 => 'Tu sesión con Microsoft caducó. Vuelve a conectar la cuenta.',
                 403 => 'Este calendario no se puede compartir. Outlook no lo permite en calendarios del sistema.',
                 404 => 'El acceso ya no existe.',

@@ -1,11 +1,23 @@
 <script setup>
 import { Link, usePage } from '@inertiajs/vue3';
-import { Bell, CalendarCheck, CalendarDays, ChevronRight, Moon, PanelLeft, Sun } from 'lucide-vue-next';
+import {
+    Bell,
+    CalendarCheck,
+    CalendarDays,
+    ChevronRight,
+    KeyRound,
+    Moon,
+    PanelLeft,
+    ShieldCheck,
+    Sun,
+    Users,
+} from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import SidebarLink from '@/components/app/SidebarLink.vue';
+import SidebarGroup from '@/components/app/SidebarGroup.vue';
 import UserMenu from '@/components/app/UserMenu.vue';
 import { Toaster } from '@/components/ui/sonner';
+import { usePermissions } from '@/composables/usePermissions';
 import { useTheme } from '@/composables/useTheme';
 
 defineProps({
@@ -16,6 +28,7 @@ defineProps({
 const page = usePage();
 const user = computed(() => page.props.auth?.user ?? {});
 const { isDark, toggle: toggleTheme } = useTheme();
+const { can } = usePermissions();
 
 const sidebarOpen = ref(localStorage.getItem('sidebar') !== 'closed');
 
@@ -31,10 +44,35 @@ watch(
     { deep: true, immediate: true },
 );
 
-const nav = [
-    { href: '/calendario', label: 'Calendario', icon: CalendarDays },
-    { href: '/eventos', label: 'Eventos', icon: CalendarCheck },
-];
+/**
+ * El menú se filtra por permiso, no por rol: así un rol nuevo hereda las
+ * entradas correctas sin tocar este archivo.
+ *
+ * Ocultar solo ordena la vista; quien autoriza es el middleware `can:` de cada
+ * ruta. Escribir la URL a mano sigue devolviendo 403.
+ */
+const nav = computed(() =>
+    [
+        {
+            group: 'General',
+            items: [
+                { href: '/calendario', label: 'Calendario', icon: CalendarDays, permission: 'calendar.view' },
+                { href: '/compartido', label: 'Compartir', icon: CalendarCheck, permission: 'calendar.view' },
+            ],
+        },
+        {
+            group: 'Administración',
+            collapsible: true,
+            items: [
+                { href: '/usuarios', label: 'Usuarios', icon: Users, permission: 'users.view' },
+                { href: '/roles', label: 'Roles', icon: ShieldCheck, permission: 'roles.manage' },
+                { href: '/permisos', label: 'Permisos', icon: KeyRound, permission: 'roles.manage' },
+            ],
+        },
+    ]
+        .map((section) => ({ ...section, items: section.items.filter((item) => can(item.permission)) }))
+        .filter((section) => section.items.length),
+);
 </script>
 
 <template>
@@ -59,14 +97,13 @@ const nav = [
                 </span>
             </Link>
 
-            <nav class="flex-1 space-y-1 overflow-y-auto p-3">
-                <p class="px-2.5 pb-1 text-xs font-medium text-muted-foreground">General</p>
-                <SidebarLink
-                    v-for="item in nav"
-                    :key="item.href"
-                    :href="item.href"
-                    :label="item.label"
-                    :icon="item.icon"
+            <nav class="flex-1 space-y-4 overflow-y-auto p-3">
+                <SidebarGroup
+                    v-for="section in nav"
+                    :key="section.group"
+                    :label="section.group"
+                    :items="section.items"
+                    :collapsible="Boolean(section.collapsible)"
                 />
             </nav>
 
@@ -116,9 +153,9 @@ const nav = [
                         <CalendarDays class="size-4" />
                     </Link>
                     <Link
-                        href="/eventos"
+                        href="/compartido"
                         class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                        aria-label="Eventos"
+                        aria-label="Compartir"
                     >
                         <CalendarCheck class="size-4" />
                     </Link>

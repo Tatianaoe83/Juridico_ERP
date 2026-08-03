@@ -33,6 +33,9 @@ class StoreEventRequest extends FormRequest
             // trata como correo masivo y acaba en spam.
             'attendees' => ['sometimes', 'array', 'max:50'],
             'attendees.*' => ['email'],
+            // Suma a los invitados a quienes tienen acceso al calendario, para
+            // que Outlook les mande invitación, actualización y cancelación.
+            'invite_shared' => ['boolean'],
         ];
     }
 

@@ -11,24 +11,34 @@ class DatabaseSeeder extends Seeder
     use WithoutModelEvents;
 
     /**
-     * Seed the application's database.
+     * Cuentas de arranque, una por rol.
+     *
+     * Sin superadmin nadie podría borrar usuarios ni administrar roles: a
+     * `admin` se le dejan esos dos permisos fuera de alcance a propósito.
      */
+    private const ACCOUNTS = [
+        ['super@example.com', 'Super Admin', 'superadmin'],
+        ['admin@example.com', 'Admin', 'admin'],
+        ['test@example.com', 'Test User', 'user'],
+    ];
+
     public function run(): void
     {
         $this->call(RoleSeeder::class);
 
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@example.com'],
-            ['name' => 'Admin', 'password' => 'password'],
-        );
+        foreach (self::ACCOUNTS as [$email, $name, $role]) {
+            $user = User::firstOrCreate(['email' => $email], ['name' => $name, 'password' => 'password']);
 
-        $admin->syncRoles('admin');
-
-        $user = User::firstOrCreate(
-            ['email' => 'test@example.com'],
-            ['name' => 'Test User', 'password' => 'password'],
-        );
-
-        $user->syncRoles('user');
+            /*
+             * El rol solo se asigna al crear la cuenta.
+             *
+             * Antes se hacía siempre, y volver a sembrar degradaba a quien
+             * hubiera sido promovido desde la interfaz: el seeder pisaba una
+             * decisión tomada en producción.
+             */
+            if ($user->wasRecentlyCreated || $user->roles->isEmpty()) {
+                $user->syncRoles($role);
+            }
+        }
     }
 }

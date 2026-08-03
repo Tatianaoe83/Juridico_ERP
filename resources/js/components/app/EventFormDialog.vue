@@ -1,6 +1,6 @@
 <script setup>
 import { useForm } from '@inertiajs/vue3';
-import { CalendarPlus, Loader2, Save } from 'lucide-vue-next';
+import { CalendarPlus, ChevronDown, Loader2, Save } from 'lucide-vue-next';
 import { computed, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
@@ -57,24 +57,147 @@ const form = useForm({
     attendees: [],
 });
 
+/*
+ * `invite_shared` no viaja desde aquí a propósito. El servidor lo trata como
+ * activo cuando falta, así que a los del calendario compartido siempre se les
+ * invita y reciben los avisos nativos de Outlook. Si algún día hace falta
+ * poder apagarlo por evento, basta con reponer la casilla: el backend ya lo
+ * acepta.
+ */
+
 const editing = computed(() => form.event_id !== null);
-const dateType = computed(() => (form.all_day ? 'date' : 'datetime-local'));
+
+/* ---------- Fecha y hora ---------- */
 
 /**
- * Al cambiar el modo hay que recortar o reponer la hora: los inputs date y
- * datetime-local no aceptan el formato del otro. Va en el evento del checkbox
- * y no en un watch para que llenar el formulario no lo dispare.
+ * La fecha usa el input nativo, que funciona bien. La hora no: el selector de
+ * `datetime-local` es una columna diminuta con desplazamiento, distinta en cada
+ * navegador. Se sustituye por un desplegable de intervalos de 15 minutos.
+ *
+ * Como el input siempre es `type="date"`, tampoco puede repetirse el fallo de
+ * quedarse en blanco al cambiar de modo.
+ */
+const STEP_MINUTES = 15;
+
+/**
+ * Mismas medidas y colores que el componente Input, para que no desentone.
+ *
+ * Dos cosas que impone @tailwindcss/forms y hay que deshacer:
+ *
+ *  - Dibuja su flecha con `background-image`, que `appearance-none` no quita:
+ *    sin `bg-none` se encima con el chevron de Lucide y se ve como un garabato.
+ *  - Pone 0.5rem de relleno vertical con `line-height: 1.5rem`, o sea 40px de
+ *    contenido dentro de una caja de 32px, y el texto queda descuadrado. `py-1`
+ *    lo devuelve a 32px exactos, igual que hace el componente Input.
+ */
+const TIME_SELECT =
+    'h-8 w-[5.25rem] appearance-none bg-none rounded-lg border border-input bg-transparent ' +
+    'px-2.5 py-1 text-base tabular-nums text-foreground outline-none transition-colors ' +
+    'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30';
+
+const pad2 = (n) => String(n).padStart(2, '0');
+
+const dayOf = (value) => value.slice(0, 10);
+const timeOf = (value) => value.slice(11, 16);
+
+function combine(day, time) {
+    return form.all_day || !time ? day : `${day}T${time}`;
+}
+
+const startsOn = computed({
+    get: () => dayOf(form.starts_at),
+    set: (day) => (form.starts_at = combine(day, timeOf(form.starts_at) || '09:00')),
+});
+
+const endsOn = computed({
+    get: () => dayOf(form.ends_at),
+    set: (day) => (form.ends_at = combine(day, timeOf(form.ends_at) || '10:00')),
+});
+
+const startsAtTime = computed({
+    get: () => timeOf(form.starts_at) || '09:00',
+    set: (time) => {
+        form.starts_at = combine(dayOf(form.starts_at), time);
+        keepDuration();
+    },
+});
+
+const endsAtTime = computed({
+    get: () => timeOf(form.ends_at) || '10:00',
+    set: (time) => (form.ends_at = combine(dayOf(form.ends_at), time)),
+});
+
+/** Fecha real a partir de 'YYYY-MM-DDTHH:mm'; los cortes evitan zonas horarias. */
+function toDate(value) {
+    const [y, m, d] = dayOf(value).split('-').map(Number);
+    const [hh, mm] = (timeOf(value) || '00:00').split(':').map(Number);
+
+    return y ? new Date(y, m - 1, d, hh, mm) : null;
+}
+
+/** Mover el inicio a después del fin dejaría el formulario inválido en silencio. */
+function keepDuration() {
+    if (form.all_day) return;
+
+    const start = toDate(form.starts_at);
+    const end = toDate(form.ends_at);
+
+    if (!start || !end || end > start) return;
+
+    const shifted = new Date(start.getTime() + 60 * 60 * 1000);
+
+    form.ends_at = `${shifted.getFullYear()}-${pad2(shifted.getMonth() + 1)}-${pad2(shifted.getDate())}T${pad2(shifted.getHours())}:${pad2(shifted.getMinutes())}`;
+}
+
+/** 00:00 a 23:45 cada cuarto de hora. */
+const TIMES = Array.from({ length: (24 * 60) / STEP_MINUTES }, (_, i) => {
+    const total = i * STEP_MINUTES;
+
+    return `${pad2(Math.floor(total / 60))}:${pad2(total % 60)}`;
+});
+
+/**
+ * Outlook devuelve horas fuera de la retícula —un evento a las 11:07 existe—,
+ * así que se añaden para no perderlas al abrir el formulario.
+ */
+const timeOptions = computed(() =>
+    [...new Set([...TIMES, startsAtTime.value, endsAtTime.value])].sort(),
+);
+
+const duration = computed(() => {
+    const start = toDate(form.starts_at);
+    const end = toDate(form.ends_at);
+
+    if (!start || !end) return '';
+
+    if (form.all_day) {
+        const days = Math.round((end - start) / 86400000) + 1;
+
+        return days === 1 ? 'Un día completo' : `${days} días completos`;
+    }
+
+    const minutes = Math.round((end - start) / 60000);
+
+    if (minutes <= 0) return 'El fin debe ser posterior al inicio';
+
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+
+    return [hours ? `${hours} h` : null, rest ? `${rest} min` : null].filter(Boolean).join(' ');
+});
+
+/**
+ * Marcar «todo el día» descarta la hora; desmarcarlo repone una razonable.
+ * Va en el evento del checkbox y no en un watch para que llenar el formulario
+ * con un evento existente no lo dispare.
  */
 function toggleAllDay(allDay) {
-    form.all_day = allDay;
+    const from = dayOf(form.starts_at);
+    const to = dayOf(form.ends_at);
 
-    if (allDay) {
-        form.starts_at = form.starts_at.slice(0, 10);
-        form.ends_at = form.ends_at.slice(0, 10);
-    } else {
-        form.starts_at = `${form.starts_at.slice(0, 10)}T09:00`;
-        form.ends_at = `${form.ends_at.slice(0, 10)}T10:00`;
-    }
+    form.all_day = allDay;
+    form.starts_at = allDay ? from : `${from}T09:00`;
+    form.ends_at = allDay ? to : `${to}T10:00`;
 }
 
 function blank() {
@@ -186,17 +309,61 @@ function submit() {
 
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div class="grid gap-1.5">
-                        <Label for="starts_at">Inicio</Label>
-                        <Input id="starts_at" v-model="form.starts_at" :type="dateType" required />
+                        <Label for="starts_on">Inicio</Label>
+                        <div class="flex gap-2">
+                            <Input id="starts_on" v-model="startsOn" type="date" required class="flex-1" />
+                            <!-- `appearance-none` mata la flecha del plugin de forms, que trae
+                                 su propio color y espaciado y desentona con el resto -->
+                            <div v-if="!form.all_day" class="relative shrink-0">
+                                <select
+                                    v-model="startsAtTime"
+                                    aria-label="Hora de inicio"
+                                    :class="TIME_SELECT"
+                                >
+                                    <option
+                                        v-for="time in timeOptions"
+                                        :key="time"
+                                        :value="time"
+                                        class="bg-popover text-popover-foreground"
+                                    >
+                                        {{ time }}
+                                    </option>
+                                </select>
+                                <ChevronDown
+                                    class="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                                />
+                            </div>
+                        </div>
                         <InputError :message="form.errors.starts_at" />
                     </div>
 
                     <div class="grid gap-1.5">
-                        <Label for="ends_at">Fin</Label>
-                        <Input id="ends_at" v-model="form.ends_at" :type="dateType" required />
+                        <Label for="ends_on">Fin</Label>
+                        <div class="flex gap-2">
+                            <Input id="ends_on" v-model="endsOn" type="date" required class="flex-1" />
+                            <div v-if="!form.all_day" class="relative shrink-0">
+                                <select v-model="endsAtTime" aria-label="Hora de fin" :class="TIME_SELECT">
+                                    <option
+                                        v-for="time in timeOptions"
+                                        :key="time"
+                                        :value="time"
+                                        class="bg-popover text-popover-foreground"
+                                    >
+                                        {{ time }}
+                                    </option>
+                                </select>
+                                <ChevronDown
+                                    class="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                                />
+                            </div>
+                        </div>
                         <InputError :message="form.errors.ends_at" />
                     </div>
                 </div>
+
+                <p v-if="duration" class="-mt-2 text-xs text-muted-foreground">
+                    Duración: {{ duration }}
+                </p>
 
                 <div class="grid gap-1.5">
                     <Label for="location">
@@ -219,6 +386,7 @@ function submit() {
                     />
                     <InputError :message="form.errors.description" />
                 </div>
+
             </form>
 
             <DialogFooter>

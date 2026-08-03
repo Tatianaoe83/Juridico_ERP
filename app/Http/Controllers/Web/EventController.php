@@ -90,7 +90,10 @@ class EventController extends Controller
         $account = $request->user()->microsoftAccount;
 
         try {
-            $event = $this->graph->createEvent($account, $request->event());
+            $event = $this->graph->createEvent(
+                $account,
+                $this->withSharedGuests($account, $request->event(), $request->boolean('invite_shared', true)),
+            );
         } catch (Throwable $e) {
             return $this->failed($e);
         }
@@ -109,7 +112,11 @@ class EventController extends Controller
             // Se lee antes del PATCH para poder contar qué cambió: después ya
             // no hay forma de saber cómo estaba.
             $previous = $this->graph->findEvent($account, $eventId);
-            $event = $this->graph->updateEvent($account, $eventId, $request->event());
+            $event = $this->graph->updateEvent(
+                $account,
+                $eventId,
+                $this->withSharedGuests($account, $request->event(), $request->boolean('invite_shared', true)),
+            );
         } catch (Throwable $e) {
             return $this->failed($e);
         }
@@ -165,6 +172,51 @@ class EventController extends Controller
 
         // El calendario cachea por rango; sin esto el cambio no se ve.
         $account->bumpCalendarVersion();
+    }
+
+    /**
+     * Suma a los invitados del evento a quienes tienen acceso al calendario.
+     *
+     * Con eso Outlook les manda invitación, actualización y cancelación de
+     * forma nativa, y el evento les aparece en su agenda propia con RSVP.
+     *
+     * Va activo por defecto —incluso si la petición no trae el campo— porque
+     * los avisos nativos son ahora el canal principal. Se puede desmarcar por
+     * evento cuando sea informativo y no amerite pedir confirmación.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function withSharedGuests(MicrosoftAccount $account, array $data, bool $invite): array
+    {
+        if (! $invite) {
+            return $data;
+        }
+
+        try {
+            $shared = $this->graph->calendarPermissions($account);
+        } catch (Throwable $e) {
+            // Se crea el evento igual, solo que sin los compartidos.
+            report($e);
+
+            return $data;
+        }
+
+        $emails = collect($shared)
+            ->pluck('email')
+            ->filter()
+            ->map(fn (string $email) => mb_strtolower($email))
+            ->filter(fn (string $email) => (bool) filter_var($email, FILTER_VALIDATE_EMAIL))
+            // El organizador no puede figurar como invitado de su propio evento.
+            ->reject(fn (string $email) => $email === mb_strtolower($account->email));
+
+        $data['attendees'] = collect($data['attendees'] ?? [])
+            ->merge($emails)
+            ->unique()
+            ->values()
+            ->all();
+
+        return $data;
     }
 
     /**

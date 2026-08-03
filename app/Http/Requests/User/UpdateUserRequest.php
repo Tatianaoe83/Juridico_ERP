@@ -8,9 +8,10 @@ use Illuminate\Validation\Rules\Password;
 
 class UpdateUserRequest extends FormRequest
 {
+    /** Mismo motivo que en el alta: si no, la validación se adelanta al 403. */
     public function authorize(): bool
     {
-        return true;
+        return $this->user()?->can('update', $this->route('user')) ?? false;
     }
 
     /**

@@ -17,6 +17,7 @@ import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { usePermissions } from '@/composables/usePermissions';
 import { useSwal } from '@/composables/useSwal';
 
 const props = defineProps({
@@ -36,9 +37,10 @@ const props = defineProps({
     loadError: { type: String, default: null },
 });
 
-const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Eventos' }];
+const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Compartir' }];
 
 const { confirmDelete } = useSwal();
+const { can } = usePermissions();
 
 /* ---------- Alta y edición ---------- */
 
@@ -152,7 +154,7 @@ function roleLabel(role) {
 </script>
 
 <template>
-    <Head title="Eventos" />
+    <Head title="Compartir" />
 
     <AppShell :breadcrumbs="breadcrumbs">
         <div class="mb-5 flex items-center gap-3">
@@ -160,9 +162,9 @@ function roleLabel(role) {
                 <CalendarCheck class="size-5" />
             </span>
             <div>
-                <h1 class="text-2xl font-semibold tracking-tight">Eventos</h1>
+                <h1 class="text-2xl font-semibold tracking-tight"> Compartir</h1>
                 <p class="text-sm text-muted-foreground">
-                    Se crean directo en tu calendario de Outlook · {{ timezone }}
+                    Se crean directo en tu calendario de Outlook 
                 </p>
             </div>
         </div>
@@ -273,12 +275,11 @@ function roleLabel(role) {
                 </ul>
             </section>
 
-            <!-- Compartido con -->
+            <!-- Compartir -->
             <section class="rounded-xl border bg-card p-5 lg:order-1 lg:col-span-2 ">
-                <h2 class="font-medium">Compartido con</h2>
                 <p class="mb-4 mt-1 text-sm text-muted-foreground">
-                    Outlook mantiene esta lista. A quien agregues le llega una invitación para
-                    añadir el calendario, y desde ahí ve los cambios sin que la app haga nada.
+                El calendario que ves aquí está sincronizado con Outlook. Al agregar a alguien, 
+                 le llega una invitación y los cambios se reflejan en ambos lados automáticamente.
                 </p>
 
                 <!-- Sin calendario dedicado, compartir expondría la agenda personal -->
@@ -293,7 +294,7 @@ function roleLabel(role) {
                 </p>
 
                 <template v-else>
-                    <form class="flex flex-wrap items-end gap-3" @submit.prevent="submitShare">
+                    <form v-if="can('calendar.share')" class="flex flex-wrap items-end gap-3" @submit.prevent="submitShare">
                         <div class="grid min-w-56 flex-1 gap-1.5">
                             <Label for="share_email">Correo</Label>
                             <Input
@@ -350,7 +351,7 @@ function roleLabel(role) {
                                 {{ roleLabel(permission.role) }}
                             </span>
                             <button
-                                v-if="permission.removable"
+                                v-if="permission.removable && can('calendar.share')"
                                 type="button"
                                 class="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                                 :aria-label="`Revocar acceso de ${permission.email}`"
