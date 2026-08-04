@@ -39,7 +39,7 @@ const props = defineProps({
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Compartir' }];
 
-const { confirmDelete } = useSwal();
+const { confirmDelete, blocks } = useSwal();
 const { can } = usePermissions();
 
 /* ---------- Alta y edición ---------- */
@@ -60,9 +60,27 @@ function refresh() {
 }
 
 async function destroy(event) {
+    const invited = guests(event).length;
+
     const ok = await confirmDelete({
         title: '¿Eliminar evento?',
-        text: `"${event.title}" se borra de tu calendario de Outlook. Si tiene invitados, se les manda la cancelación.`,
+        html: blocks.stack(
+            blocks.lead(
+                `<span class="font-medium">${event.title}</span><br>` +
+                    `<span class="text-muted-foreground">${dayLabel(event.start)} · ${timeLabel(event)}</span>`,
+            ),
+            blocks.panel({
+                label: 'Se pierde',
+                tone: 'danger',
+                items: [
+                    'El evento desaparece de tu calendario de Outlook',
+                    invited
+                        ? `Los ${invited} invitados reciben la cancelación`
+                        : 'Nadie recibe aviso: el evento no tiene invitados',
+                ],
+            }),
+            blocks.note('No se puede deshacer desde aquí.'),
+        ),
     });
 
     if (!ok) return;
@@ -136,7 +154,18 @@ function submitShare() {
 async function unshare(permission) {
     const ok = await confirmDelete({
         title: '¿Revocar acceso?',
-        text: `${permission.email} deja de ver este calendario.`,
+        html: blocks.stack(
+            blocks.lead(`<span class="font-medium">${permission.email}</span>`),
+            blocks.panel({
+                label: 'Se pierde',
+                tone: 'danger',
+                items: [
+                    'Deja de ver este calendario y sus eventos',
+                    'Desaparece de su Outlook al siguiente refresco',
+                ],
+            }),
+            blocks.note('Puedes volver a compartirlo cuando quieras.'),
+        ),
         confirmText: 'Revocar',
     });
 

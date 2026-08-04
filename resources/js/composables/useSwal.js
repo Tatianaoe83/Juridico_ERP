@@ -75,6 +75,50 @@ const destructive = Swal.mixin(
     }),
 );
 
+/**
+ * Piezas para armar el cuerpo de un modal.
+ *
+ * Existen para que los tres diálogos de la app compartan estructura: cuando
+ * cada llamada escribía su propio markup, uno acababa con tarjetas, otro con
+ * un párrafo suelto y otro con listas, y se notaba que eran de distinta mano.
+ */
+const blocks = {
+    /** Frase de arriba: qué va a pasar, en una línea. */
+    lead: (html) => `<p class="mb-3 text-center text-sm text-foreground">${html}</p>`,
+
+    /** Valor literal — un rol, un permiso, un correo. */
+    chip: (text) =>
+        `<code class="rounded border bg-muted px-1.5 py-0.5 font-mono text-[0.7rem] text-foreground">${text}</code>`,
+
+    /** Separador entre el estado anterior y el nuevo. */
+    arrow: () => '<span class="mx-1.5 text-muted-foreground">→</span>',
+
+    /**
+     * Tarjeta con etiqueta y viñetas. `tone: 'danger'` para lo que se pierde,
+     * y sin tono para lo que se conserva o para una nota informativa.
+     */
+    panel: ({ label, items, tone = 'muted' }) => {
+        const danger = tone === 'danger';
+
+        return `
+            <div class="rounded-lg border ${danger ? 'border-destructive/30 bg-destructive/5' : 'bg-muted/30'} px-3.5 py-3 text-left">
+                <p class="mb-1.5 text-[0.7rem] font-semibold uppercase tracking-wider ${danger ? 'text-destructive' : 'text-muted-foreground'}">
+                    ${label}
+                </p>
+                <ul class="list-disc space-y-1 pl-4 text-sm text-foreground ${danger ? 'marker:text-destructive/50' : 'marker:text-muted-foreground/50'}">
+                    ${items.map((item) => `<li>${item}</li>`).join('')}
+                </ul>
+            </div>
+        `;
+    },
+
+    /** Aclaración final, más pequeña y centrada. */
+    note: (html) => `<p class="mt-3.5 text-center text-xs text-muted-foreground">${html}</p>`,
+
+    /** Une bloques descartando los vacíos, para poder condicionar alguno. */
+    stack: (...parts) => `<div class="flex flex-col gap-2.5">${parts.filter(Boolean).join('')}</div>`,
+};
+
 export function useSwal() {
     /**
      * Confirmación destructiva. Resuelve a true solo si el usuario acepta.
@@ -118,5 +162,5 @@ export function useSwal() {
         return isConfirmed;
     }
 
-    return { confirmDelete, confirm };
+    return { confirmDelete, confirm, blocks };
 }

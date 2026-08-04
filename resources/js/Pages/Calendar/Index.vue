@@ -33,7 +33,7 @@ const props = defineProps({
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Calendario' }];
 
-const { confirmDelete } = useSwal();
+const { confirmDelete, blocks } = useSwal();
 const { can } = usePermissions();
 
 /* ---------- Alta y edición ---------- */
@@ -226,9 +226,27 @@ function move(months) {
  * versión del caché, así que el evento ya no vuelve en la siguiente lectura.
  */
 async function destroy(event) {
+    const invited = guests(event).length;
+
     const ok = await confirmDelete({
         title: '¿Eliminar evento?',
-        text: `"${event.title}" se borra de tu calendario de Outlook. Si tiene invitados, se les manda la cancelación.`,
+        html: blocks.stack(
+            blocks.lead(
+                `<span class="font-medium">${event.title}</span><br>` +
+                    `<span class="text-muted-foreground">${longDayLabel(event.start)} · ${timeLabel(event)}</span>`,
+            ),
+            blocks.panel({
+                label: 'Se pierde',
+                tone: 'danger',
+                items: [
+                    'El evento desaparece de tu calendario de Outlook',
+                    invited
+                        ? `Los ${invited} invitados reciben la cancelación`
+                        : 'Nadie recibe aviso: el evento no tiene invitados',
+                ],
+            }),
+            blocks.note('No se puede deshacer desde aquí.'),
+        ),
     });
 
     if (!ok) return;
@@ -245,39 +263,25 @@ async function disconnect() {
     const ok = await confirmDelete({
         title: '¿Desvincular cuenta?',
         // Se detalla qué sobrevive: sin eso la gente asume que borra su agenda.
-        // Dos tarjetas contrastadas en vez de dos listas seguidas, que se leían
-        // como una sola y obligaban a fijarse en el encabezado para separarlas.
-        html: `
-            <p class="mb-4 text-center text-sm text-muted-foreground">
-                Se desconecta <span class="font-medium text-foreground">${props.connection.email}</span>
-            </p>
-
-            <div class="flex flex-col gap-2.5 text-left">
-                <div class="rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-3">
-                    <p class="mb-1.5 text-[0.7rem] font-semibold uppercase tracking-wider text-destructive">
-                        Se pierde
-                    </p>
-                    <ul class="list-disc space-y-1 pl-4 text-sm text-foreground marker:text-destructive/50">
-                        <li>El acceso guardado a tu cuenta de Microsoft</li>
-                        <li>La vista del calendario y el alta de eventos, hasta reconectar</li>
-                    </ul>
-                </div>
-
-                <div class="rounded-lg border bg-muted/30 px-3.5 py-3">
-                    <p class="mb-1.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
-                        No se toca
-                    </p>
-                    <ul class="list-disc space-y-1 pl-4 text-sm text-foreground marker:text-muted-foreground/50">
-                        <li>Tus eventos, que siguen en Outlook</li>
-                        <li>El calendario y con quién está compartido</li>
-                    </ul>
-                </div>
-            </div>
-
-            <p class="mt-3.5 text-center text-xs text-muted-foreground">
-                Al reconectar se recupera todo, incluida la lista de compartidos.
-            </p>
-        `,
+        html: blocks.stack(
+            blocks.lead(`Se desconecta <span class="font-medium">${props.connection.email}</span>`),
+            blocks.panel({
+                label: 'Se pierde',
+                tone: 'danger',
+                items: [
+                    'El acceso guardado a tu cuenta de Microsoft',
+                    'La vista del calendario y el alta de eventos, hasta reconectar',
+                ],
+            }),
+            blocks.panel({
+                label: 'No se toca',
+                items: [
+                    'Tus eventos, que siguen en Outlook',
+                    'El calendario y con quién está compartido',
+                ],
+            }),
+            blocks.note('Al reconectar se recupera todo, incluida la lista de compartidos.'),
+        ),
         confirmText: 'Desvincular',
     });
 

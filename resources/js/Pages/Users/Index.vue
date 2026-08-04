@@ -4,6 +4,7 @@ import { Search, ShieldCheck, Users } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import { Input } from '@/components/ui/input';
+import { useSwal } from '@/composables/useSwal';
 
 const props = defineProps({
     users: { type: Object, required: true },
@@ -15,6 +16,8 @@ const props = defineProps({
 });
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Usuarios' }];
+
+const { confirm, confirmDelete, blocks } = useSwal();
 
 /* ---------- Búsqueda ---------- */
 
@@ -40,13 +43,64 @@ watch(search, (value) => {
 
 const saving = ref(null);
 
-function changeRole(user, role) {
+/**
+ * @param select  El propio <select>: si se cancela hay que devolverlo al rol
+ *                anterior. El navegador ya cambió lo que muestra, y como la
+ *                página no se recarga se quedaría mintiendo.
+ */
+async function changeRole(user, role, select) {
+    const current = user.roles[0] ?? 'sin rol';
+
     if (role === user.roles[0]) return;
+
+    // Promover a superadmin concede acceso total y salta toda comprobación:
+    // merece el aviso rojo, no el neutro.
+    const promoting = role === 'superadmin';
+
+    const ask = promoting ? confirmDelete : confirm;
+
+    const { lead, chip, arrow, panel, note, stack } = blocks;
+
+    const ok = await ask({
+        title: promoting ? '¿Conceder acceso total?' : '¿Cambiar el rol?',
+        html: stack(
+            lead(
+                `<span class="font-medium">${user.name}</span><br>` +
+                    `<span class="mt-1.5 inline-block">${chip(current)}${arrow()}${chip(role)}</span>`,
+            ),
+            promoting
+                ? panel({
+                    label: 'Qué implica',
+                    tone: 'danger',
+                    items: [
+                        'Salta toda comprobación de permisos',
+                        'Puede repartir roles, incluido el tuyo',
+                        'Puede eliminar cualquier cuenta menos la propia',
+                    ],
+                })
+                : panel({
+                    label: 'Qué cambia',
+                    items: [
+                        `Su menú y sus permisos pasan a los de <b>${role}</b>`,
+                        'Aplica de inmediato; si tiene sesión abierta, al recargar',
+                    ],
+                }),
+            note('Puedes revertirlo desde esta misma pantalla.'),
+        ),
+        confirmText: promoting ? 'Conceder' : 'Cambiar rol',
+    });
+
+    if (!ok) {
+        select.value = user.roles[0] ?? '';
+
+        return;
+    }
 
     saving.value = user.id;
 
     router.patch(`/usuarios/${user.id}/rol`, { role }, {
         preserveScroll: true,
+        onError: () => (select.value = user.roles[0] ?? ''),
         onFinish: () => (saving.value = null),
     });
 }
@@ -161,7 +215,7 @@ function joined(iso) {
                                     class="h-8 rounded-lg border border-input bg-transparent bg-none px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 dark:bg-input/30"
                                     :disabled="saving === user.id"
                                     :value="user.roles[0] ?? ''"
-                                    @change="changeRole(user, $event.target.value)"
+                                    @change="changeRole(user, $event.target.value, $event.target)"
                                 >
                                     <option
                                         v-for="role in roles"
