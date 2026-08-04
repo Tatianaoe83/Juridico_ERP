@@ -62,8 +62,7 @@ const people = (n) => (n === 1 ? '1 persona' : `${n} personas`);
                     v-if="role.unrestricted"
                     class="mt-auto rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground"
                 >
-                    Sin permisos marcados. Los salta desde el Gate, así que hereda cualquiera que se
-                    agregue después.
+                    Sin permisos marcados.
                 </p>
 
                 <template v-else>
@@ -73,7 +72,7 @@ const people = (n) => (n === 1 ? '1 persona' : `${n} personas`);
                             :key="permission"
                             class="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.65rem] text-muted-foreground"
                         >
-                            {{ permission }}
+                       
                         </span>
                         <span v-if="!role.permissions.length" class="text-xs text-muted-foreground">
                             Sin permisos. Nadie con este rol puede hacer nada.
