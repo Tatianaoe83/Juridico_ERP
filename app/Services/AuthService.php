@@ -5,9 +5,13 @@ namespace App\Services;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Role;
 
 class AuthService
 {
+    /** Rol con el que nace toda cuenta nueva. */
+    public const DEFAULT_ROLE = 'user';
+
     /**
      * Create a new user account.
      *
@@ -15,7 +19,15 @@ class AuthService
      */
     public function register(array $data): User
     {
-        return User::create($data);
+        $user = User::create($data);
+
+        // Sin rol la cuenta entra pero choca con un 403 en la primera pantalla:
+        // todas las rutas van detrás de `can:`.
+        if (Role::where('name', self::DEFAULT_ROLE)->where('guard_name', 'web')->exists()) {
+            $user->syncRoles(self::DEFAULT_ROLE);
+        }
+
+        return $user;
     }
 
     /**

@@ -7,7 +7,10 @@ use App\Http\Requests\Calendar\DeleteEventRequest;
 use App\Http\Requests\Calendar\StoreEventRequest;
 use App\Http\Requests\Calendar\UpdateEventRequest;
 use App\Models\MicrosoftAccount;
+use App\Models\User;
 use App\Notifications\CalendarEventNotification;
+use App\Services\Calendar\CalendarAccess;
+use App\Services\Calendar\CalendarView;
 use App\Services\Microsoft\MicrosoftGraph;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
@@ -26,21 +29,26 @@ class EventController extends Controller
     /** Ventana de la lista de próximos eventos, en días. */
     private const UPCOMING_DAYS = 30;
 
-    public function __construct(private readonly MicrosoftGraph $graph) {}
+    /** Prefijo de la línea que atribuye el evento a quien lo creó desde la app. */
+    private const AUTHOR_MARK = '— Registrado desde SGTI por ';
+
+    public function __construct(
+        private readonly MicrosoftGraph $graph,
+        private readonly CalendarAccess $access,
+    ) {}
 
     public function index(Request $request): Response
     {
-        $account = $request->user()->microsoftAccount;
-        $canWrite = (bool) $account?->canWriteCalendar();
+        $view = $this->access->resolve($request->user(), $request->integer('calendario') ?: null);
+        $account = $view?->account;
+        $canWrite = (bool) $view?->canWrite();
 
         $upcoming = [];
         $loadError = null;
         $editing = null;
         $sharedWith = [];
 
-        // Sin permiso de escritura no tiene sentido leer: la página solo va a
-        // pedir que reconecte la cuenta.
-        if ($canWrite) {
+        if ($view) {
             try {
                 $upcoming = $this->graph->calendarView(
                     $account,
@@ -54,10 +62,16 @@ class EventController extends Controller
 
             // Quiénes tienen acceso al calendario. Falla en silencio: no poder
             // leer los permisos no debe tumbar la página de eventos.
-            try {
-                $sharedWith = $this->graph->calendarPermissions($account);
-            } catch (Throwable $e) {
-                report($e);
+            if ($view->canShare()) {
+                try {
+                    $sharedWith = $this->graph->calendarPermissions($account);
+
+                    // Outlook manda: si alguien revocó un acceso desde ahí, la
+                    // copia local se entera en esta visita.
+                    $this->access->reconcile($account, $sharedWith);
+                } catch (Throwable $e) {
+                    report($e);
+                }
             }
 
             // ?event= llega desde el botón de editar del calendario. Se busca
@@ -73,8 +87,16 @@ class EventController extends Controller
         }
 
         return Inertia::render('Events/Index', [
-            'connected' => (bool) $account,
+            'connected' => (bool) $view,
             'canWrite' => $canWrite,
+            'canShare' => (bool) $view?->canShare(),
+            'calendar' => $view?->toArray(),
+            'calendars' => $this->access->available($request->user())
+                ->map(fn (CalendarView $option) => [
+                    'owner_id' => $option->ownerId,
+                    'owner_name' => $option->ownerName,
+                    'own' => $option->own(),
+                ])->all(),
             'timezone' => config('app.timezone'),
             'upcoming' => $upcoming,
             'editing' => $editing,
@@ -87,25 +109,31 @@ class EventController extends Controller
 
     public function store(StoreEventRequest $request): RedirectResponse
     {
-        $account = $request->user()->microsoftAccount;
+        $view = $this->view($request);
+        $account = $view->account;
 
         try {
             $event = $this->graph->createEvent(
                 $account,
-                $this->withSharedGuests($account, $request->event(), $request->boolean('invite_shared', true)),
+                $this->withSharedGuests(
+                    $account,
+                    $this->stamp($view, $request->user(), $request->event()),
+                    $request->boolean('invite_shared', true),
+                ),
             );
         } catch (Throwable $e) {
             return $this->failed($e);
         }
 
-        $this->announce($account, CalendarEventNotification::CREATED, $event);
+        $this->announce($account, CalendarEventNotification::CREATED, $event, actor: $request->user()->email);
 
         return back()->with('success', 'Evento creado. Te llegó un correo de confirmación.');
     }
 
     public function update(UpdateEventRequest $request): RedirectResponse
     {
-        $account = $request->user()->microsoftAccount;
+        $view = $this->view($request);
+        $account = $view->account;
         $eventId = $request->string('event_id')->value();
 
         try {
@@ -115,20 +143,24 @@ class EventController extends Controller
             $event = $this->graph->updateEvent(
                 $account,
                 $eventId,
-                $this->withSharedGuests($account, $request->event(), $request->boolean('invite_shared', true)),
+                $this->withSharedGuests(
+                    $account,
+                    $this->stamp($view, $request->user(), $request->event()),
+                    $request->boolean('invite_shared', true),
+                ),
             );
         } catch (Throwable $e) {
             return $this->failed($e);
         }
 
-        $this->announce($account, CalendarEventNotification::UPDATED, $event, $previous);
+        $this->announce($account, CalendarEventNotification::UPDATED, $event, $previous, $request->user()->email);
 
         return back()->with('success', 'Evento actualizado. Te llegó un correo de confirmación.');
     }
 
     public function destroy(DeleteEventRequest $request): RedirectResponse
     {
-        $account = $request->user()->microsoftAccount;
+        $account = $this->view($request)->account;
         $eventId = $request->string('event_id')->value();
 
         try {
@@ -139,9 +171,46 @@ class EventController extends Controller
             return $this->failed($e);
         }
 
-        $this->announce($account, CalendarEventNotification::DELETED, $event);
+        $this->announce($account, CalendarEventNotification::DELETED, $event, actor: $request->user()->email);
 
         return back()->with('success', 'Evento eliminado. Te llegó un correo de confirmación.');
+    }
+
+    /**
+     * El calendario sobre el que se actúa. Los FormRequest ya comprobaron que
+     * existe y que permite escribir, así que aquí no puede ser nulo.
+     */
+    private function view(Request $request): CalendarView
+    {
+        return $this->access->resolve($request->user(), $request->integer('calendario') ?: null);
+    }
+
+    /**
+     * Deja constancia de quién lo hizo cuando no es el dueño del calendario.
+     *
+     * Los eventos se escriben con el token del dueño, así que para Outlook él
+     * es el organizador de todo. Sin esta línea no habría forma de saber que lo
+     * creó otra persona desde la app.
+     *
+     * Idempotente: quita la marca anterior antes de poner la suya, para que
+     * editar varias veces no acumule líneas.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function stamp(CalendarView $view, User $actor, array $data): array
+    {
+        $description = collect(explode("\n", (string) ($data['description'] ?? '')))
+            ->reject(fn (string $line) => str_starts_with(trim($line), self::AUTHOR_MARK))
+            ->join("\n");
+
+        if (! $view->own()) {
+            $description = trim($description)."\n\n".self::AUTHOR_MARK."{$actor->name} ({$actor->email})";
+        }
+
+        $data['description'] = trim($description) ?: null;
+
+        return $data;
     }
 
     /**
@@ -150,14 +219,21 @@ class EventController extends Controller
      *
      * @param  array<string, mixed>  $event
      * @param  array<string, mixed>|null  $previous  Cómo estaba antes de editarlo.
+     * @param  string|null  $actor  Quién hizo el cambio, si no es el dueño.
      */
     private function announce(
         MicrosoftAccount $account,
         string $action,
         array $event,
         ?array $previous = null,
+        ?string $actor = null,
     ): void {
-        $recipients = [mb_strtolower($account->email), ...$this->sharedAudience($account, $event)];
+        $recipients = [
+            mb_strtolower($account->email),
+            // Quien actúa sobre un calendario ajeno también quiere su acuse.
+            ...($actor ? [mb_strtolower($actor)] : []),
+            ...$this->sharedAudience($account, $event),
+        ];
 
         foreach (array_unique($recipients) as $email) {
             // Un fallo de correo no debe deshacer un cambio que Outlook ya

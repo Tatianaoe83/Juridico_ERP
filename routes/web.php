@@ -75,9 +75,22 @@ Route::middleware('auth')->group(function () {
     // Administración de usuarios. La Policy afina por registro: quién puede
     // tocar a quién no lo resuelve un permiso suelto.
     Route::get('/usuarios', [UserController::class, 'index'])->name('users.index');
+    Route::post('/usuarios', [UserController::class, 'store'])
+        ->middleware('can:users.create')
+        ->name('users.store');
     Route::patch('/usuarios/{user}/rol', [UserController::class, 'updateRole'])
         ->middleware('can:roles.manage')
         ->name('users.role');
+
+    /*
+     * Ficha, edición y baja. No llevan `can:` en la ruta: quién puede tocar a
+     * quién depende del registro (un admin no toca a un superadmin, nadie se
+     * borra a sí mismo), y eso solo lo sabe la Policy con el usuario delante.
+     */
+    Route::get('/usuarios/{user}', [UserController::class, 'show'])->name('users.show');
+    Route::get('/usuarios/{user}/editar', [UserController::class, 'edit'])->name('users.edit');
+    Route::patch('/usuarios/{user}', [UserController::class, 'update'])->name('users.update');
+    Route::delete('/usuarios/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
     // Roles y permisos. Redefinir qué puede un rol es lo más sensible de la
     // app: quien lo controla puede concederse cualquier otra cosa.

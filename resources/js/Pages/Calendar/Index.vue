@@ -13,6 +13,7 @@ import {
     RefreshCw,
     Trash2,
     Unlink,
+    Users,
     X,
 } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -24,14 +25,24 @@ import { usePermissions } from '@/composables/usePermissions';
 import { useSwal } from '@/composables/useSwal';
 
 const props = defineProps({
-    /** null cuando el usuario aún no vincula su cuenta de Microsoft. */
+    /**
+     * Calendario que se está viendo: el propio o uno compartido. null solo
+     * cuando no hay ninguno al alcance.
+     */
     connection: { type: Object, default: null },
+    /** Todos a los que tiene acceso, para el selector. */
+    calendars: { type: Array, default: () => [] },
     /** 'delegated' = cada quien conecta la suya · 'application' = la app lee el buzón */
     mode: { type: String, default: 'delegated' },
     timezone: { type: String, default: 'UTC' },
 });
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Calendario' }];
+
+/** Recarga la página con el calendario elegido; el servidor resuelve el resto. */
+function switchCalendar(ownerId) {
+    router.get('/calendario', { calendario: ownerId }, { preserveScroll: true });
+}
 
 const { confirmDelete, blocks } = useSwal();
 const { can } = usePermissions();
@@ -207,6 +218,9 @@ async function load(fresh = false) {
                 start: days.value[0].key,
                 end: days.value.at(-1).key,
                 ...(fresh ? { fresh: 1 } : {}),
+                // Sin esto el servidor resolvería el primero de la lista y el
+                // selector no cambiaría nada.
+                ...(props.connection?.owner_id ? { calendario: props.connection.owner_id } : {}),
             },
         });
         events.value = data.data;
@@ -252,7 +266,7 @@ async function destroy(event) {
     if (!ok) return;
 
     router.delete('/eventos', {
-        data: { event_id: event.id },
+        data: { event_id: event.id, ...(props.connection ? { calendario: props.connection.owner_id } : {}) },
         preserveScroll: true,
         preserveState: true,
         onSuccess: () => load(true),
@@ -310,17 +324,49 @@ onMounted(() => load());
                 </div>
 
                 <!-- Cuenta registrada -->
-                <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                <div class="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
                     <p v-if="connection">
                         <span class="text-muted-foreground">Correo principal:</span>
                         <span class="ml-1 font-medium">{{ connection.email }}</span>
                     </p>
                     <p v-else class="text-muted-foreground">Conecta tu cuenta para ver tu agenda</p>
+
+                    <!-- Un calendario ajeno se lee con el token de su dueño: hay
+                         que decir de quién es y qué se puede hacer en él -->
+                    <span
+                        v-if="connection && !connection.own"
+                        class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground"
+                    >
+                        <Users class="size-3.5" />
+                        Compartido por {{ connection.owner_name }}
+                        <span class="font-mono text-[0.65rem] uppercase">· {{ connection.role }}</span>
+                    </span>
+                </div>
+
+                <!-- Selector: solo estorba cuando hay uno solo -->
+                <div v-if="calendars.length > 1" class="flex items-center gap-2 text-sm">
+                    <label for="calendario" class="text-muted-foreground">Ver:</label>
+                    <select
+                        id="calendario"
+                        class="h-8 rounded-lg border border-input bg-transparent bg-none px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                        :value="connection?.owner_id"
+                        @change="switchCalendar($event.target.value)"
+                    >
+                        <option
+                            v-for="option in calendars"
+                            :key="option.owner_id"
+                            :value="option.owner_id"
+                            class="bg-popover text-popover-foreground"
+                        >
+                            {{ option.own ? 'Mi calendario' : option.owner_name }}
+                        </option>
+                    </select>
                 </div>
             </div>
 
             <div v-if="connection" class="flex items-center gap-2">
-                <Button v-if="can('events.create')" size="sm" @click="create">
+                <!-- En un calendario ajeno solo se escribe con rol `write` -->
+                <Button v-if="can('events.create') && connection.can_write" size="sm" @click="create">
                     <CalendarPlus class="size-4" />
                     Nuevo evento
                 </Button>
@@ -328,7 +374,13 @@ onMounted(() => load());
                     <RefreshCw class="size-4" :class="loading && 'animate-spin'" />
                     Actualizar
                 </Button>
-                <Button v-if="mode === 'delegated' && can('calendar.link')" variant="outline" size="sm" @click="disconnect">
+                <!-- Desvincular es del dueño: un invitado no desconecta nada -->
+                <Button
+                    v-if="mode === 'delegated' && can('calendar.link') && connection.own"
+                    variant="outline"
+                    size="sm"
+                    @click="disconnect"
+                >
                     <Unlink class="size-4" />
                     Desvincular
                 </Button>
@@ -581,7 +633,12 @@ onMounted(() => load());
                 Última sincronización: {{ new Date(connection.synced_at).toLocaleString('es-MX') }}
             </p>
 
-            <EventFormDialog v-model:open="dialogOpen" :event="dialogEvent" @saved="load(true)" />
+            <EventFormDialog
+                v-model:open="dialogOpen"
+                :event="dialogEvent"
+                :calendar="connection?.owner_id"
+                @saved="load(true)"
+            />
         </template>
     </AppShell>
 </template>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Services\Calendar\CalendarAccess;
 use App\Services\Microsoft\MicrosoftGraph;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +20,10 @@ class CalendarEventController extends Controller
      */
     private const CACHE_MINUTES = 2;
 
-    public function __construct(private readonly MicrosoftGraph $graph) {}
+    public function __construct(
+        private readonly MicrosoftGraph $graph,
+        private readonly CalendarAccess $access,
+    ) {}
 
     /** GET /calendario/eventos?start=&end= — eventos de Outlook del rango visible. */
     public function __invoke(Request $request): JsonResponse
@@ -30,16 +34,19 @@ class CalendarEventController extends Controller
             // El botón Actualizar lo manda: los cambios hechos desde Outlook no
             // pasan por la app, así que nada invalida el caché por su cuenta.
             'fresh' => ['sometimes', 'boolean'],
+            // Qué calendario se está viendo, cuando hay varios compartidos.
+            'calendario' => ['sometimes', 'integer'],
         ]);
 
         $from = Carbon::parse($data['start'])->startOfDay();
         $to = Carbon::parse($data['end'])->endOfDay();
         $application = config('services.microsoft.mode') === 'application';
 
-        $account = $request->user()->microsoftAccount;
+        // El propio o uno compartido; en ambos casos se lee con el token del dueño.
+        $view = $this->access->resolve($request->user(), $request->integer('calendario') ?: null);
+        $account = $view?->account;
 
-        // Sin Calendars.Read la vinculación existe pero no sirve para leer eventos.
-        if (! $application && ! $account?->canReadCalendar()) {
+        if (! $application && ! $account) {
             return response()->json(['message' => 'Sin cuenta de Outlook conectada.'], 409);
         }
 

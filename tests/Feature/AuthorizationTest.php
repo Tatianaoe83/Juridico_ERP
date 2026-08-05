@@ -144,17 +144,111 @@ class AuthorizationTest extends TestCase
 
     public function test_volver_a_sembrar_no_degrada_a_quien_fue_promovido(): void
     {
-        $this->seed(\Database\Seeders\DatabaseSeeder::class);
+        $this->seed(DatabaseSeeder::class);
 
         $admin = User::where('email', 'admin@example.com')->firstOrFail();
         $admin->syncRoles('superadmin');
 
-        $this->seed(\Database\Seeders\DatabaseSeeder::class);
+        $this->seed(DatabaseSeeder::class);
 
         $this->assertTrue(
             $admin->fresh()->hasRole('superadmin'),
             'El seeder volvió a pisar el rol asignado desde la interfaz.',
         );
+    }
+
+    public function test_volver_a_sembrar_no_revierte_la_matriz_de_permisos(): void
+    {
+        // Lo configurado desde /permisos manda: si el seeder lo pisara, cada
+        // despliegue desharía en silencio el trabajo del administrador.
+        $admin = Role::findByName('admin');
+
+        $admin->givePermissionTo('users.delete');
+        $admin->revokePermissionTo('users.create');
+
+        $this->seed(RoleSeeder::class);
+
+        $admin = $admin->fresh();
+
+        $this->assertTrue($admin->hasPermissionTo('users.delete'), 'El seeder revocó un permiso concedido a mano.');
+        $this->assertFalse($admin->hasPermissionTo('users.create'), 'El seeder repuso un permiso retirado a mano.');
+    }
+
+    public function test_nadie_edita_los_permisos_de_su_propio_rol(): void
+    {
+        // `roles.manage` sirve para repartir capacidades, no para concedérselas:
+        // sin esta barandilla, un admin entra a la matriz y se enciende lo que
+        // le falte.
+        Role::findByName('admin')->givePermissionTo('roles.manage');
+
+        $admin = $this->withRole('admin');
+
+        $this->actingAs($admin)
+            ->patch('/permisos', ['role' => 'admin', 'permission' => 'users.delete', 'granted' => true])
+            ->assertStatus(422);
+
+        $this->assertFalse(Role::findByName('admin')->fresh()->hasPermissionTo('users.delete'));
+    }
+
+    public function test_no_se_puede_retirar_un_permiso_base(): void
+    {
+        // Sin `calendar.view` ese rol entra y choca con un 403 en la pantalla
+        // inicial, sin menú y sin forma de salir.
+        $this->actingAs($this->withRole('superadmin'))
+            ->patch('/permisos', ['role' => 'user', 'permission' => 'calendar.view', 'granted' => false])
+            ->assertStatus(422);
+
+        $this->assertTrue(Role::findByName('user')->fresh()->hasPermissionTo('calendar.view'));
+    }
+
+    public function test_crear_usuarios_no_permite_repartir_roles(): void
+    {
+        // `users.create` autoriza a dar de alta. Sin `roles.manage`, el rol que
+        // venga en el formulario se ignora.
+        $this->actingAs($this->withRole('admin'))
+            ->post('/usuarios', [
+                'name' => 'Colado',
+                'email' => 'colado@proser.com.mx',
+                'password' => 'Str0ng!Passw0rd#2026',
+                'roles' => ['superadmin'],
+            ])
+            ->assertRedirect();
+
+        $creado = User::where('email', 'colado@proser.com.mx')->firstOrFail();
+
+        $this->assertFalse($creado->hasRole('superadmin'));
+        $this->assertTrue($creado->hasRole('user'));
+    }
+
+    public function test_la_ficha_y_la_edicion_web_respetan_la_policy(): void
+    {
+        $admin = $this->withRole('admin');
+        $super = $this->withRole('superadmin');
+        $otro = $this->withRole('user');
+
+        // El admin administra cuentas, pero no las de quien está por encima.
+        $this->actingAs($admin)->get("/usuarios/{$otro->id}")->assertOk();
+        $this->actingAs($admin)->get("/usuarios/{$otro->id}/editar")->assertOk();
+        $this->actingAs($admin)->get("/usuarios/{$super->id}/editar")->assertForbidden();
+
+        // Borrar no está en su rol; el superadmin sí puede.
+        $this->actingAs($admin)->delete("/usuarios/{$otro->id}")->assertForbidden();
+        $this->actingAs($super)->delete("/usuarios/{$otro->id}")->assertRedirect();
+
+        $this->assertDatabaseMissing('users', ['id' => $otro->id]);
+    }
+
+    public function test_nadie_cambia_su_propio_rol_desde_la_edicion_web(): void
+    {
+        $super = $this->withRole('superadmin');
+
+        // Degradarse dejaría al sistema sin quien administre, y Gate::before
+        // deja pasar al superadmin: la barandilla va en el controlador.
+        $this->actingAs($super)
+            ->patch("/usuarios/{$super->id}", ['name' => 'Yo mismo', 'roles' => ['user']])
+            ->assertStatus(422);
+
+        $this->assertTrue($super->fresh()->hasRole('superadmin'));
     }
 
     public function test_solo_roles_manage_cambia_el_rol_de_alguien(): void

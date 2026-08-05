@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, useForm } from '@inertiajs/vue3';
 import AuthSplitLayout from '@/Layouts/AuthSplitLayout.vue';
 import AuthCheckbox from '@/components/auth/AuthCheckbox.vue';
 import AuthField from '@/components/auth/AuthField.vue';
@@ -70,11 +70,6 @@ function submit() {
 
             <AuthSubmit :loading="form.processing" loading-label="Entrando…">Entrar</AuthSubmit>
         </form>
-
-        <p class="foot">
-            ¿No tienes cuenta?
-            <Link href="/register">Solicita una</Link>
-        </p>
     </AuthSplitLayout>
 </template>
 
@@ -159,19 +154,5 @@ function submit() {
     flex-direction: column;
     gap: 1.4rem;
     margin-top: 1.75rem;
-}
-
-.foot {
-    margin-top: 1.75rem;
-    font-size: 0.85rem;
-    color: #5d6b76;
-}
-
-.foot a {
-    color: #14181c;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    text-decoration-color: #ffb320;
-    text-decoration-thickness: 2px;
 }
 </style>

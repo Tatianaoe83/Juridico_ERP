@@ -29,18 +29,23 @@ const LIFT = 'motion-safe:hover:!-translate-y-px active:!translate-y-0 active:!d
  * que un customClass parcial borra el resto y el popup se queda sin estilos.
  */
 function theme({ confirmButton, icon }) {
+    const backdrop = document.documentElement.classList.contains('dark')
+        ? 'rgba(16, 18, 24, 0.72)'
+        : 'rgba(9, 11, 14, 0.55)';
+
+    const popup =
+        '!rounded-[28px] !border-0 !bg-[#111115] !text-foreground !shadow-2xl !ring-1 !ring-white/10';
+
     return {
         buttonsStyling: false,
         reverseButtons: true,
         focusCancel: true,
-        // Más oscuro y frío que el negro plano de la librería; el desenfoque
-        // del contenedor hace el resto.
-        backdrop: 'rgba(9, 11, 14, 0.55)',
+        backdrop,
         customClass: {
-            container: '!backdrop-blur-[3px]',
+            backdrop: '!backdrop-blur-xl',
             // Anillo en lugar de borde: se apoya en el color sin dibujar una
             // línea dura, y la sombra grande es la que separa del fondo.
-            popup: '!rounded-2xl !border-0 !bg-card !text-foreground !shadow-2xl !ring-1 !ring-border/70',
+            popup,
             // Solo el color: el grosor del anillo lo define SweetAlert2 en em,
             // proporcional al tamaño del icono, y tocarlo lo descuadra.
             icon: icon,

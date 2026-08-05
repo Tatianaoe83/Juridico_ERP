@@ -4,6 +4,7 @@ namespace App\Services\Microsoft;
 
 use App\Models\MicrosoftAccount;
 use App\Models\User;
+use App\Services\AuthService;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
@@ -72,8 +73,8 @@ class MicrosoftIdentity
         // Microsoft ya verificó el correo, no hace falta repetirlo.
         $user->forceFill(['email_verified_at' => now()])->save();
 
-        if (Role::where('name', 'user')->where('guard_name', 'web')->exists()) {
-            $user->syncRoles('user');
+        if (Role::where('name', AuthService::DEFAULT_ROLE)->where('guard_name', 'web')->exists()) {
+            $user->syncRoles(AuthService::DEFAULT_ROLE);
         }
 
         return $user;

@@ -66,18 +66,44 @@ class RoleSeeder extends Seeder
         ],
     ];
 
+    /**
+     * Siembra los valores por defecto sin pisar lo que se haya configurado.
+     *
+     * `syncPermissions()` reemplazaba la lista completa, así que cada despliegue
+     * revertía en silencio todo lo ajustado desde la matriz de /permisos. Aquí
+     * solo se conceden permisos en dos casos:
+     *
+     *  - el rol acaba de nacer, así que no hay nada que respetar;
+     *  - el permiso acaba de nacer, así que nadie ha decidido aún sobre él.
+     *
+     * Nunca se revoca: quitar un permiso es siempre una decisión de la interfaz.
+     */
     public function run(): void
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
+        $fresh = [];
+
         foreach (self::PERMISSIONS as $permission) {
-            Permission::findOrCreate($permission, 'web');
+            $model = Permission::findOrCreate($permission, 'web');
+
+            if ($model->wasRecentlyCreated) {
+                $fresh[] = $permission;
+            }
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         foreach (self::ROLES as $role => $permissions) {
-            Role::findOrCreate($role, 'web')->syncPermissions($permissions);
+            $model = Role::findOrCreate($role, 'web');
+
+            $grant = $model->wasRecentlyCreated
+                ? $permissions
+                : array_intersect($permissions, $fresh);
+
+            if ($grant) {
+                $model->givePermissionTo($grant);
+            }
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

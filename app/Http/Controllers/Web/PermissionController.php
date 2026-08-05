@@ -28,6 +28,15 @@ class PermissionController extends Controller
         'events' => 'Eventos',
     ];
 
+    /**
+     * Permisos que ningún rol puede perder.
+     *
+     * `/dashboard` redirige a `/calendario`, que exige `calendar.view`. Apagarlo
+     * deja a esa gente entrando a un 403 sin menú y sin forma de salir, y quien
+     * lo apagó puede no ser de los afectados, así que nadie se entera.
+     */
+    private const LOCKED = ['calendar.view'];
+
     public function index(): Response
     {
         // Mismo orden que la pantalla de roles, resuelto en PHP: FIELD() es de
@@ -46,14 +55,20 @@ class PermissionController extends Controller
             ])
             ->values();
 
+        // Los roles que uno mismo tiene no se pueden editar: se marcan para que
+        // la interfaz los muestre bloqueados en lugar de dejar intentarlo.
+        $own = request()->user()->roles->pluck('name');
+
         return Inertia::render('Permissions/Index', [
             'groups' => $groups,
+            'locked' => self::LOCKED,
             'roles' => $roles->map(fn (Role $role) => [
                 'name' => $role->name,
                 'permissions' => $role->permissions->pluck('name'),
                 // Sin casillas: pasa todo por Gate::before. Marcárselas sería
                 // peor, porque un permiso nuevo lo dejaría fuera.
                 'unrestricted' => $role->name === 'superadmin',
+                'own' => $own->contains($role->name),
             ]),
         ]);
     }
@@ -73,6 +88,24 @@ class PermissionController extends Controller
             $role->name === 'superadmin',
             422,
             'El superadmin no usa permisos: pasa por el Gate y marcárselos no cambiaría nada.',
+        );
+
+        /*
+         * Editar el rol propio es escalada de privilegios: `roles.manage` sirve
+         * para repartir capacidades, no para concedérselas. Sin esto, un admin
+         * entra aquí y se enciende cualquier permiso que le falte.
+         */
+        abort_if(
+            $request->user()->hasRole($role->name),
+            422,
+            'No puedes cambiar los permisos de tu propio rol. Pídeselo a un superadmin.',
+        );
+
+        // Quitar un permiso base deja a ese rol sin la pantalla de entrada.
+        abort_if(
+            ! $data['granted'] && in_array($data['permission'], self::LOCKED, true),
+            422,
+            "{$data['permission']} es un permiso base: sin él, ese rol no puede abrir ninguna pantalla.",
         );
 
         $data['granted']

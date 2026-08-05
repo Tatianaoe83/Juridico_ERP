@@ -2,15 +2,23 @@
 
 namespace App\Http\Requests\Calendar;
 
+use App\Services\Calendar\CalendarAccess;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 class StoreEventRequest extends FormRequest
 {
+    /**
+     * Escribe quien sea dueño del calendario o tenga rol `write` sobre uno
+     * compartido. No basta con `microsoftAccount`: un invitado puede no haber
+     * vinculado ninguna cuenta y aun así poder crear eventos.
+     */
     public function authorize(): bool
     {
-        return (bool) $this->user()?->microsoftAccount?->canWriteCalendar();
+        return (bool) app(CalendarAccess::class)
+            ->resolve($this->user(), $this->integer('calendario') ?: null)
+            ?->canWrite();
     }
 
     /**

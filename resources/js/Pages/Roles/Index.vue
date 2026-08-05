@@ -4,7 +4,7 @@ import { KeyRound, ShieldCheck, Users } from 'lucide-vue-next';
 import AppShell from '@/Layouts/AppShell.vue';
 
 defineProps({
-    /** [{ name, description, users_count, permissions_count, permissions, unrestricted }] */
+    /** [{ name, description, summary, users_count, permissions_count, permissions, unrestricted }] */
     roles: { type: Array, required: true },
 });
 
@@ -57,6 +57,12 @@ const people = (n) => (n === 1 ? '1 persona' : `${n} personas`);
                     {{ role.description }}
                 </p>
 
+                <!-- Derivado de sus permisos de hoy, no de un texto fijo: la matriz
+                     de /permisos puede haberlos cambiado desde el seeder -->
+                <p v-if="role.summary" class="text-sm leading-relaxed text-foreground">
+                    {{ role.summary }}
+                </p>
+
                 <!-- El superadmin no tiene permisos que listar: los salta en el Gate -->
                 <p
                     v-if="role.unrestricted"
@@ -72,7 +78,7 @@ const people = (n) => (n === 1 ? '1 persona' : `${n} personas`);
                             :key="permission"
                             class="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.65rem] text-muted-foreground"
                         >
-                       
+                            {{ permission }}
                         </span>
                         <span v-if="!role.permissions.length" class="text-xs text-muted-foreground">
                             Sin permisos. Nadie con este rol puede hacer nada.

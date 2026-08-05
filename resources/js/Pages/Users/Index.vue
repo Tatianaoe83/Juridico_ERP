@@ -1,10 +1,22 @@
 <script setup>
-import { Head, router } from '@inertiajs/vue3';
-import { Search, ShieldCheck, Users } from 'lucide-vue-next';
+import { Head, Link, router } from '@inertiajs/vue3';
+import {
+    ChevronLeft,
+    ChevronRight,
+    Eye,
+    Pencil,
+    Search,
+    ShieldCheck,
+    Trash2,
+    UserPlus,
+    Users,
+} from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
+import UserFormDialog from '@/components/app/UserFormDialog.vue';
 import { Input } from '@/components/ui/input';
 import { useSwal } from '@/composables/useSwal';
+import Button from '@/components/ui/button/Button.vue';
 
 const props = defineProps({
     users: { type: Object, required: true },
@@ -13,7 +25,19 @@ const props = defineProps({
     roles: { type: Array, default: () => [] },
     /** Cambiar roles es más sensible que editar: solo `roles.manage`. */
     canManageRoles: { type: Boolean, default: false },
+    canCreateUsers: { type: Boolean, default: false },
 });
+
+/** Diálogo de alta. */
+const creating = ref(false);
+
+/** La búsqueda vigente viaja con la página: sin esto, pasar de página la pierde. */
+function goTo(page) {
+    router.get('/usuarios', { ...(search.value ? { search: search.value } : {}), page }, {
+        preserveState: true,
+        preserveScroll: true,
+    });
+}
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Usuarios' }];
 
@@ -105,6 +129,37 @@ async function changeRole(user, role, select) {
     });
 }
 
+/* ---------- Baja ---------- */
+
+async function remove(user) {
+    const { lead, chip, panel, note, stack } = blocks;
+
+    const ok = await confirmDelete({
+        title: '¿Eliminar esta cuenta?',
+        html: stack(
+            lead(
+                `<span class="font-medium">${user.name}</span><br>` +
+                    `<span class="mt-1.5 inline-block">${chip(user.email)}</span>`,
+            ),
+            panel({
+                label: 'Qué se pierde',
+                tone: 'danger',
+                items: [
+                    'La cuenta y su acceso al sistema',
+                    'Sus tokens de API y la vinculación con Microsoft',
+                    'No se puede deshacer',
+                ],
+            }),
+            note('Sus eventos siguen en Outlook: esto solo borra la cuenta de esta app.'),
+        ),
+        confirmText: 'Eliminar cuenta',
+    });
+
+    if (!ok) return;
+
+    router.delete(`/usuarios/${user.id}`, { preserveScroll: true });
+}
+
 /** El superadmin no lleva permisos marcados: los salta con Gate::before. */
 const TONE = {
     superadmin: 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400',
@@ -144,10 +199,15 @@ function joined(iso) {
                     </p>
                 </div>
             </div>
-
-            <div class="relative w-full max-w-64">
-                <Search class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input v-model="search" class="pl-8" placeholder="Buscar por nombre o correo" />
+            <div class="flex w-full items-center gap-2 sm:w-auto">
+                <div class="relative w-full max-w-64">
+                    <Search class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input v-model="search" class="pl-8" placeholder="Buscar por nombre o correo" />
+                </div>
+                <Button v-if="canCreateUsers" class="shrink-0 gap-1.5" @click="creating = true">
+                    <UserPlus class="size-4" />
+                    Nuevo usuario
+                </Button>
             </div>
         </div>
 
@@ -167,7 +227,9 @@ function joined(iso) {
                             <th class="px-4 py-2.5 text-left font-medium">Persona</th>
                             <th class="px-4 py-2.5 text-left font-medium">Rol</th>
                             <th class="hidden px-4 py-2.5 text-left font-medium sm:table-cell">Alta</th>
-                            <th v-if="canManageRoles" class="px-4 py-2.5 text-right font-medium">Cambiar rol</th>
+                            <!-- `w-px` encoge la columna a su contenido: sin esto la
+                                 tabla la estira y los iconos quedan lejísimos -->
+                            <th class="w-px whitespace-nowrap px-4 py-2.5 text-right font-medium">Acciones</th>
                         </tr>
                     </thead>
 
@@ -204,33 +266,49 @@ function joined(iso) {
                                 {{ joined(user.created_at) }}
                             </td>
 
-                            <td v-if="canManageRoles" class="px-4 py-3 text-right">
-                                <!-- Cambiarse el rol a uno mismo dejaría al sistema sin
-                                     quien administre; el servidor también lo rechaza -->
-                                <span v-if="user.is_self" class="text-xs text-muted-foreground">
-                                    No puedes cambiar tu rol
-                                </span>
-                                <select
-                                    v-else
-                                    class="h-8 rounded-lg border border-input bg-transparent bg-none px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 dark:bg-input/30"
-                                    :disabled="saving === user.id"
-                                    :value="user.roles[0] ?? ''"
-                                    @change="changeRole(user, $event.target.value, $event.target)"
-                                >
-                                    <option
-                                        v-for="role in roles"
-                                        :key="role"
-                                        :value="role"
-                                        class="bg-popover text-popover-foreground"
+                            
+
+                            <td class="w-px whitespace-nowrap px-4 py-3">
+                                <!-- Solo icono: el nombre de la acción va en `title` y en
+                                     `sr-only`, para que siga anunciándose en lectores -->
+                                <div class="flex items-center justify-end gap-0.5">
+                                    <Button variant="ghost" size="icon-sm" title="Ver ficha" as-child>
+                                        <Link :href="`/usuarios/${user.id}`">
+                                            <Eye class="size-4" />
+                                            <span class="sr-only">Ver ficha de {{ user.name }}</span>
+                                        </Link>
+                                    </Button>
+
+                                    <Button
+                                        v-if="user.can.update"
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        title="Editar"
+                                        as-child
                                     >
-                                        {{ role }}
-                                    </option>
-                                </select>
+                                        <Link :href="`/usuarios/${user.id}/editar`">
+                                            <Pencil class="size-4" />
+                                            <span class="sr-only">Editar a {{ user.name }}</span>
+                                        </Link>
+                                    </Button>
+
+                                    <Button
+                                        v-if="user.can.delete"
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        title="Eliminar"
+                                        class="text-destructive hover:text-destructive"
+                                        @click="remove(user)"
+                                    >
+                                        <Trash2 class="size-4" />
+                                        <span class="sr-only">Eliminar a {{ user.name }}</span>
+                                    </Button>
+                                </div>
                             </td>
                         </tr>
 
                         <tr v-if="!users.data.length">
-                            <td colspan="4" class="px-4 py-12 text-center text-sm text-muted-foreground">
+                            <td :colspan="canManageRoles ? 5 : 4" class="px-4 py-12 text-center text-sm text-muted-foreground">
                                 Ninguna cuenta coincide con la búsqueda.
                             </td>
                         </tr>
@@ -239,8 +317,41 @@ function joined(iso) {
             </div>
         </div>
 
-        <p v-if="users.meta.last_page > 1" class="mt-3 text-xs text-muted-foreground">
-            Página {{ users.meta.current_page }} de {{ users.meta.last_page }}
-        </p>
+        <div v-if="users.meta.last_page > 1" class="mt-3 flex items-center justify-between gap-4">
+            <p class="text-xs text-muted-foreground">
+                Página {{ users.meta.current_page }} de {{ users.meta.last_page }}
+                · {{ users.meta.total }} cuentas
+            </p>
+
+            <div class="flex items-center gap-2">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    class="gap-1"
+                    :disabled="users.meta.current_page <= 1"
+                    @click="goTo(users.meta.current_page - 1)"
+                >
+                    <ChevronLeft class="size-4" />
+                    Anterior
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    class="gap-1"
+                    :disabled="users.meta.current_page >= users.meta.last_page"
+                    @click="goTo(users.meta.current_page + 1)"
+                >
+                    Siguiente
+                    <ChevronRight class="size-4" />
+                </Button>
+            </div>
+        </div>
+
+        <UserFormDialog
+            v-if="canCreateUsers"
+            v-model:open="creating"
+            :roles="roles"
+            :can-manage-roles="canManageRoles"
+        />
     </AppShell>
 </template>

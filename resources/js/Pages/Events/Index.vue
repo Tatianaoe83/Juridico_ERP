@@ -21,10 +21,14 @@ import { usePermissions } from '@/composables/usePermissions';
 import { useSwal } from '@/composables/useSwal';
 
 const props = defineProps({
-    /** Hay cuenta de Microsoft vinculada. */
+    /** Hay un calendario al alcance: el propio o uno compartido. */
     connected: { type: Boolean, default: false },
-    /** La vinculación incluye Calendars.ReadWrite. */
+    /** Dueño, o invitado con rol `write` sobre un calendario ajeno. */
     canWrite: { type: Boolean, default: false },
+    /** Solo el dueño reparte accesos. */
+    canShare: { type: Boolean, default: false },
+    /** El calendario que se está viendo, con su dueño y rol. */
+    calendar: { type: Object, default: null },
     timezone: { type: String, default: 'UTC' },
     /** Próximos 30 días, tal como los devuelve Graph. */
     upcoming: { type: Array, default: () => [] },
@@ -86,7 +90,7 @@ async function destroy(event) {
     if (!ok) return;
 
     router.delete('/eventos', {
-        data: { event_id: event.id },
+        data: { event_id: event.id, ...(props.calendar ? { calendario: props.calendar.owner_id } : {}) },
         preserveScroll: true,
     });
 }
@@ -216,7 +220,21 @@ function roleLabel(role) {
             </a>
         </div>
 
-        <!-- Vinculada, pero sin permiso de escritura -->
+        <!-- Invitado de solo lectura: no tiene cuenta que reconectar -->
+        <div
+            v-else-if="!canWrite && calendar && !calendar.own"
+            class="grid place-content-center gap-2 rounded-xl border border-dashed bg-card p-16 text-center"
+        >
+            <CalendarPlus class="mx-auto size-8 text-muted-foreground" />
+            <p class="font-medium">Solo puedes consultar este calendario</p>
+            <p class="max-w-md text-sm text-muted-foreground">
+                <span class="font-medium text-foreground">{{ calendar.owner_name }}</span> te dio
+                acceso de lectura. Para crear eventos necesitas que te suba a
+                <code class="rounded bg-muted px-1 py-0.5 text-xs">Editar eventos</code>.
+            </p>
+        </div>
+
+        <!-- Cuenta propia vinculada, pero sin permiso de escritura -->
         <div
             v-else-if="!canWrite"
             class="grid place-content-center gap-2 rounded-xl border border-dashed bg-card p-16 text-center"
@@ -322,6 +340,16 @@ function roleLabel(role) {
                     y pon el id en <code class="rounded bg-muted px-1 py-0.5 text-xs">MS_CALENDAR_ID</code>.
                 </p>
 
+                <!-- Repartir accesos es del dueño: un invitado no re-comparte -->
+                <p
+                    v-else-if="!canShare"
+                    class="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground"
+                >
+                    Este calendario es de
+                    <span class="font-medium text-foreground">{{ calendar?.owner_name }}</span>.
+                    Solo quien lo posee puede dar o quitar accesos.
+                </p>
+
                 <template v-else>
                     <form v-if="can('calendar.share')" class="flex flex-wrap items-end gap-3" @submit.prevent="submitShare">
                         <div class="grid min-w-56 flex-1 gap-1.5">
@@ -395,7 +423,12 @@ function roleLabel(role) {
                 </template>
             </section>
 
-            <EventFormDialog v-model:open="dialogOpen" :event="dialogEvent" @saved="refresh" />
+            <EventFormDialog
+                v-model:open="dialogOpen"
+                :event="dialogEvent"
+                :calendar="calendar?.owner_id"
+                @saved="refresh"
+            />
         </div>
     </AppShell>
 </template>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\CalendarShare;
 use App\Services\Microsoft\MicrosoftGraph;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
@@ -18,16 +19,13 @@ use Throwable;
  */
 class CalendarShareController extends Controller
 {
-    /** Roles de Graph que tienen sentido para un calendario de eventos. */
-    private const ROLES = ['freeBusyRead', 'limitedRead', 'read', 'write'];
-
     public function __construct(private readonly MicrosoftGraph $graph) {}
 
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
             'email' => ['required', 'email'],
-            'role' => ['required', Rule::in(self::ROLES)],
+            'role' => ['required', Rule::in(CalendarShare::ROLES)],
         ]);
 
         $account = $request->user()->microsoftAccount;
@@ -36,11 +34,23 @@ class CalendarShareController extends Controller
             return back()->with('error', 'Reconecta tu cuenta para poder compartir el calendario.');
         }
 
+        $email = mb_strtolower($data['email']);
+
         try {
-            $this->graph->shareCalendar($account, mb_strtolower($data['email']), $data['role']);
+            $permission = $this->graph->shareCalendar($account, $email, $data['role']);
         } catch (Throwable $e) {
             return $this->failed($e, $data['email']);
         }
+
+        /*
+         * Copia local del acceso. Es lo que permite que al invitado le aparezca
+         * el calendario dentro de la app: sin esto tendría que vincular su
+         * propia cuenta de Microsoft y acabaría con un calendario aparte.
+         */
+        CalendarShare::updateOrCreate(
+            ['microsoft_account_id' => $account->id, 'email' => $email],
+            ['role' => $data['role'], 'permission_id' => $permission['id'] ?? null],
+        );
 
         return back()->with('success', "Calendario compartido con {$data['email']}.");
     }
@@ -62,6 +72,10 @@ class CalendarShareController extends Controller
         } catch (Throwable $e) {
             return $this->failed($e);
         }
+
+        CalendarShare::where('microsoft_account_id', $account->id)
+            ->where('permission_id', $data['permission_id'])
+            ->delete();
 
         return back()->with('success', 'Acceso revocado.');
     }

@@ -6,6 +6,7 @@ use App\Models\MicrosoftAccount;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 /**
  * Llamadas a Microsoft Graph.
@@ -127,10 +128,24 @@ class MicrosoftGraph
                 'emailAddress' => ['address' => $email, 'name' => $email],
                 'role' => $role,
                 'isRemovable' => true,
-                'isInsideOrganization' => false,
+                'isInsideOrganization' => $this->sameOrganization($account, $email),
             ])
             ->throw()
             ->json();
+    }
+
+    /**
+     * Si el invitado es del mismo tenant.
+     *
+     * Estaba fijo en `false`, y con eso Exchange trataba a un compañero del
+     * propio dominio como externo: los niveles intermedios de acceso se
+     * rechazan con un 400 para alguien de fuera.
+     */
+    private function sameOrganization(MicrosoftAccount $account, string $email): bool
+    {
+        $domain = fn (string $address) => Str::lower(Str::after($address, '@'));
+
+        return $domain($email) === $domain($account->email);
     }
 
     /** Revoca el acceso. Al que se lo quitas deja de ver el calendario. */

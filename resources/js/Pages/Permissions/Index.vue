@@ -1,14 +1,16 @@
 <script setup>
 import { Head, router } from '@inertiajs/vue3';
-import { Info, KeyRound } from 'lucide-vue-next';
+import { Check, Info, KeyRound, Lock } from 'lucide-vue-next';
 import { ref } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 
 const props = defineProps({
     /** [{ area, permissions: [] }] — agrupado por prefijo del permiso. */
     groups: { type: Array, required: true },
-    /** [{ name, permissions: [], unrestricted }] */
+    /** [{ name, permissions: [], unrestricted, own }] */
     roles: { type: Array, required: true },
+    /** Permisos que ningún rol puede perder. */
+    locked: { type: Array, default: () => [] },
 });
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Permisos' }];
@@ -26,6 +28,23 @@ const granted = ref(
 const saving = ref(null);
 
 const has = (role, permission) => granted.value[role]?.has(permission) ?? false;
+
+/**
+ * Un interruptor se bloquea por dos motivos distintos, y conviene distinguirlos
+ * en el aviso: el rol propio no se toca nunca, y un permiso base solo se puede
+ * conceder, no retirar.
+ */
+function lockReason(role, permission) {
+    if (role.own) {
+        return 'Es tu propio rol: concederte permisos aquí sería saltarte el control.';
+    }
+
+    if (props.locked.includes(permission) && has(role.name, permission)) {
+        return 'Permiso base: sin él, ese rol no puede abrir ninguna pantalla.';
+    }
+
+    return null;
+}
 
 function toggle(role, permission) {
     const set = granted.value[role];
@@ -66,43 +85,37 @@ const TONE = {
             </div>
         </div>
 
-        <div class="mb-3 flex max-w-3xl items-start gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs">
+        <div class="mb-3  flex max-w-3xl items-start gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs">
             <Info class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
             <p class="text-muted-foreground">
-                Los cambios aplican de inmediato a todas las personas con ese rol. El
-                <span class="font-medium text-foreground">superadmin</span> no lleva casillas: pasa
-                por el Gate y hereda cualquier permiso que se agregue después.
+                Los cambios se aplican de inmediato a todas las personas con ese rol.
             </p>
         </div>
 
-        <div class="max-w-3xl overflow-hidden rounded-xl border bg-card">
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead>
-                        <tr class="border-b bg-muted/40 text-xs text-muted-foreground">
-                            <th class="px-3 py-2 text-left font-medium">Permiso</th>
-                            <th
-                                v-for="role in roles"
-                                :key="role.name"
-                                class="w-24 px-2 py-2 text-center font-mono text-[0.6rem] uppercase tracking-wider"
-                                :class="TONE[role.name]"
-                            >
-                                {{ role.name }}
-                            </th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        <template v-for="group in groups" :key="group.area">
-                            <tr class="border-b bg-muted/20">
-                                <td
-                                    :colspan="roles.length + 1"
-                                    class="px-3 py-1 font-mono text-[0.55rem] uppercase tracking-widest text-muted-foreground"
-                                >
+        <!-- Una tarjeta por área en vez de una tabla larga: el encabezado de
+             cada bloque (roles y sus colores) queda cerca de lo que describe,
+             sin tener que subir la vista para recordar qué columna es cuál -->
+        <div class="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+            <section v-for="group in groups" :key="group.area" class="overflow-hidden rounded-xl border bg-card">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b bg-muted/40 text-xs text-muted-foreground">
+                                <th class="px-3 py-2 text-left font-mono font-medium uppercase tracking-widest">
                                     {{ group.area }}
-                                </td>
+                                </th>
+                                <th
+                                    v-for="role in roles"
+                                    :key="role.name"
+                                    class="w-24 px-2 py-2 text-center font-mono text-[0.6rem] uppercase tracking-wider"
+                                    :class="TONE[role.name]"
+                                >
+                                    {{ role.name }}
+                                </th>
                             </tr>
+                        </thead>
 
+                        <tbody>
                             <tr
                                 v-for="permission in group.permissions"
                                 :key="permission"
@@ -119,28 +132,37 @@ const TONE = {
                                         todo
                                     </span>
 
-                                    <button
+                                    <span
+                                        v-else-if="lockReason(role, permission)"
+                                        class="inline-flex items-center gap-1 text-muted-foreground opacity-50"
+                                        :title="lockReason(role, permission)"
+                                    >
+                                        <Lock class="size-3" />
+                                        <span
+                                            class="pointer-events-none inline-flex size-4 items-center justify-center rounded border"
+                                            :class="has(role.name, permission)
+                                                ? 'border-[#459AF7] bg-[#459AF7] text-white'
+                                                : 'border-input'"
+                                        >
+                                            <Check v-if="has(role.name, permission)" class="size-3" stroke-width="3" />
+                                        </span>
+                                    </span>
+
+                                    <input
                                         v-else
-                                        type="button"
-                                        role="switch"
-                                        :aria-checked="has(role.name, permission)"
+                                        type="checkbox"
+                                        :checked="has(role.name, permission)"
                                         :aria-label="`${permission} para ${role.name}`"
                                         :disabled="saving === `${role.name}:${permission}`"
-                                        class="relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors disabled:opacity-50"
-                                        :class="has(role.name, permission) ? 'bg-[#459AF7]' : 'bg-muted-foreground/30'"
-                                        @click="toggle(role.name, permission)"
-                                    >
-                                        <span
-                                            class="size-3.5 rounded-full bg-white shadow transition-transform motion-reduce:transition-none"
-                                            :class="has(role.name, permission) ? 'translate-x-[15px]' : 'translate-x-0.5'"
-                                        />
-                                    </button>
+                                        class="size-4 rounded border-input accent-[#459AF7] disabled:opacity-50"
+                                        @change="toggle(role.name, permission)"
+                                    />
                                 </td>
                             </tr>
-                        </template>
-                    </tbody>
-                </table>
-            </div>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
     </AppShell>
 </template>

@@ -19,6 +19,11 @@ const props = defineProps({
     open: { type: Boolean, default: false },
     /** null = alta · evento de Graph = edición. */
     event: { type: Object, default: null },
+    /**
+     * Dueño del calendario sobre el que se actúa. Sin esto el servidor
+     * resolvería el primero de la lista y el evento caería en otro calendario.
+     */
+    calendar: { type: Number, default: null },
 });
 
 const emit = defineEmits(['update:open', 'saved']);
@@ -275,6 +280,11 @@ function submit() {
             emit('saved');
         },
     };
+
+    form.transform((data) => ({
+        ...data,
+        ...(props.calendar ? { calendario: props.calendar } : {}),
+    }));
 
     editing.value ? form.patch('/eventos', options) : form.post('/eventos', options);
 }
