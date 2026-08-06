@@ -44,7 +44,7 @@ const props = defineProps({
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Compartir' }];
 
-const { confirmDelete, blocks } = useSwal();
+const { confirmDelete, blocks, escape } = useSwal();
 const { can } = usePermissions();
 
 /* ---------- Alta y edición ---------- */
@@ -71,7 +71,7 @@ async function destroy(event) {
         title: '¿Eliminar evento?',
         html: blocks.stack(
             blocks.lead(
-                `<span class="font-medium">${event.title}</span><br>` +
+                `<span class="font-medium">${escape(event.title)}</span><br>` +
                     `<span class="text-muted-foreground">${dayLabel(event.start)} · ${timeLabel(event)}</span>`,
             ),
             blocks.panel({
@@ -160,7 +160,7 @@ async function unshare(permission) {
     const ok = await confirmDelete({
         title: '¿Revocar acceso?',
         html: blocks.stack(
-            blocks.lead(`<span class="font-medium">${permission.email}</span>`),
+            blocks.lead(`<span class="font-medium">${escape(permission.email)}</span>`),
             blocks.panel({
                 label: 'Se pierde',
                 tone: 'danger',
@@ -311,6 +311,7 @@ function roleLabel(role) {
 
                         <div class="mt-1 flex gap-1 opacity-0 transition-opacity group-hover/item:opacity-100 focus-within:opacity-100">
                             <button
+                                v-if="can('events.update')"
                                 type="button"
                                 class="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                                 @click="edit(event)"
@@ -319,6 +320,7 @@ function roleLabel(role) {
                                 Editar
                             </button>
                             <button
+                                v-if="can('events.delete')"
                                 type="button"
                                 class="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                                 @click="destroy(event)"

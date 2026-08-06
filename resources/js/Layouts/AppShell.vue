@@ -57,7 +57,10 @@ const nav = computed(() =>
             group: 'General',
             items: [
                 { href: '/calendario', label: 'Calendario', icon: CalendarDays, permission: 'calendar.view' },
-                { href: '/compartido', label: 'Compartir', icon: CalendarCheck, permission: 'calendar.view' },
+                // Repartir accesos es `calendar.share`, no `calendar.view`: con
+                // el permiso de ver, el rol `user` acababa entrando a una
+                // pantalla que no le toca.
+                { href: '/compartido', label: 'Compartir', icon: CalendarCheck, permission: 'calendar.share' },
             ],
         },
         {

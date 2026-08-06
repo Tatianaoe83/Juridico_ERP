@@ -26,7 +26,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:open', 'created']);
 
-const { confirm, confirmDelete, warn, blocks } = useSwal();
+const { confirm, confirmDelete, warn, blocks, escape } = useSwal();
 
 const DEFAULT_ROLE = 'user';
 
@@ -83,14 +83,6 @@ function close() {
 }
 
 /* ---------- Alta ---------- */
-
-/** El nombre y el correo los teclea una persona; van a HTML sin interpretarse. */
-function escape(value) {
-    return String(value).replace(
-        /[&<>"']/g,
-        (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char],
-    );
-}
 
 /**
  * Sin esto, un doble clic —o el evento de submit disparándose más de una

@@ -30,7 +30,7 @@ const breadcrumbs = [
     { label: props.person.name },
 ];
 
-const { confirmDelete, blocks } = useSwal();
+const { confirmDelete, blocks, escape } = useSwal();
 
 /** Mismos tonos que el listado, para que un rol se reconozca de una pantalla a otra. */
 const TONE = {
@@ -108,8 +108,8 @@ async function remove() {
         title: '¿Eliminar esta cuenta?',
         html: stack(
             lead(
-                `<span class="font-medium">${props.person.name}</span><br>` +
-                    `<span class="mt-1.5 inline-block">${chip(props.person.email)}</span>`,
+                `<span class="font-medium">${escape(props.person.name)}</span><br>` +
+                    `<span class="mt-1.5 inline-block">${chip(escape(props.person.email))}</span>`,
             ),
             panel({
                 label: 'Qué se pierde',

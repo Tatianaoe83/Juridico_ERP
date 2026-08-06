@@ -22,7 +22,7 @@ const breadcrumbs = [
     { label: 'Editar' },
 ];
 
-const { confirm, confirmDelete, warn, blocks } = useSwal();
+const { confirm, confirmDelete, warn, blocks, escape } = useSwal();
 
 const originalRole = props.person.roles[0] ?? '';
 
@@ -56,13 +56,6 @@ function generate() {
 }
 
 /* ---------- Guardado ---------- */
-
-function escape(value) {
-    return String(value).replace(
-        /[&<>"']/g,
-        (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char],
-    );
-}
 
 /** Solo lo que de verdad cambió: un resumen con todo repetido no se lee. */
 const changes = computed(() => {

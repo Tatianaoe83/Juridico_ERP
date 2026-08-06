@@ -45,8 +45,39 @@ function switchCalendar(ownerId) {
     router.get('/calendario', { calendario: ownerId }, { preserveScroll: true });
 }
 
-const { confirmDelete, blocks } = useSwal();
+const { confirmDelete, warn, blocks, escape } = useSwal();
 const { can } = usePermissions();
+
+/**
+ * El permiso del rol no basta: sobre un calendario compartido con rol de solo
+ * lectura Graph no deja escribir, y el FormRequest responde 403. Sin este
+ * aviso el usuario acababa en la pantalla de error sin saber por qué.
+ *
+ * @returns {boolean} true si NO puede escribir, o sea si se avisó.
+ */
+function denyReadOnly() {
+    if (props.connection?.can_write) return false;
+
+    warn({
+        title: 'Este calendario es de solo lectura',
+        html: blocks.stack(
+            blocks.lead(
+                `Lo comparte <span class="font-medium">${escape(props.connection?.owner_name ?? 'otra persona')}</span>`,
+            ),
+            blocks.panel({
+                label: 'Tu acceso',
+                items: [
+                    `Nivel actual: ${blocks.chip(escape(props.connection?.role ?? 'lectura'))}`,
+                    'Puedes ver los eventos y sus detalles',
+                    'No puedes crearlos, editarlos ni eliminarlos',
+                ],
+            }),
+            blocks.note('Pídele que te suba a «Editar eventos» para poder cambiarlos.'),
+        ),
+    });
+
+    return true;
+}
 
 /* ---------- Alta y edición ---------- */
 
@@ -60,6 +91,8 @@ function create() {
 
 /** La rejilla ya trae el evento completo de Graph: no hace falta ir por él. */
 function edit(event) {
+    if (denyReadOnly()) return;
+
     dialogEvent.value = event;
     dialogOpen.value = true;
 }
@@ -276,13 +309,15 @@ function move(months) {
  * versión del caché, así que el evento ya no vuelve en la siguiente lectura.
  */
 async function destroy(event) {
+    if (denyReadOnly()) return;
+
     const invited = guests(event).length;
 
     const ok = await confirmDelete({
         title: '¿Eliminar evento?',
         html: blocks.stack(
             blocks.lead(
-                `<span class="font-medium">${event.title}</span><br>` +
+                `<span class="font-medium">${escape(event.title)}</span><br>` +
                     `<span class="text-muted-foreground">${longDayLabel(event.start)} · ${timeLabel(event)}</span>`,
             ),
             blocks.panel({
@@ -314,7 +349,7 @@ async function disconnect() {
         title: '¿Desvincular cuenta?',
         // Se detalla qué sobrevive: sin eso la gente asume que borra su agenda.
         html: blocks.stack(
-            blocks.lead(`Se desconecta <span class="font-medium">${props.connection.email}</span>`),
+            blocks.lead(`Se desconecta <span class="font-medium">${escape(props.connection.email)}</span>`),
             blocks.panel({
                 label: 'Se pierde',
                 tone: 'danger',

@@ -51,8 +51,10 @@ Route::middleware('auth')->group(function () {
     //
     // No hace falta comprobar de quién es el evento: en modo delegado el token
     // es del propio usuario, así que Graph solo le deja tocar su calendario.
+    // Repartir accesos, no solo verlos: con `calendar.view` cualquier rol que
+    // abre el calendario entraba también aquí.
     Route::get('/compartido', [EventController::class, 'index'])
-        ->middleware('can:calendar.view')
+        ->middleware('can:calendar.share')
         ->name('shared.index');
     Route::post('/eventos', [EventController::class, 'store'])
         ->middleware('can:events.create')

@@ -41,7 +41,7 @@ function goTo(page) {
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Usuarios' }];
 
-const { confirm, confirmDelete, blocks } = useSwal();
+const { confirm, confirmDelete, blocks, escape } = useSwal();
 
 /* ---------- Búsqueda ---------- */
 
@@ -89,8 +89,8 @@ async function changeRole(user, role, select) {
         title: promoting ? '¿Conceder acceso total?' : '¿Cambiar el rol?',
         html: stack(
             lead(
-                `<span class="font-medium">${user.name}</span><br>` +
-                    `<span class="mt-1.5 inline-block">${chip(current)}${arrow()}${chip(role)}</span>`,
+                `<span class="font-medium">${escape(user.name)}</span><br>` +
+                    `<span class="mt-1.5 inline-block">${chip(escape(current))}${arrow()}${chip(escape(role))}</span>`,
             ),
             promoting
                 ? panel({
@@ -105,7 +105,7 @@ async function changeRole(user, role, select) {
                 : panel({
                     label: 'Qué cambia',
                     items: [
-                        `Su menú y sus permisos pasan a los de <b>${role}</b>`,
+                        `Su menú y sus permisos pasan a los de <b>${escape(role)}</b>`,
                         'Aplica de inmediato; si tiene sesión abierta, al recargar',
                     ],
                 }),
@@ -138,8 +138,8 @@ async function remove(user) {
         title: '¿Eliminar esta cuenta?',
         html: stack(
             lead(
-                `<span class="font-medium">${user.name}</span><br>` +
-                    `<span class="mt-1.5 inline-block">${chip(user.email)}</span>`,
+                `<span class="font-medium">${escape(user.name)}</span><br>` +
+                    `<span class="mt-1.5 inline-block">${chip(escape(user.email))}</span>`,
             ),
             panel({
                 label: 'Qué se pierde',

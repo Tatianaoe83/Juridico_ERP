@@ -104,6 +104,22 @@ const destructive = Swal.mixin(
 );
 
 /**
+ * Escapa un valor antes de interpolarlo en el HTML de un modal.
+ *
+ * `blocks` arma markup y SweetAlert2 lo pinta con innerHTML, así que cualquier
+ * dato que no controlemos —el nombre de una cuenta, el título de un evento que
+ * llega de Graph, el correo de un invitado— se ejecutaría como HTML si viaja
+ * tal cual. Vive aquí, junto a los bloques que lo necesitan, para que no vuelva
+ * a haber una copia por página que unas usen y otras olviden.
+ */
+export function escape(value) {
+    return String(value ?? '').replace(
+        /[&<>"']/g,
+        (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char],
+    );
+}
+
+/**
  * Piezas para armar el cuerpo de un modal.
  *
  * Existen para que los tres diálogos de la app compartan estructura: cuando
@@ -207,5 +223,5 @@ export function useSwal() {
         });
     }
 
-    return { confirmDelete, confirm, warn, blocks };
+    return { confirmDelete, confirm, warn, blocks, escape };
 }
