@@ -55,6 +55,44 @@ class CalendarShareController extends Controller
         return back()->with('success', "Calendario compartido con {$data['email']}.");
     }
 
+    /**
+     * Reenvía la invitación de un acceso ya existente.
+     *
+     * Graph no tiene un endpoint para reenviar: crear el mismo permiso de
+     * nuevo choca con un 409. Así que se revoca y se vuelve a crear, que es
+     * lo que dispara el correo nativo de invitación otra vez.
+     */
+    public function resend(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'permission_id' => ['required', 'string'],
+            'email' => ['required', 'email'],
+            'role' => ['required', Rule::in(CalendarShare::ROLES)],
+        ]);
+
+        $account = $request->user()->microsoftAccount;
+
+        if (! $account?->canWriteCalendar()) {
+            return back()->with('error', 'Reconecta tu cuenta para poder compartir el calendario.');
+        }
+
+        $email = mb_strtolower($data['email']);
+
+        try {
+            $this->graph->unshareCalendar($account, $data['permission_id']);
+            $permission = $this->graph->shareCalendar($account, $email, $data['role']);
+        } catch (Throwable $e) {
+            return $this->failed($e, $data['email']);
+        }
+
+        CalendarShare::updateOrCreate(
+            ['microsoft_account_id' => $account->id, 'email' => $email],
+            ['role' => $data['role'], 'permission_id' => $permission['id'] ?? null],
+        );
+
+        return back()->with('success', "Invitación reenviada a {$data['email']}.");
+    }
+
     public function destroy(Request $request): RedirectResponse
     {
         $data = $request->validate([

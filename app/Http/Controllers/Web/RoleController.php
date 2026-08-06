@@ -21,7 +21,7 @@ class RoleController extends Controller
      * alguien tocaba la matriz de /permisos.
      */
     private const PURPOSE = [
-        'superadmin' => 'Acceso total. No lleva permisos marcados: los salta desde el Gate, así que hereda cualquiera que se agregue después.',
+        'superadmin' => 'Acceso total para gestionar todas las funciones del sistema.',
         'admin' => 'Opera el sistema y administra las cuentas del departamento.',
         'user' => 'Cuenta de uso diario, centrada en su propia agenda.',
     ];

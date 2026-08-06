@@ -145,36 +145,14 @@ const nav = computed(() =>
                 </nav>
 
                 <div class="ml-auto flex items-center gap-1">
-                    <Link
-                        href="/calendario"
-                        class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                        aria-label="Calendario"
-                    >
-                        <CalendarDays class="size-4" />
-                    </Link>
-                    <Link
-                        href="/compartido"
-                        class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                        aria-label="Compartir"
-                    >
-                        <CalendarCheck class="size-4" />
-                    </Link>
-
-                    <button
-                        type="button"
-                        class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                        aria-label="Notificaciones"
-                    >
-                        <Bell class="size-4" />
-                    </button>
                     <button
                         type="button"
                         class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                         :aria-label="isDark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'"
                         @click="toggleTheme"
                     >
-                        <Sun v-if="isDark" class="size-4" />
-                        <Moon v-else class="size-4" />
+                        <Sun v-if="isDark" class="size-6" />
+                        <Moon v-else class="size-6" />
                     </button>
                 </div>
             </header>

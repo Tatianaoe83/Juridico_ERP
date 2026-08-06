@@ -7,6 +7,7 @@ import {
     Loader2,
     MapPin,
     Pencil,
+    Send,
     Trash2,
     UserPlus,
 } from 'lucide-vue-next';
@@ -179,6 +180,14 @@ async function unshare(permission) {
         data: { permission_id: permission.id },
         preserveScroll: true,
     });
+}
+
+function resend(permission) {
+    router.post(
+        '/calendario/compartir/reenviar',
+        { permission_id: permission.id, email: permission.email, role: permission.role },
+        { preserveScroll: true },
+    );
 }
 
 function roleLabel(role) {
@@ -407,16 +416,26 @@ function roleLabel(role) {
                             <span class="shrink-0 text-xs text-muted-foreground">
                                 {{ roleLabel(permission.role) }}
                             </span>
-                            <button
-                                v-if="permission.removable && can('calendar.share')"
-                                type="button"
-                                class="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                                :aria-label="`Revocar acceso de ${permission.email}`"
-                                title="Revocar acceso"
-                                @click="unshare(permission)"
-                            >
-                                <Trash2 class="size-3.5" />
-                            </button>
+                            <template v-if="permission.removable && can('calendar.share')">
+                                <button
+                                    type="button"
+                                    class="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                    :aria-label="`Reenviar invitación a ${permission.email}`"
+                                    title="Reenviar invitación"
+                                    @click="resend(permission)"
+                                >
+                                    <Send class="size-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    class="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                                    :aria-label="`Revocar acceso de ${permission.email}`"
+                                    title="Revocar acceso"
+                                    @click="unshare(permission)"
+                                >
+                                    <Trash2 class="size-3.5" />
+                                </button>
+                            </template>
                             <span v-else class="shrink-0 text-xs text-muted-foreground">Propietario</span>
                         </li>
                     </ul>

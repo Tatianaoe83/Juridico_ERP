@@ -11,6 +11,7 @@ import {
     KeyRound,
     Mail,
     Pencil,
+    Share2,
     ShieldCheck,
     Trash2,
     UserRound,
@@ -286,6 +287,44 @@ async function remove() {
                         Entró con Microsoft, pero no concedió lectura del calendario. Falta el
                         consentimiento de <code class="rounded bg-muted px-1 font-mono">Calendars.Read</code>.
                     </p>
+
+                    <!-- Con quién comparte su calendario -->
+                    <div v-if="person.microsoft.shared_with.length" class="mt-1 border-t pt-2.5">
+                        <dt class="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-foreground">
+                            <Share2 class="size-3.5 text-muted-foreground" />
+                            Comparte su calendario con
+                        </dt>
+                        <dd class="flex flex-wrap gap-1.5">
+                            <span
+                                v-for="share in person.microsoft.shared_with"
+                                :key="share.email"
+                                class="inline-flex items-center gap-1 rounded-full border bg-muted/30 px-2.5 py-0.5 text-xs"
+                                :title="`Rol: ${share.role}`"
+                            >
+                                {{ share.email }}
+                            </span>
+                        </dd>
+                    </div>
+                </div>
+
+                <div v-else-if="person.guest_on.length" class="grid gap-2.5 text-sm">
+                    <p class="text-xs text-muted-foreground">Sin cuenta propia. Entra a estos calendarios:</p>
+
+                    <div
+                        v-for="cal in person.guest_on"
+                        :key="cal.owner_email"
+                        class="flex items-start justify-between gap-4 rounded-lg border bg-muted/30 px-3 py-2"
+                    >
+                        <div class="min-w-0">
+                            <p class="truncate font-medium">{{ cal.calendar_name }}</p>
+                            <p class="truncate text-xs text-muted-foreground">
+                                {{ cal.owner_name }} · {{ cal.owner_email }}
+                            </p>
+                        </div>
+                        <span class="shrink-0 self-center rounded-full border px-2 py-0.5 font-mono text-[0.7rem] uppercase text-muted-foreground">
+                            {{ cal.role }}
+                        </span>
+                    </div>
                 </div>
 
                 <p v-else class="text-sm text-muted-foreground">

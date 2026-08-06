@@ -4,6 +4,7 @@ import axios from 'axios';
 import {
     CalendarDays,
     CalendarPlus,
+    CalendarRange,
     ChevronLeft,
     ChevronRight,
     ExternalLink,
@@ -140,6 +141,22 @@ const popStyle = ref({});
 
 const popEvents = computed(() => (popDay.value ? (byDay.value[popDay.value.key] ?? []) : []));
 
+/* ---------- Todos los eventos de la vista ---------- */
+
+const monthPanel = ref(null);
+const monthOpen = ref(false);
+const monthStyle = ref({});
+
+/**
+ * Los días que tienen algo, en orden. Sale de `days` y no de `byDay` para
+ * heredar el orden de la rejilla sin volver a ordenar por fecha.
+ */
+const monthDays = computed(() =>
+    days.value
+        .filter((cell) => (byDay.value[cell.key] ?? []).length)
+        .map((cell) => ({ ...cell, events: byDay.value[cell.key] })),
+);
+
 /**
  * Coloca un panel bajo el elemento, o encima si no cabe. Se mide después de
  * pintar porque el alto depende del contenido: un evento con seis invitados
@@ -184,24 +201,43 @@ function closeDay() {
     popDay.value = null;
 }
 
+function closeMonth() {
+    monthOpen.value = false;
+}
+
+/** Los dos paneles se excluyen: abrir uno cierra al otro. */
+function openMonth(mouseEvent) {
+    hideTip();
+    closeDay();
+
+    monthOpen.value = !monthOpen.value;
+
+    if (monthOpen.value) anchorTo(mouseEvent.currentTarget, monthPanel, monthStyle, 288);
+}
+
+function closeFloating() {
+    closeDay();
+    closeMonth();
+}
+
 function onKeydown(e) {
-    if (e.key === 'Escape') closeDay();
+    if (e.key === 'Escape') closeFloating();
 }
 
 onMounted(() => {
-    document.addEventListener('click', closeDay);
+    document.addEventListener('click', closeFloating);
     document.addEventListener('keydown', onKeydown);
 });
 
 onBeforeUnmount(() => {
-    document.removeEventListener('click', closeDay);
+    document.removeEventListener('click', closeFloating);
     document.removeEventListener('keydown', onKeydown);
 });
 
 // Cambiar de mes o recargar deja los paneles apuntando a nada.
 watch(events, () => {
     hideTip();
-    closeDay();
+    closeFloating();
 });
 
 /** `fresh` salta el caché: es lo que hace útil al botón Actualizar cuando el
@@ -421,6 +457,25 @@ onMounted(() => load());
                 <Button variant="outline" size="sm" @click="cursor = startOfMonth(new Date())">Hoy</Button>
                 <span class="ml-1 text-lg font-medium capitalize">{{ monthLabel }}</span>
                 <Loader2 v-if="loading" class="size-4 animate-spin text-muted-foreground" />
+                <!-- `h-auto` y `flex-col` son necesarios: el Button trae altura
+                     fija y alinea en fila, así que sin eso el icono no se apila.
+                     El tamaño del icono se cambia en su propia clase `size-*`:
+                     el Button solo lo fuerza a size-4 cuando no la lleva. -->
+                <Button
+                    variant="outline"
+                    class="ml-auto h-auto flex-col gap-0.5 px-3 py-1.5"
+                    :aria-expanded="monthOpen"
+                    :aria-label="`Ver los ${events.length} eventos de ${monthLabel}`"
+                    @click.stop="openMonth($event)"
+                >
+                    <CalendarRange class="size-5" />
+                    <span class="flex items-center gap-1.5 text-xs leading-none">
+                        Eventos
+                        <span class="rounded-full bg-primary/10 px-1.5 py-0.5 font-mono text-[0.65rem] text-foreground">
+                            {{ events.length }}
+                        </span>
+                    </span>
+                </Button>
             </div>
 
             <p
@@ -625,6 +680,56 @@ onMounted(() => load());
                                 <Trash2 class="size-3" />
                             </button>
                         </span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Todos los eventos de la vista, agrupados por día -->
+            <div
+                v-show="monthOpen"
+                ref="monthPanel"
+                class="fixed z-50 w-72 overflow-hidden rounded-xl border bg-card shadow-xl"
+                :style="monthStyle"
+                @click.stop
+            >
+                <div class="flex items-center justify-between gap-2 border-b px-3 py-2">
+                    <p class="truncate text-xs font-medium capitalize">{{ monthLabel }}</p>
+                    <button
+                        type="button"
+                        class="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        aria-label="Cerrar"
+                        @click="closeMonth"
+                    >
+                        <X class="size-3.5" />
+                    </button>
+                </div>
+
+                <p v-if="!monthDays.length" class="px-3 py-6 text-center text-xs text-muted-foreground">
+                    No hay eventos en este mes.
+                </p>
+
+                <ul v-else class="max-h-80 overflow-y-auto p-1.5">
+                    <li v-for="cell in monthDays" :key="cell.key" class="mb-1 last:mb-0">
+                        <p class="px-1.5 py-1 text-[0.65rem] font-medium capitalize text-muted-foreground">
+                            {{ longDayLabel(cell.key) }}
+                        </p>
+
+                        <a
+                            v-for="event in cell.events"
+                            :key="event.id"
+                            :href="event.url"
+                            target="_blank"
+                            rel="noopener"
+                            class="flex items-start gap-2 rounded p-1.5 hover:bg-accent"
+                        >
+                            <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-[#459AF7]" />
+                            <span class="min-w-0 flex-1">
+                                <span class="block truncate text-xs font-medium">{{ event.title }}</span>
+                                <span class="block text-[0.65rem] text-muted-foreground">
+                                    {{ timeLabel(event) }}<template v-if="event.location"> · {{ event.location }}</template>
+                                </span>
+                            </span>
+                        </a>
                     </li>
                 </ul>
             </div>

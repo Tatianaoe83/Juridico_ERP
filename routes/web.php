@@ -68,6 +68,8 @@ Route::middleware('auth')->group(function () {
     Route::middleware('can:calendar.share')->group(function () {
         Route::post('/calendario/compartir', [CalendarShareController::class, 'store'])
             ->name('calendar.share');
+        Route::post('/calendario/compartir/reenviar', [CalendarShareController::class, 'resend'])
+            ->name('calendar.share.resend');
         Route::delete('/calendario/compartir', [CalendarShareController::class, 'destroy'])
             ->name('calendar.unshare');
     });

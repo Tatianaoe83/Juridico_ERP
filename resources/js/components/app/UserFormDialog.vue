@@ -26,7 +26,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:open', 'created']);
 
-const { confirm, confirmDelete, blocks } = useSwal();
+const { confirm, confirmDelete, warn, blocks } = useSwal();
 
 const DEFAULT_ROLE = 'user';
 
@@ -92,7 +92,27 @@ function escape(value) {
     );
 }
 
+/**
+ * Sin esto, un doble clic —o el evento de submit disparándose más de una
+ * vez, que reka-ui/Dialog puede repetir mientras el popup de SweetAlert
+ * sigue montado— abre un segundo confirm encima del primero: dos popups
+ * peleando por el mismo contenedor, que se ve como si el modal se atorara.
+ */
+const submitting = ref(false);
+
 async function submit() {
+    if (submitting.value) return;
+
+    submitting.value = true;
+
+    try {
+        await create();
+    } finally {
+        submitting.value = false;
+    }
+}
+
+async function create() {
     const role = props.canManageRoles ? form.role : DEFAULT_ROLE;
 
     const { lead, chip, panel, note, stack } = blocks;
@@ -133,15 +153,40 @@ async function submit() {
 
     if (!ok) return;
 
-    form
-        .transform((data) => ({ ...data, roles: [role] }))
-        .post('/usuarios', {
-            preserveScroll: true,
-            onSuccess: () => {
-                close();
-                emit('created');
-            },
-        });
+    await new Promise((resolve) => {
+        form
+            .transform((data) => ({ ...data, roles: [role] }))
+            .post('/usuarios', {
+                preserveScroll: true,
+                onSuccess: () => {
+                    close();
+                    emit('created');
+                },
+                /*
+                 * El duplicado se avisa solo aquí: los campos ya no repiten el
+                 * error debajo. Los dos conflictos van en la misma lista, que
+                 * es lo que pasa al reusar nombre y correo de la misma cuenta.
+                 */
+                onError: (errors) => {
+                    const taken = [
+                        errors.name ? `Nombre: ${chip(escape(form.name))}` : null,
+                        errors.email ? `Correo: ${chip(escape(form.email))}` : null,
+                    ].filter(Boolean);
+
+                    if (!taken.length) return;
+
+                    warn({
+                        title: taken.length > 1 ? 'Esos datos ya están en uso' : 'Ese dato ya está en uso',
+                        html: stack(
+                            lead('Ya hay una cuenta registrada con:'),
+                            panel({ label: 'Ocupado', tone: 'danger', items: taken }),
+                            note('Cámbialos y vuelve a intentarlo.'),
+                        ),
+                    });
+                },
+                onFinish: resolve,
+            });
+    });
 }
 </script>
 
@@ -156,10 +201,11 @@ async function submit() {
             </DialogHeader>
 
             <form id="user-form" class="grid gap-4" @submit.prevent="submit">
+                <!-- Sin InputError en nombre y correo: el duplicado lo avisa el
+                     diálogo de SweetAlert, y repetirlo aquí lo dice dos veces -->
                 <div class="grid gap-1.5">
                     <Label for="name">Nombre</Label>
                     <Input id="name" v-model="form.name" required autofocus maxlength="255" />
-                    <InputError :message="form.errors.name" />
                 </div>
 
                 <div class="grid gap-1.5">
@@ -172,7 +218,6 @@ async function submit() {
                         maxlength="255"
                         placeholder="nombre@proser.com.mx"
                     />
-                    <InputError :message="form.errors.email" />
                 </div>
 
                 <div class="grid gap-1.5">

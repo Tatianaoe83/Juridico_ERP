@@ -22,7 +22,7 @@ const breadcrumbs = [
     { label: 'Editar' },
 ];
 
-const { confirm, confirmDelete, blocks } = useSwal();
+const { confirm, confirmDelete, warn, blocks } = useSwal();
 
 const originalRole = props.person.roles[0] ?? '';
 
@@ -88,10 +88,28 @@ const changes = computed(() => {
     return list;
 });
 
+/**
+ * Sin esto, un doble clic —o el evento de submit repetido mientras el popup
+ * de SweetAlert sigue montado— abre un segundo confirm encima del primero.
+ */
+const submitting = ref(false);
+
 async function submit() {
+    if (submitting.value) return;
+
+    submitting.value = true;
+
+    try {
+        await save();
+    } finally {
+        submitting.value = false;
+    }
+}
+
+async function save() {
     if (!changes.value.length) return;
 
-    const { lead, panel, note, stack } = blocks;
+    const { lead, chip, panel, note, stack } = blocks;
 
     // Promover a superadmin concede acceso total: merece el aviso rojo.
     const promoting = !roleLocked.value && form.role === 'superadmin' && originalRole !== 'superadmin';
@@ -123,14 +141,40 @@ async function submit() {
 
     if (!ok) return;
 
-    form
-        .transform(({ role, password, ...rest }) => ({
-            ...rest,
-            // El backend ignora la contraseña vacía, pero mandarla enturbia el log.
-            ...(password ? { password } : {}),
-            ...(roleLocked.value ? {} : { roles: [role] }),
-        }))
-        .patch(`/usuarios/${props.person.id}`, { preserveScroll: true });
+    await new Promise((resolve) => {
+        form
+            .transform(({ role, password, ...rest }) => ({
+                ...rest,
+                // El backend ignora la contraseña vacía, pero mandarla enturbia el log.
+                ...(password ? { password } : {}),
+                ...(roleLocked.value ? {} : { roles: [role] }),
+            }))
+            .patch(`/usuarios/${props.person.id}`, {
+                preserveScroll: true,
+                /*
+                 * El duplicado se avisa solo aquí: los campos ya no repiten el
+                 * error debajo. Los dos conflictos van en la misma lista.
+                 */
+                onError: (errors) => {
+                    const taken = [
+                        errors.name ? `Nombre: ${chip(escape(form.name))}` : null,
+                        errors.email ? `Correo: ${chip(escape(form.email))}` : null,
+                    ].filter(Boolean);
+
+                    if (!taken.length) return;
+
+                    warn({
+                        title: taken.length > 1 ? 'Esos datos ya están en uso' : 'Ese dato ya está en uso',
+                        html: stack(
+                            lead('Ya hay otra cuenta registrada con:'),
+                            panel({ label: 'Ocupado', tone: 'danger', items: taken }),
+                            note('Cámbialos y vuelve a intentarlo.'),
+                        ),
+                    });
+                },
+                onFinish: resolve,
+            });
+    });
 }
 </script>
 
@@ -157,16 +201,16 @@ async function submit() {
 
             <form class="rounded-xl border bg-card p-4" @submit.prevent="submit">
                 <div class="grid gap-4">
+                    <!-- Sin InputError en nombre y correo: el duplicado lo avisa
+                         el diálogo de SweetAlert, y repetirlo aquí lo dice dos veces -->
                     <div class="grid gap-1.5">
                         <Label for="name">Nombre</Label>
                         <Input id="name" v-model="form.name" required maxlength="255" />
-                        <InputError :message="form.errors.name" />
                     </div>
 
                     <div class="grid gap-1.5">
                         <Label for="email">Correo</Label>
                         <Input id="email" v-model="form.email" type="email" required maxlength="255" />
-                        <InputError :message="form.errors.email" />
                     </div>
 
                     <div class="grid gap-1.5">

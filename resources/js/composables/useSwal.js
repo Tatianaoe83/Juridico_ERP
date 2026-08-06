@@ -1,4 +1,5 @@
 import Swal from 'sweetalert2';
+import 'sweetalert2/dist/sweetalert2.min.css';
 
 /**
  * SweetAlert2 vestido con los tokens de shadcn.
@@ -29,20 +30,31 @@ const LIFT = 'motion-safe:hover:!-translate-y-px active:!translate-y-0 active:!d
  * que un customClass parcial borra el resto y el popup se queda sin estilos.
  */
 function theme({ confirmButton, icon }) {
-    const backdrop = document.documentElement.classList.contains('dark')
-        ? 'rgba(16, 18, 24, 0.72)'
-        : 'rgba(9, 11, 14, 0.55)';
-
     const popup =
-        '!rounded-[28px] !border-0 !bg-[#111115] !text-foreground !shadow-2xl !ring-1 !ring-white/10';
+        '!rounded-[28px] !border-0 !bg-popover !text-foreground !shadow-2xl !ring-1 !ring-border dark:!ring-2 dark:!ring-white/40';
 
     return {
         buttonsStyling: false,
         reverseButtons: true,
         focusCancel: true,
-        backdrop,
         customClass: {
-            backdrop: '!backdrop-blur-xl',
+            /*
+             * `pointer-events-auto` es obligatorio, no cosmético.
+             *
+             * SweetAlert2 monta su contenedor como hijo de <body>, fuera del
+             * DialogContent. Mientras un diálogo modal de reka-ui está abierto,
+             * su DismissableLayer pone `pointer-events: none` en el <body> para
+             * bloquear todo lo de fuera, y el contenedor lo hereda: los botones
+             * dejan de recibir clics y el aviso se queda en pantalla sin
+             * responder. Reponerlo aquí revive solo al popup.
+             *
+             * Va en `container` y no en `backdrop`: esa clave no existe en
+             * customClass —la lista es container, popup, title, closeButton,
+             * icon, image, htmlContainer, input, inputLabel, validationMessage,
+             * actions, confirmButton, denyButton, cancelButton, loader, footer,
+             * timerProgressBar—, así que el blur tampoco se estaba aplicando.
+             */
+            container: '!pointer-events-auto !backdrop-blur-xl',
             // Anillo en lugar de borde: se apoya en el color sin dibujar una
             // línea dura, y la sombra grande es la que separa del fondo.
             popup,
@@ -58,6 +70,17 @@ function theme({ confirmButton, icon }) {
             confirmButton,
         },
     };
+}
+
+/**
+ * Se recalcula en cada apertura, no una vez al cargar el módulo: `theme()` solo
+ * corre al construir los mixins de abajo, así que un backdrop fijo ahí se queda
+ * pegado al tema que hubiera al importar useSwal.js y ya no sigue el toggle.
+ */
+function backdrop() {
+    return document.documentElement.classList.contains('dark')
+        ? 'rgba(0, 0, 0, 0.8)'
+        : 'rgba(9, 11, 14, 0.55)';
 }
 
 const base = Swal.mixin(
@@ -144,6 +167,7 @@ export function useSwal() {
             showCancelButton: true,
             confirmButtonText: confirmText,
             cancelButtonText: 'Cancelar',
+            backdrop: backdrop(),
         });
 
         return isConfirmed;
@@ -162,10 +186,26 @@ export function useSwal() {
             showCancelButton: true,
             confirmButtonText: confirmText,
             cancelButtonText: 'Cancelar',
+            backdrop: backdrop(),
         });
 
         return isConfirmed;
     }
 
-    return { confirmDelete, confirm, blocks };
+    /**
+     * Aviso de un solo botón, sin pregunta que responder. Para errores que ya
+     * pasaron —como un duplicado— y no una acción por confirmar.
+     */
+    async function warn({ title, text = '', html = null, confirmText = 'Entendido' } = {}) {
+        await destructive.fire({
+            icon: 'warning',
+            title,
+            ...(html ? { html } : { text }),
+            showCancelButton: false,
+            confirmButtonText: confirmText,
+            backdrop: backdrop(),
+        });
+    }
+
+    return { confirmDelete, confirm, warn, blocks };
 }

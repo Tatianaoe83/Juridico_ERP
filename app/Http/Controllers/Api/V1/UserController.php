@@ -7,6 +7,7 @@ use App\Http\Requests\User\StoreUserRequest;
 use App\Http\Requests\User\UpdateUserRequest;
 use App\Http\Resources\V1\UserResource;
 use App\Models\User;
+use App\Services\AuthService;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,14 +15,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 /**
  * Cada método autoriza contra UserPolicy antes de tocar nada.
- *
- * Se hace con llamadas explícitas y no con `authorizeResource()`: desde
- * Laravel 11 el controlador base ya no tiene `middleware()`, del que ese
- * atajo depende, y falla en tiempo de ejecución.
- *
- * Y se hace con Policy, no con middleware `can:` en las rutas, porque la
- * Policy sí ve el registro concreto: un permiso dice «puede borrar usuarios»,
- * pero solo la Policy sabe que ESE usuario es un superadmin.
+
  */
 class UserController extends Controller
 {
@@ -46,7 +40,20 @@ class UserController extends Controller
     {
         $this->authorize('create', User::class);
 
-        $user = $this->users->create($request->validated());
+        $data = $request->validated();
+
+        /*
+         * `users.create` solo autoriza a dar de alta, no a repartir roles: sin
+         * este filtro cualquiera con ese permiso podría nombrarse superadmin
+         * de paso. Mismo criterio que UserController::store en la parte Web.
+         */
+        $roles = $request->user()->can('roles.manage')
+            ? array_filter($data['roles'] ?? [])
+            : [];
+
+        $data['roles'] = $roles ?: [AuthService::DEFAULT_ROLE];
+
+        $user = $this->users->create($data);
 
         return (new UserResource($user))->response()->setStatusCode(201);
     }
@@ -68,7 +75,31 @@ class UserController extends Controller
     {
         $this->authorize('update', $user);
 
-        return new UserResource($this->users->update($user, $request->validated()));
+        $data = $request->validated();
+
+        /*
+         * `update` autoriza autoedición sin más (cualquiera edita su propio
+         * nombre o correo), así que el filtro de roles va aparte: sin esto,
+         * mandar `roles: ["superadmin"]` contra el propio id bastaba para
+         * autopromoverse. Mismo criterio que UserController::update Web.
+         */
+        $roles = ($request->user()->can('roles.manage') && array_key_exists('roles', $data))
+            ? array_filter($data['roles'])
+            : null;
+
+        abort_if(
+            $roles && $user->is($request->user()) && ! $user->hasAllRoles($roles),
+            422,
+            'No puedes cambiar tu propio rol.',
+        );
+
+        unset($data['roles']);
+
+        if ($roles) {
+            $data['roles'] = $roles;
+        }
+
+        return new UserResource($this->users->update($user, $data));
     }
 
     /**
@@ -78,14 +109,6 @@ class UserController extends Controller
     {
         $this->authorize('delete', $user);
 
-        /*
-         * Se comprueba aquí y no solo en la Policy porque el Gate::before del
-         * superadmin devuelve true antes de que ninguna Policy se ejecute: se
-         * salta los permisos, y con ellos también las barandillas.
-         *
-         * Borrarse a uno mismo no es un permiso que falte, es un estado en el
-         * que la aplicación no debe poder quedar.
-         */
         abort_if($user->is($request->user()), 422, 'No puedes eliminar tu propia cuenta.');
 
         $this->users->delete($user);

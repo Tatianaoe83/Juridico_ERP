@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\User\StoreUserRequest;
 use App\Http\Requests\User\UpdateUserRequest;
+use App\Models\CalendarShare;
 use App\Models\User;
 use App\Services\AuthService;
+use App\Services\Calendar\CalendarAccess;
+use App\Services\Calendar\CalendarView;
 use App\Services\UserService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,7 +26,10 @@ use Spatie\Permission\Models\Role;
  */
 class UserController extends Controller
 {
-    public function __construct(private readonly UserService $users) {}
+    public function __construct(
+        private readonly UserService $users,
+        private readonly CalendarAccess $access,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -183,7 +189,30 @@ class UserController extends Controller
                 'linked_at' => $account->created_at?->toIso8601String(),
                 'synced_at' => $account->synced_at?->toIso8601String(),
                 'can_read_calendar' => $account->canReadCalendar(),
+                // Con quién comparte su calendario. Copia local: la verdad vive en
+                // Outlook, pero se refresca cada vez que el dueño abre su pantalla
+                // de compartir, así que no hace falta pegarle a Graph aquí.
+                'shared_with' => CalendarShare::where('microsoft_account_id', $account->id)
+                    ->orderBy('email')
+                    ->get(['email', 'role'])
+                    ->map(fn (CalendarShare $share) => [
+                        'email' => $share->email,
+                        'role' => $share->role,
+                    ]),
             ] : null,
+            // Sin cuenta propia, lo único que hay que mostrar es en qué
+            // calendario ajeno puede entrar y de qué correo es.
+            'guest_on' => $account ? [] : $this->access->available($user)
+                ->map(fn (CalendarView $view) => [
+                    'owner_name' => $view->ownerName,
+                    'owner_email' => $view->ownerEmail,
+                    'role' => $view->role,
+                    // Sin calendario dedicado es el buzón principal del dueño,
+                    // no uno con nombre propio: Graph no le puso etiqueta.
+                    'calendar_name' => filled($view->account->calendar_id)
+                        ? config('services.microsoft.calendar_name')
+                        : 'Calendario principal',
+                ]),
             'can' => [
                 'update' => $request->user()->can('update', $user),
                 'delete' => $request->user()->can('delete', $user),
