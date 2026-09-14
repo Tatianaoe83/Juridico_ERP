@@ -77,6 +77,9 @@ Route::middleware('auth')->group(function () {
     // Administración de usuarios. La Policy afina por registro: quién puede
     // tocar a quién no lo resuelve un permiso suelto.
     Route::get('/usuarios', [UserController::class, 'index'])->name('users.index');
+    Route::post('/usuarios', [UserController::class, 'store'])->name('users.store');
+    Route::patch('/usuarios/{user}', [UserController::class, 'update'])->name('users.update');
+    Route::delete('/usuarios/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     Route::patch('/usuarios/{user}/rol', [UserController::class, 'updateRole'])
         ->middleware('can:roles.manage')
         ->name('users.role');

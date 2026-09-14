@@ -8,6 +8,9 @@
 /* Ventanas bajas (laptops de 768px): compacta lo que debe caber sin scroll. */
 @custom-variant short (@media (max-height: 760px));
 
+/* Ventanas altas (monitores grandes): hay sitio para respirar. */
+@custom-variant tall (@media (min-height: 900px));
+
 @plugin '@tailwindcss/forms';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
@@ -18,6 +21,7 @@
     --color-brand: #021d49; /* PANTONE 2768 C */
     --color-brand-deep: #010f28; /* el mismo azul, más profundo, para fondos */
     --color-brand-light: #2b4d86; /* el mismo azul, aclarado, para tema oscuro */
+    --color-brand-panel: #0a1a38; /* superficie elevada (modales) sobre brand-deep */
     --color-brand-gray: #a7a8a9; /* PANTONE COOL GRAY 6 C */
 
     /* Tipografía corporativa (manual 2.3). Tahoma viene con Windows; el resto
