@@ -2,11 +2,12 @@
 
 namespace App\Models;
 
+use App\Services\Microsoft\CalendarOwner;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Cache;
 
-class MicrosoftAccount extends Model
+class MicrosoftAccount extends Model implements CalendarOwner
 {
     protected $guarded = [];
 
@@ -23,6 +24,31 @@ class MicrosoftAccount extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function graphRoot(): string
+    {
+        return '/me';
+    }
+
+    public function calendarId(): ?string
+    {
+        return $this->calendar_id;
+    }
+
+    public function mailboxEmail(): string
+    {
+        return $this->email;
+    }
+
+    public function hasDedicatedCalendar(): bool
+    {
+        return filled($this->calendar_id);
+    }
+
+    public function markSynced(): void
+    {
+        $this->forceFill(['synced_at' => now()])->save();
     }
 
     /** El token de acceso caduca en ~1h; se renueva con un margen de 2 min. */

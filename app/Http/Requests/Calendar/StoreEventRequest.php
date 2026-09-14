@@ -10,7 +10,7 @@ class StoreEventRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return (bool) $this->user()?->microsoftAccount?->canWriteCalendar();
+        return (bool) $this->user()?->calendarOwner()?->canWriteCalendar();
     }
 
     /**

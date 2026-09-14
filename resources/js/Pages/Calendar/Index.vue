@@ -315,7 +315,7 @@ onMounted(() => load());
                         <span class="text-muted-foreground">Correo principal:</span>
                         <span class="ml-1 font-medium">{{ connection.email }}</span>
                     </p>
-                    <p v-else class="text-muted-foreground">Conecta tu cuenta para ver tu agenda</p>
+                    <p v-else-if="mode === 'delegated'" class="text-muted-foreground">Conecta tu cuenta para ver tu agenda</p>
                 </div>
             </div>
 
@@ -336,7 +336,7 @@ onMounted(() => load());
 
             <!-- Redirección fuera de la app: enlace normal, no Inertia -->
             <a
-                v-else
+                v-else-if="mode === 'delegated'"
                 href="/auth/microsoft/redirect"
                 class="rounded-md bg-[#459AF7] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#3b86d8]"
             >
@@ -350,11 +350,20 @@ onMounted(() => load());
             class="grid place-content-center gap-2 rounded-xl border border-dashed bg-card p-16 text-center"
         >
             <CalendarDays class="mx-auto size-8 text-muted-foreground" />
-            <p class="font-medium">Tu agenda de Outlook aún no está conectada</p>
-            <p class="max-w-md text-sm text-muted-foreground">
-                Al conectar, el sistema lee los eventos de tu calendario de Microsoft 365. Es solo
-                lectura y puedes desvincular cuando quieras.
-            </p>
+            <template v-if="mode === 'delegated'">
+                <p class="font-medium">Tu agenda de Outlook aún no está conectada</p>
+                <p class="max-w-md text-sm text-muted-foreground">
+                    Al conectar, el sistema lee los eventos de tu calendario de Microsoft 365. Es solo
+                    lectura y puedes desvincular cuando quieras.
+                </p>
+            </template>
+            <template v-else>
+                <p class="font-medium">El calendario general no está configurado</p>
+                <p class="max-w-md text-sm text-muted-foreground">
+                    Falta indicar el buzón general en
+                    <code class="rounded bg-muted px-1 py-0.5 text-xs">MS_MAILBOX</code>. Avisa al administrador.
+                </p>
+            </template>
         </div>
 
         <!-- Calendario -->

@@ -10,9 +10,10 @@ use Illuminate\Support\Facades\Http;
 /**
  * Llamadas a Microsoft Graph.
  *
- * Dos modos:
+ * Dos modos, según quién sea el dueño del calendario (CalendarOwner):
  *  - delegado: token del usuario vinculado (/me), renovado con su refresh_token.
- *  - aplicación: token de la app (client credentials) leyendo /users/{correo}.
+ *  - aplicación: token de la app (client credentials) sobre el buzón general
+ *    (/users/{correo}). No hay sesión de Microsoft que mantener viva.
  */
 class MicrosoftGraph
 {
@@ -25,28 +26,34 @@ class MicrosoftGraph
      * principal del buzón; con uno, al que le pertenece a esa cuenta.
      *
      * Editar y borrar no la usan: el id de un evento es único en todo el buzón,
-     * así que /me/events/{id} lo encuentra esté en el calendario que esté.
+     * así que {raíz}/events/{id} lo encuentra esté en el calendario que esté.
      */
-    private function calendarPath(MicrosoftAccount $account): string
+    private function calendarPath(CalendarOwner $calendar): string
     {
-        return filled($account->calendar_id)
-            ? '/me/calendars/'.rawurlencode($account->calendar_id)
-            : '/me';
+        return filled($calendar->calendarId())
+            ? $calendar->graphRoot().'/calendars/'.rawurlencode($calendar->calendarId())
+            : $calendar->graphRoot();
     }
 
     /**
      * El calendario como recurso, no como contenedor de eventos.
-     * Ojo con el singular: sin id la ruta es /me/calendar, no /me.
+     * Ojo con el singular: sin id la ruta es {raíz}/calendar, no {raíz}.
      */
-    private function calendarResource(MicrosoftAccount $account): string
+    private function calendarResource(CalendarOwner $calendar): string
     {
-        return filled($account->calendar_id)
-            ? '/me/calendars/'.rawurlencode($account->calendar_id)
-            : '/me/calendar';
+        return filled($calendar->calendarId())
+            ? $calendar->graphRoot().'/calendars/'.rawurlencode($calendar->calendarId())
+            : $calendar->graphRoot().'/calendar';
+    }
+
+    private function eventPath(CalendarOwner $calendar, string $eventId): string
+    {
+        return $calendar->graphRoot().'/events/'.rawurlencode($eventId);
     }
 
     /**
      * Deja lista la cuenta con su calendario dedicado y devuelve el id.
+     * Solo en modo delegado: el buzón general ya es, entero, de la app.
      *
      * Idempotente a propósito: si el id guardado ya no existe en Outlook —
      * porque lo borraron desde ahí— crea uno nuevo en vez de dejar la cuenta
@@ -94,10 +101,10 @@ class MicrosoftGraph
      *
      * @return array<int, array<string, mixed>>
      */
-    public function calendarPermissions(MicrosoftAccount $account): array
+    public function calendarPermissions(CalendarOwner $calendar): array
     {
-        $response = Http::withToken($this->freshToken($account))
-            ->get(self::BASE.$this->calendarResource($account).'/calendarPermissions')
+        $response = $this->client($calendar)
+            ->get(self::BASE.$this->calendarResource($calendar).'/calendarPermissions')
             ->throw();
 
         return collect($response->json('value', []))
@@ -120,10 +127,10 @@ class MicrosoftGraph
      *
      * @return array<string, mixed>
      */
-    public function shareCalendar(MicrosoftAccount $account, string $email, string $role): array
+    public function shareCalendar(CalendarOwner $calendar, string $email, string $role): array
     {
-        return Http::withToken($this->freshToken($account))
-            ->post(self::BASE.$this->calendarResource($account).'/calendarPermissions', [
+        return $this->client($calendar)
+            ->post(self::BASE.$this->calendarResource($calendar).'/calendarPermissions', [
                 'emailAddress' => ['address' => $email, 'name' => $email],
                 'role' => $role,
                 'isRemovable' => true,
@@ -134,10 +141,10 @@ class MicrosoftGraph
     }
 
     /** Revoca el acceso. Al que se lo quitas deja de ver el calendario. */
-    public function unshareCalendar(MicrosoftAccount $account, string $permissionId): void
+    public function unshareCalendar(CalendarOwner $calendar, string $permissionId): void
     {
-        Http::withToken($this->freshToken($account))
-            ->delete(self::BASE.$this->calendarResource($account).'/calendarPermissions/'.rawurlencode($permissionId))
+        $this->client($calendar)
+            ->delete(self::BASE.$this->calendarResource($calendar).'/calendarPermissions/'.rawurlencode($permissionId))
             ->throw();
     }
 
@@ -151,32 +158,40 @@ class MicrosoftGraph
     }
 
     /**
-     * Modo delegado: eventos del usuario vinculado.
+     * Eventos del calendario en el rango.
      *
      * @return array<int, array<string, mixed>>
      */
-    public function calendarView(MicrosoftAccount $account, Carbon $from, Carbon $to): array
+    public function calendarView(CalendarOwner $calendar, Carbon $from, Carbon $to): array
     {
-        $events = $this->fetchEvents(
-            Http::withToken($this->freshToken($account)),
-            $this->calendarPath($account).'/calendarView',
-            $from,
-            $to,
-        );
+        $response = $this->client($calendar)
+            ->withHeaders(['Prefer' => 'outlook.timezone="'.config('app.timezone').'"'])
+            ->get(self::BASE.$this->calendarPath($calendar).'/calendarView', [
+                'startDateTime' => $from->toIso8601String(),
+                'endDateTime' => $to->toIso8601String(),
+                '$select' => 'id,subject,bodyPreview,start,end,isAllDay,location,organizer,attendees,webLink,showAs,isCancelled',
+                '$orderby' => 'start/dateTime',
+                '$top' => 200,
+            ])
+            ->throw();
 
-        $account->forceFill(['synced_at' => now()])->save();
+        $calendar->markSynced();
 
-        return $events;
+        return collect($response->json('value', []))
+            ->reject(fn (array $event) => $event['isCancelled'] ?? false)
+            ->map(fn (array $event) => $this->mapEvent($event))
+            ->values()
+            ->all();
     }
 
     /**
-     * Crea un evento en el calendario principal del usuario vinculado.
+     * Crea un evento en el calendario.
      * Queda en Outlook al instante: no hay copia local que mantener.
      *
      * @param  array{title: string, description: ?string, location: ?string, all_day: bool, start: Carbon, end: Carbon}  $data
      * @return array<string, mixed>
      */
-    public function createEvent(MicrosoftAccount $account, array $data): array
+    public function createEvent(CalendarOwner $calendar, array $data): array
     {
         $timezone = config('app.timezone');
 
@@ -185,12 +200,12 @@ class MicrosoftGraph
         $start = $data['all_day'] ? $data['start']->copy()->startOfDay() : $data['start'];
         $end = $data['all_day'] ? $data['end']->copy()->startOfDay()->addDay() : $data['end'];
 
-        $event = Http::withToken($this->freshToken($account))
-            ->post(self::BASE.$this->calendarPath($account).'/events', $this->payload($data, $start, $end, $timezone))
+        $event = $this->client($calendar)
+            ->post(self::BASE.$this->calendarPath($calendar).'/events', $this->payload($data, $start, $end, $timezone))
             ->throw()
             ->json();
 
-        $account->forceFill(['synced_at' => now()])->save();
+        $calendar->markSynced();
 
         return $this->mapEvent($event);
     }
@@ -202,21 +217,21 @@ class MicrosoftGraph
      * @param  array{title: string, description: ?string, location: ?string, all_day: bool, start: Carbon, end: Carbon}  $data
      * @return array<string, mixed>
      */
-    public function updateEvent(MicrosoftAccount $account, string $eventId, array $data): array
+    public function updateEvent(CalendarOwner $calendar, string $eventId, array $data): array
     {
         $timezone = config('app.timezone');
         $start = $data['all_day'] ? $data['start']->copy()->startOfDay() : $data['start'];
         $end = $data['all_day'] ? $data['end']->copy()->startOfDay()->addDay() : $data['end'];
 
-        $event = Http::withToken($this->freshToken($account))
+        $event = $this->client($calendar)
             ->patch(
-                self::BASE.'/me/events/'.rawurlencode($eventId),
+                self::BASE.$this->eventPath($calendar, $eventId),
                 $this->payload($data, $start, $end, $timezone),
             )
             ->throw()
             ->json();
 
-        $account->forceFill(['synced_at' => now()])->save();
+        $calendar->markSynced();
 
         return $this->mapEvent($event);
     }
@@ -227,11 +242,11 @@ class MicrosoftGraph
      *
      * @return array<string, mixed>
      */
-    public function findEvent(MicrosoftAccount $account, string $eventId): array
+    public function findEvent(CalendarOwner $calendar, string $eventId): array
     {
-        $event = Http::withToken($this->freshToken($account))
+        $event = $this->client($calendar)
             ->withHeaders(['Prefer' => 'outlook.timezone="'.config('app.timezone').'"'])
-            ->get(self::BASE.'/me/events/'.rawurlencode($eventId), [
+            ->get(self::BASE.$this->eventPath($calendar, $eventId), [
                 '$select' => 'id,subject,bodyPreview,start,end,isAllDay,location,organizer,attendees,webLink,showAs',
             ])
             ->throw()
@@ -241,13 +256,13 @@ class MicrosoftGraph
     }
 
     /** Borra el evento del calendario. Graph responde 204 sin cuerpo. */
-    public function deleteEvent(MicrosoftAccount $account, string $eventId): void
+    public function deleteEvent(CalendarOwner $calendar, string $eventId): void
     {
-        Http::withToken($this->freshToken($account))
-            ->delete(self::BASE.'/me/events/'.rawurlencode($eventId))
+        $this->client($calendar)
+            ->delete(self::BASE.$this->eventPath($calendar, $eventId))
             ->throw();
 
-        $account->forceFill(['synced_at' => now()])->save();
+        $calendar->markSynced();
     }
 
     /**
@@ -287,46 +302,6 @@ class MicrosoftGraph
     }
 
     /**
-     * Modo aplicación: eventos del buzón indicado, sin que el usuario haga nada.
-     * El buzón debe existir en el tenant y estar permitido por la
-     * ApplicationAccessPolicy de Exchange.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    public function calendarViewForMailbox(string $mailbox, Carbon $from, Carbon $to): array
-    {
-        return $this->fetchEvents(
-            Http::withToken($this->oauth->appToken()),
-            '/users/'.rawurlencode($mailbox).'/calendarView',
-            $from,
-            $to,
-        );
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function fetchEvents(PendingRequest $client, string $path, Carbon $from, Carbon $to): array
-    {
-        $response = $client
-            ->withHeaders(['Prefer' => 'outlook.timezone="'.config('app.timezone').'"'])
-            ->get(self::BASE.$path, [
-                'startDateTime' => $from->toIso8601String(),
-                'endDateTime' => $to->toIso8601String(),
-                '$select' => 'id,subject,bodyPreview,start,end,isAllDay,location,organizer,attendees,webLink,showAs,isCancelled',
-                '$orderby' => 'start/dateTime',
-                '$top' => 200,
-            ])
-            ->throw();
-
-        return collect($response->json('value', []))
-            ->reject(fn (array $event) => $event['isCancelled'] ?? false)
-            ->map(fn (array $event) => $this->mapEvent($event))
-            ->values()
-            ->all();
-    }
-
-    /**
      * Forma con la que viaja un evento al front y a las notificaciones.
      *
      * @param  array<string, mixed>  $event
@@ -359,6 +334,14 @@ class MicrosoftGraph
                 ->values()
                 ->all(),
         ];
+    }
+
+    /** Cliente autenticado con el token que corresponde al dueño. */
+    private function client(CalendarOwner $calendar): PendingRequest
+    {
+        return Http::withToken($calendar instanceof MicrosoftAccount
+            ? $this->freshToken($calendar)
+            : $this->oauth->appToken());
     }
 
     /** Devuelve un access_token de usuario vigente, renovándolo si hace falta. */

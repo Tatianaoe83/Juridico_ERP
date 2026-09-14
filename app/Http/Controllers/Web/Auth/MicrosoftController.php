@@ -83,8 +83,12 @@ class MicrosoftController extends Controller
         }
 
         // Si ya hay sesión, la vinculación es para ese usuario. Si no, el SSO
-        // resuelve a quién pertenece el perfil (y lo da de alta si hace falta).
+        // resuelve a quién pertenece el perfil; sin cuenta previa no entra.
         $user = Auth::user() ?? $this->identity->resolveUser($profile, $email);
+
+        if (! $user) {
+            return $this->fail("La cuenta {$email} no tiene acceso al sistema. Pide al administrador que la dé de alta.");
+        }
 
         $account = MicrosoftAccount::updateOrCreate(
             ['user_id' => $user->id],

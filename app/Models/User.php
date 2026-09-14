@@ -3,6 +3,8 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Services\Microsoft\CalendarOwner;
+use App\Services\Microsoft\SharedMailbox;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -24,6 +26,17 @@ class User extends Authenticatable
     public function microsoftAccount(): HasOne
     {
         return $this->hasOne(MicrosoftAccount::class);
+    }
+
+    /**
+     * Calendario sobre el que trabaja este usuario. En modo aplicación todos
+     * comparten el buzón general; en delegado, cada quien usa su cuenta.
+     */
+    public function calendarOwner(): ?CalendarOwner
+    {
+        return config('services.microsoft.mode') === 'application'
+            ? SharedMailbox::configured()
+            : $this->microsoftAccount;
     }
 
     /**

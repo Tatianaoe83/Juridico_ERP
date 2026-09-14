@@ -6,11 +6,10 @@ use App\Models\MicrosoftAccount;
 use App\Models\User;
 use Illuminate\Support\Str;
 use RuntimeException;
-use Spatie\Permission\Models\Role;
 
 /**
  * Traduce un perfil de Microsoft Graph a un usuario local.
- * Se usa tanto en el alta por SSO como en la vinculación del calendario.
+ * Se usa tanto en el inicio de sesión por SSO como en la vinculación del calendario.
  */
 class MicrosoftIdentity
 {
@@ -39,9 +38,10 @@ class MicrosoftIdentity
     }
 
     /**
-     * Busca al usuario dueño de este perfil; lo da de alta si es su primera vez.
+     * Busca al usuario dueño de este perfil. Null si no tiene cuenta: aquí
+     * nadie se da de alta solo, las cuentas las crea un administrador.
      */
-    public function resolveUser(array $profile, string $email): User
+    public function resolveUser(array $profile, string $email): ?User
     {
         // Ya vinculado: el id de Microsoft manda sobre el correo, que puede cambiar.
         $linked = MicrosoftAccount::where('microsoft_id', $profile['id'])->first();
@@ -50,32 +50,7 @@ class MicrosoftIdentity
             return $linked->user;
         }
 
-        // Mismo correo: adopta la cuenta local que ya existía.
-        $user = User::where('email', $email)->first();
-
-        if ($user) {
-            return $user;
-        }
-
-        return $this->provision($profile, $email);
-    }
-
-    /** Alta nueva. Sin contraseña utilizable: solo se entra por Microsoft. */
-    private function provision(array $profile, string $email): User
-    {
-        $user = User::create([
-            'name' => $profile['displayName'] ?? Str::before($email, '@'),
-            'email' => $email,
-            'password' => Str::password(64),
-        ]);
-
-        // Microsoft ya verificó el correo, no hace falta repetirlo.
-        $user->forceFill(['email_verified_at' => now()])->save();
-
-        if (Role::where('name', 'user')->where('guard_name', 'web')->exists()) {
-            $user->syncRoles('user');
-        }
-
-        return $user;
+        // Mismo correo: la cuenta que el administrador creó para esa persona.
+        return User::where('email', $email)->first();
     }
 }

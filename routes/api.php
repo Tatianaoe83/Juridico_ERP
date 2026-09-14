@@ -14,10 +14,7 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->as('api.v1.')->group(function () {
 
     // --- Públicas ---
-    Route::post('/auth/register', [AuthController::class, 'register'])
-        ->middleware('throttle:6,1')
-        ->name('auth.register');
-
+    // Sin registro: las cuentas las crea un administrador (POST /users).
     Route::post('/auth/login', [AuthController::class, 'login'])
         ->middleware('throttle:6,1')
         ->name('auth.login');

@@ -36,16 +36,20 @@ class CalendarEventController extends Controller
         $to = Carbon::parse($data['end'])->endOfDay();
         $application = config('services.microsoft.mode') === 'application';
 
-        $account = $request->user()->microsoftAccount;
+        $calendar = $request->user()->calendarOwner();
 
         // Sin Calendars.Read la vinculación existe pero no sirve para leer eventos.
-        if (! $application && ! $account?->canReadCalendar()) {
-            return response()->json(['message' => 'Sin cuenta de Outlook conectada.'], 409);
+        if (! $calendar?->canReadCalendar()) {
+            return response()->json([
+                'message' => $application
+                    ? 'Falta configurar el buzón general (MS_MAILBOX).'
+                    : 'Sin cuenta de Outlook conectada.',
+            ], 409);
         }
 
-        $mailbox = $request->user()->email;
+        $mailbox = $calendar->mailboxEmail();
         // La versión hace que un evento recién creado invalide lo cacheado.
-        $scope = $application ? "app:{$mailbox}" : "user:{$account->id}:v{$account->calendarVersion()}";
+        $scope = "{$mailbox}:v{$calendar->calendarVersion()}";
         $key = "graph:events:{$scope}:{$from->toDateString()}:{$to->toDateString()}";
 
         if ($request->boolean('fresh')) {
@@ -53,9 +57,11 @@ class CalendarEventController extends Controller
         }
 
         try {
-            $events = Cache::remember($key, now()->addMinutes(self::CACHE_MINUTES), fn () => $application
-                ? $this->graph->calendarViewForMailbox($mailbox, $from, $to)
-                : $this->graph->calendarView($account, $from, $to));
+            $events = Cache::remember(
+                $key,
+                now()->addMinutes(self::CACHE_MINUTES),
+                fn () => $this->graph->calendarView($calendar, $from, $to),
+            );
         } catch (RequestException $e) {
             report($e);
 
@@ -83,7 +89,7 @@ class CalendarEventController extends Controller
                 ? 'El token de la aplicación fue rechazado. Revisa el secreto en el .env.'
                 : 'Tu sesión con Microsoft caducó. Vuelve a conectar la cuenta.',
             403 => "La aplicación no tiene permiso para leer el buzón {$mailbox}. Falta el consentimiento de administrador o la política de acceso de Exchange lo bloquea.",
-            404 => "No existe el buzón {$mailbox} en el tenant. El correo del usuario debe coincidir con su cuenta de Microsoft 365.",
+            404 => "No existe el buzón {$mailbox} en el tenant. Revisa MS_MAILBOX.",
             default => 'Microsoft Graph respondió con un error ('.$e->response->status().').',
         };
     }

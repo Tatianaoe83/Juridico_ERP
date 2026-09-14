@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\LoginRequest;
-use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\V1\UserResource;
 use App\Services\AuthService;
 use Illuminate\Http\JsonResponse;
@@ -13,20 +12,6 @@ use Illuminate\Http\Request;
 class AuthController extends Controller
 {
     public function __construct(private readonly AuthService $auth) {}
-
-    /**
-     * POST /api/v1/auth/register
-     */
-    public function register(RegisterRequest $request): JsonResponse
-    {
-        $user = $this->auth->register($request->safe()->only(['name', 'email', 'password']));
-
-        return response()->json([
-            'data' => new UserResource($user),
-            'token' => $this->auth->issueToken($user, (string) ($request->userAgent() ?? 'api-client')),
-            'token_type' => 'Bearer',
-        ], 201);
-    }
 
     /**
      * POST /api/v1/auth/login

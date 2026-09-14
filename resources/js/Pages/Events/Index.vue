@@ -21,7 +21,9 @@ import { usePermissions } from '@/composables/usePermissions';
 import { useSwal } from '@/composables/useSwal';
 
 const props = defineProps({
-    /** Hay cuenta de Microsoft vinculada. */
+    /** delegated = cada quien su Outlook · application = buzón general. */
+    mode: { type: String, default: 'delegated' },
+    /** Hay calendario disponible: cuenta vinculada o buzón general configurado. */
     connected: { type: Boolean, default: false },
     /** La vinculación incluye Calendars.ReadWrite. */
     canWrite: { type: Boolean, default: false },
@@ -204,16 +206,25 @@ function roleLabel(role) {
             class="grid place-content-center gap-2 rounded-xl border border-dashed bg-card p-16 text-center"
         >
             <CalendarPlus class="mx-auto size-8 text-muted-foreground" />
-            <p class="font-medium">Conecta tu cuenta de Outlook</p>
-            <p class="max-w-md text-sm text-muted-foreground">
-                Para crear eventos hace falta vincular tu cuenta de Microsoft 365.
-            </p>
-            <a
-                href="/auth/microsoft/redirect"
-                class="mx-auto mt-2 rounded-md bg-[#459AF7] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#3b86d8]"
-            >
-                Conectar con Outlook
-            </a>
+            <template v-if="mode === 'delegated'">
+                <p class="font-medium">Conecta tu cuenta de Outlook</p>
+                <p class="max-w-md text-sm text-muted-foreground">
+                    Para crear eventos hace falta vincular tu cuenta de Microsoft 365.
+                </p>
+                <a
+                    href="/auth/microsoft/redirect"
+                    class="mx-auto mt-2 rounded-md bg-[#459AF7] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#3b86d8]"
+                >
+                    Conectar con Outlook
+                </a>
+            </template>
+            <template v-else>
+                <p class="font-medium">El calendario general no está configurado</p>
+                <p class="max-w-md text-sm text-muted-foreground">
+                    Falta indicar el buzón general en
+                    <code class="rounded bg-muted px-1 py-0.5 text-xs">MS_MAILBOX</code>. Avisa al administrador.
+                </p>
+            </template>
         </div>
 
         <!-- Vinculada, pero sin permiso de escritura -->

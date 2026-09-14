@@ -5,12 +5,25 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Ventanas bajas (laptops de 768px): compacta lo que debe caber sin scroll. */
+@custom-variant short (@media (max-height: 760px));
+
 @plugin '@tailwindcss/forms';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
 @theme {
+    /* Colores corporativos PROSER (manual de marca 2.2). */
+    --color-brand: #021d49; /* PANTONE 2768 C */
+    --color-brand-deep: #010f28; /* el mismo azul, más profundo, para fondos */
+    --color-brand-light: #2b4d86; /* el mismo azul, aclarado, para tema oscuro */
+    --color-brand-gray: #a7a8a9; /* PANTONE COOL GRAY 6 C */
+
+    /* Tipografía corporativa (manual 2.3). Tahoma viene con Windows; el resto
+       de sistemas cae a Verdana, que comparte diseñador y proporciones. */
+    --font-corporate: Tahoma, Verdana, 'Segoe UI', sans-serif;
+
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }

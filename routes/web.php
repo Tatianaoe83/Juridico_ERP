@@ -51,6 +51,8 @@ Route::middleware('auth')->group(function () {
     //
     // No hace falta comprobar de quién es el evento: en modo delegado el token
     // es del propio usuario, así que Graph solo le deja tocar su calendario.
+    // En modo aplicación la agenda es una sola y compartida: quien tenga
+    // events.update puede editar cualquier evento del buzón general.
     Route::get('/compartido', [EventController::class, 'index'])
         ->middleware('can:calendar.view')
         ->name('shared.index');

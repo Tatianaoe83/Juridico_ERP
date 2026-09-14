@@ -6,8 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Calendar\DeleteEventRequest;
 use App\Http\Requests\Calendar\StoreEventRequest;
 use App\Http\Requests\Calendar\UpdateEventRequest;
-use App\Models\MicrosoftAccount;
+use App\Models\User;
 use App\Notifications\CalendarEventNotification;
+use App\Services\Microsoft\CalendarOwner;
 use App\Services\Microsoft\MicrosoftGraph;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
@@ -18,7 +19,8 @@ use Inertia\Response;
 use Throwable;
 
 /**
- * Alta, edición y baja de eventos en el calendario de Outlook del usuario.
+ * Alta, edición y baja de eventos en Outlook: en el buzón general (modo
+ * aplicación) o en el calendario del propio usuario (delegado).
  * No hay copia local: Graph es la única fuente. Cada acción avisa por correo.
  */
 class EventController extends Controller
@@ -30,8 +32,8 @@ class EventController extends Controller
 
     public function index(Request $request): Response
     {
-        $account = $request->user()->microsoftAccount;
-        $canWrite = (bool) $account?->canWriteCalendar();
+        $calendar = $request->user()->calendarOwner();
+        $canWrite = (bool) $calendar?->canWriteCalendar();
 
         $upcoming = [];
         $loadError = null;
@@ -43,7 +45,7 @@ class EventController extends Controller
         if ($canWrite) {
             try {
                 $upcoming = $this->graph->calendarView(
-                    $account,
+                    $calendar,
                     now()->startOfDay(),
                     now()->addDays(self::UPCOMING_DAYS)->endOfDay(),
                 );
@@ -55,7 +57,7 @@ class EventController extends Controller
             // Quiénes tienen acceso al calendario. Falla en silencio: no poder
             // leer los permisos no debe tumbar la página de eventos.
             try {
-                $sharedWith = $this->graph->calendarPermissions($account);
+                $sharedWith = $this->graph->calendarPermissions($calendar);
             } catch (Throwable $e) {
                 report($e);
             }
@@ -64,7 +66,7 @@ class EventController extends Controller
             // aparte porque puede caer fuera de la ventana de próximos días.
             if ($request->filled('event')) {
                 try {
-                    $editing = $this->graph->findEvent($account, $request->string('event')->value());
+                    $editing = $this->graph->findEvent($calendar, $request->string('event')->value());
                 } catch (Throwable $e) {
                     report($e);
                     $loadError = 'Ese evento ya no existe en Outlook.';
@@ -73,105 +75,113 @@ class EventController extends Controller
         }
 
         return Inertia::render('Events/Index', [
-            'connected' => (bool) $account,
+            'mode' => config('services.microsoft.mode', 'delegated'),
+            'connected' => (bool) $calendar,
             'canWrite' => $canWrite,
             'timezone' => config('app.timezone'),
             'upcoming' => $upcoming,
             'editing' => $editing,
             'sharedWith' => $sharedWith,
             // Sin calendario dedicado, compartir afectaría la agenda personal.
-            'dedicatedCalendar' => filled($account?->calendar_id),
+            'dedicatedCalendar' => (bool) $calendar?->hasDedicatedCalendar(),
             'loadError' => $loadError,
         ]);
     }
 
     public function store(StoreEventRequest $request): RedirectResponse
     {
-        $account = $request->user()->microsoftAccount;
+        $calendar = $request->user()->calendarOwner();
 
         try {
             $event = $this->graph->createEvent(
-                $account,
-                $this->withSharedGuests($account, $request->event(), $request->boolean('invite_shared', true)),
+                $calendar,
+                $this->withSharedGuests($calendar, $request->event(), $request->boolean('invite_shared', true)),
             );
         } catch (Throwable $e) {
             return $this->failed($e);
         }
 
-        $this->announce($account, CalendarEventNotification::CREATED, $event);
+        $this->announce($request->user(), $calendar, CalendarEventNotification::CREATED, $event);
 
         return back()->with('success', 'Evento creado. Te llegó un correo de confirmación.');
     }
 
     public function update(UpdateEventRequest $request): RedirectResponse
     {
-        $account = $request->user()->microsoftAccount;
+        $calendar = $request->user()->calendarOwner();
         $eventId = $request->string('event_id')->value();
 
         try {
             // Se lee antes del PATCH para poder contar qué cambió: después ya
             // no hay forma de saber cómo estaba.
-            $previous = $this->graph->findEvent($account, $eventId);
+            $previous = $this->graph->findEvent($calendar, $eventId);
             $event = $this->graph->updateEvent(
-                $account,
+                $calendar,
                 $eventId,
-                $this->withSharedGuests($account, $request->event(), $request->boolean('invite_shared', true)),
+                $this->withSharedGuests($calendar, $request->event(), $request->boolean('invite_shared', true)),
             );
         } catch (Throwable $e) {
             return $this->failed($e);
         }
 
-        $this->announce($account, CalendarEventNotification::UPDATED, $event, $previous);
+        $this->announce($request->user(), $calendar, CalendarEventNotification::UPDATED, $event, $previous);
 
         return back()->with('success', 'Evento actualizado. Te llegó un correo de confirmación.');
     }
 
     public function destroy(DeleteEventRequest $request): RedirectResponse
     {
-        $account = $request->user()->microsoftAccount;
+        $calendar = $request->user()->calendarOwner();
         $eventId = $request->string('event_id')->value();
 
         try {
             // Los datos se leen antes: una vez borrado Graph ya no los da.
-            $event = $this->graph->findEvent($account, $eventId);
-            $this->graph->deleteEvent($account, $eventId);
+            $event = $this->graph->findEvent($calendar, $eventId);
+            $this->graph->deleteEvent($calendar, $eventId);
         } catch (Throwable $e) {
             return $this->failed($e);
         }
 
-        $this->announce($account, CalendarEventNotification::DELETED, $event);
+        $this->announce($request->user(), $calendar, CalendarEventNotification::DELETED, $event);
 
         return back()->with('success', 'Evento eliminado. Te llegó un correo de confirmación.');
     }
 
     /**
-     * Manda el aviso al correo de la cuenta de Microsoft vinculada, que es la
-     * que el usuario asocia con su agenda (puede no ser la de su cuenta local).
+     * Manda el aviso a quien hizo el cambio y a quienes tienen acceso al
+     * calendario.
+     *
+     * La confirmación va al correo de su cuenta de Microsoft si la tiene, que
+     * es el que asocia con su agenda (puede no ser el de su cuenta local).
+     * Nunca al buzón general: en modo aplicación es el organizador de todo y
+     * se llenaría de avisos que nadie lee.
      *
      * @param  array<string, mixed>  $event
      * @param  array<string, mixed>|null  $previous  Cómo estaba antes de editarlo.
      */
     private function announce(
-        MicrosoftAccount $account,
+        User $actor,
+        CalendarOwner $calendar,
         string $action,
         array $event,
         ?array $previous = null,
     ): void {
-        $recipients = [mb_strtolower($account->email), ...$this->sharedAudience($account, $event)];
+        $confirmation = mb_strtolower($actor->microsoftAccount?->email ?? $actor->email);
+        $recipients = [$confirmation, ...$this->sharedAudience($calendar, $event)];
 
         foreach (array_unique($recipients) as $email) {
             // Un fallo de correo no debe deshacer un cambio que Outlook ya
             // aceptó, ni impedir que los demás destinatarios reciban el suyo.
             try {
                 Notification::route('mail', $email)
-                    ->notify(new CalendarEventNotification($action, $event, $previous));
+                    ->notify(new CalendarEventNotification($action, $event, $previous, $actor->name));
             } catch (Throwable $e) {
                 report($e);
             }
         }
 
         // El calendario cachea por rango; sin esto el cambio no se ve.
-        $account->bumpCalendarVersion();
+        $calendar->bumpCalendarVersion();
     }
 
     /**
@@ -187,14 +197,14 @@ class EventController extends Controller
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    private function withSharedGuests(MicrosoftAccount $account, array $data, bool $invite): array
+    private function withSharedGuests(CalendarOwner $calendar, array $data, bool $invite): array
     {
         if (! $invite) {
             return $data;
         }
 
         try {
-            $shared = $this->graph->calendarPermissions($account);
+            $shared = $this->graph->calendarPermissions($calendar);
         } catch (Throwable $e) {
             // Se crea el evento igual, solo que sin los compartidos.
             report($e);
@@ -208,7 +218,7 @@ class EventController extends Controller
             ->map(fn (string $email) => mb_strtolower($email))
             ->filter(fn (string $email) => (bool) filter_var($email, FILTER_VALIDATE_EMAIL))
             // El organizador no puede figurar como invitado de su propio evento.
-            ->reject(fn (string $email) => $email === mb_strtolower($account->email));
+            ->reject(fn (string $email) => $email === mb_strtolower($calendar->mailboxEmail()));
 
         $data['attendees'] = collect($data['attendees'] ?? [])
             ->merge($emails)
@@ -227,10 +237,10 @@ class EventController extends Controller
      * @param  array<string, mixed>  $event
      * @return array<int, string>
      */
-    private function sharedAudience(MicrosoftAccount $account, array $event): array
+    private function sharedAudience(CalendarOwner $calendar, array $event): array
     {
         try {
-            $shared = $this->graph->calendarPermissions($account);
+            $shared = $this->graph->calendarPermissions($calendar);
         } catch (Throwable $e) {
             // Sin la lista se avisa solo al dueño: mejor eso que no avisar.
             report($e);
@@ -250,7 +260,7 @@ class EventController extends Controller
             ->map(fn (string $email) => mb_strtolower($email))
             // Outlook mete entradas sin correo real, como el acceso público.
             ->filter(fn (string $email) => (bool) filter_var($email, FILTER_VALIDATE_EMAIL))
-            ->reject(fn (string $email) => $email === mb_strtolower($account->email))
+            ->reject(fn (string $email) => $email === mb_strtolower($calendar->mailboxEmail()))
             ->reject(fn (string $email) => in_array($email, $invited, true))
             ->unique()
             ->values()
@@ -261,10 +271,16 @@ class EventController extends Controller
     {
         report($e);
 
+        $application = config('services.microsoft.mode') === 'application';
+
         $message = $e instanceof RequestException
             ? match ($e->response->status()) {
-                401 => 'Tu sesión con Microsoft caducó. Vuelve a conectar la cuenta.',
-                403 => 'Falta el permiso Calendars.ReadWrite. Reconecta tu cuenta para concederlo.',
+                401 => $application
+                    ? 'El token de la aplicación fue rechazado. Revisa el secreto en el .env.'
+                    : 'Tu sesión con Microsoft caducó. Vuelve a conectar la cuenta.',
+                403 => $application
+                    ? 'La aplicación no tiene Calendars.ReadWrite sobre el buzón general. Falta el consentimiento de administrador o la política de acceso de Exchange lo bloquea.'
+                    : 'Falta el permiso Calendars.ReadWrite. Reconecta tu cuenta para concederlo.',
                 404 => 'El evento ya no existe en Outlook.',
                 default => 'Microsoft Graph rechazó la operación ('.$e->response->status().').',
             }

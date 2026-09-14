@@ -29,9 +29,15 @@ return [
     ],
 
     'microsoft' => [
-        // 'delegated'   => cada usuario conecta su cuenta (permiso Calendars.Read delegado)
-        // 'application' => la app lee buzones por correo (permiso Calendars.Read de aplicación)
+        // 'delegated'   => cada usuario conecta su cuenta y los eventos van a su
+        //                  calendario (permiso Calendars.ReadWrite delegado)
+        // 'application' => todos trabajan sobre el buzón general MS_MAILBOX, sin
+        //                  que nadie inicie sesión con él (Calendars.ReadWrite de
+        //                  aplicación + ApplicationAccessPolicy en Exchange)
         'mode' => env('MS_MODE', 'delegated'),
+        // Buzón general en modo aplicación: organizador de todos los eventos y
+        // remitente de las invitaciones. Mejor un buzón compartido de Exchange.
+        'mailbox' => env('MS_MAILBOX'),
         'client_id' => env('MS_CLIENT_ID'),
         'client_secret' => env('MS_CLIENT_SECRET'),
         'tenant' => env('MS_TENANT_ID'),

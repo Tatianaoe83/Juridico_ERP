@@ -31,11 +31,15 @@ class CalendarEventNotification extends Notification
     /**
      * @param  array<string, mixed>  $event  Tal como lo devuelve MicrosoftGraph.
      * @param  array<string, mixed>|null  $previous  Estado anterior, solo al editar.
+     * @param  string|null  $actor  Quién hizo el cambio. Con el buzón general el
+     *                              organizador es siempre el mismo, así que es
+     *                              la única forma de saberlo.
      */
     public function __construct(
         private readonly string $action,
         private readonly array $event,
         private readonly ?array $previous = null,
+        private readonly ?string $actor = null,
     ) {}
 
     /**
@@ -77,6 +81,7 @@ class CalendarEventNotification extends Notification
             'Ubicación' => $this->event['location'] ?? null,
             'Organiza' => $this->event['organizer'] ?? null,
             'Descripción' => $this->event['description'] ?? null,
+            ucfirst(self::LABELS[$this->action]).' por' => $this->actor,
         ];
 
         return collect($rows)

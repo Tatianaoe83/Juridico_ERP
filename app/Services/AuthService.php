@@ -9,16 +9,6 @@ use Illuminate\Validation\ValidationException;
 class AuthService
 {
     /**
-     * Create a new user account.
-     *
-     * @param  array{name: string, email: string, password: string}  $data
-     */
-    public function register(array $data): User
-    {
-        return User::create($data);
-    }
-
-    /**
      * Validate credentials without touching the session guard.
      *
      * @param  array{email: string, password: string}  $credentials

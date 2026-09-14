@@ -30,14 +30,14 @@ class CalendarShareController extends Controller
             'role' => ['required', Rule::in(self::ROLES)],
         ]);
 
-        $account = $request->user()->microsoftAccount;
+        $calendar = $request->user()->calendarOwner();
 
-        if (! $account?->canWriteCalendar()) {
+        if (! $calendar?->canWriteCalendar()) {
             return back()->with('error', 'Reconecta tu cuenta para poder compartir el calendario.');
         }
 
         try {
-            $this->graph->shareCalendar($account, mb_strtolower($data['email']), $data['role']);
+            $this->graph->shareCalendar($calendar, mb_strtolower($data['email']), $data['role']);
         } catch (Throwable $e) {
             return $this->failed($e, $data['email']);
         }
@@ -51,14 +51,14 @@ class CalendarShareController extends Controller
             'permission_id' => ['required', 'string'],
         ]);
 
-        $account = $request->user()->microsoftAccount;
+        $calendar = $request->user()->calendarOwner();
 
-        if (! $account?->canWriteCalendar()) {
+        if (! $calendar?->canWriteCalendar()) {
             return back()->with('error', 'Reconecta tu cuenta para poder dejar de compartir.');
         }
 
         try {
-            $this->graph->unshareCalendar($account, $data['permission_id']);
+            $this->graph->unshareCalendar($calendar, $data['permission_id']);
         } catch (Throwable $e) {
             return $this->failed($e);
         }

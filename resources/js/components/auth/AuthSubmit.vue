@@ -1,4 +1,6 @@
 <script setup>
+import { Loader2 } from 'lucide-vue-next';
+
 defineProps({
     loading: { type: Boolean, default: false },
     loadingLabel: { type: String, default: 'Un momento…' },
@@ -6,66 +8,14 @@ defineProps({
 </script>
 
 <template>
-    <button type="submit" class="submit" :disabled="loading">
+    <button
+        type="submit"
+        :disabled="loading"
+        :aria-busy="loading"
+        class="inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-brand px-4 text-sm font-bold text-white shadow-lg shadow-brand/25 transition-[background-color,box-shadow,transform] duration-150 hover:bg-brand-light hover:shadow-brand/35 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/40 dark:bg-brand-light dark:hover:bg-[#3a5f9e] dark:focus-visible:ring-brand-gray/50 active:scale-[0.99] disabled:cursor-progress disabled:opacity-70 motion-reduce:transition-none sm:h-10"
+    >
+        <Loader2 v-if="loading" class="size-4 animate-spin" aria-hidden="true" />
         <span v-if="loading">{{ loadingLabel }}</span>
-        <span v-else><slot /></span>
-        <svg v-if="!loading" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M1 8h13M9 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.5" />
-        </svg>
+        <slot v-else />
     </button>
 </template>
-
-<style scoped>
-.submit {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    width: 100%;
-    padding: 0.85rem 1.1rem;
-    border: 0;
-    border-radius: 0;
-    background: #14181c;
-    color: #fff;
-    font-size: 0.85rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    cursor: pointer;
-    transition:
-        background 150ms ease,
-        color 150ms ease,
-        transform 150ms ease;
-}
-
-.submit svg {
-    width: 16px;
-    height: 16px;
-    transition: transform 150ms ease;
-}
-
-.submit:hover:not(:disabled) {
-    background: #ffb320;
-    color: #14181c;
-}
-
-.submit:hover:not(:disabled) svg {
-    transform: translateX(3px);
-}
-
-.submit:focus-visible {
-    outline: 2px solid #ffb320;
-    outline-offset: 3px;
-}
-
-.submit:disabled {
-    opacity: 0.6;
-    cursor: progress;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .submit,
-    .submit svg {
-        transition: none;
-    }
-}
-</style>
