@@ -38,7 +38,7 @@ watch(holdsCurrent, (inside) => {
         <button
             v-if="collapsible"
             type="button"
-            class="flex w-full items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            class="flex w-full cursor-pointer items-center gap-1.5 rounded-md px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-muted-foreground transition-colors hover:text-brand dark:text-brand-gray/70 dark:hover:text-white"
             :aria-expanded="open"
             @click="open = !open"
         >
@@ -48,10 +48,15 @@ watch(holdsCurrent, (inside) => {
             />
             <span>{{ label }}</span>
             <!-- Señala que hay algo activo dentro cuando está plegado -->
-            <span v-if="!open && holdsCurrent" class="ml-auto size-1.5 rounded-full bg-foreground/60" />
+            <span v-if="!open && holdsCurrent" class="ml-auto size-1.5 rounded-full bg-brand dark:bg-brand-gray" />
         </button>
 
-        <p v-else class="px-2.5 pb-1 text-xs font-medium text-muted-foreground">{{ label }}</p>
+        <p
+            v-else
+            class="px-3 pb-1 text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-muted-foreground dark:text-brand-gray/70"
+        >
+            {{ label }}
+        </p>
 
         <div v-show="!collapsible || open" class="space-y-1">
             <SidebarLink
