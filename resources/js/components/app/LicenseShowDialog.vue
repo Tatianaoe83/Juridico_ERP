@@ -3,7 +3,7 @@ import { Building2, CalendarDays, CalendarPlus, FileBadge, Landmark, MessageSqua
 import { DialogClose } from 'reka-ui';
 import { computed } from 'vue';
 import AppModal from '@/components/app/AppModal.vue';
-import { licenseStatus } from '@/lib/licenses';
+import { licenseStatus, localDate, remainingLabel } from '@/lib/licenses';
 
 const props = defineProps({
     open: { type: Boolean, default: false },
@@ -13,13 +13,6 @@ const props = defineProps({
 
 const emit = defineEmits(['update:open']);
 
-/** «2026-09-15» en hora local: con new Date(iso) saldría un día antes. */
-function localDate(iso) {
-    const [y, m, d] = iso.split('-').map(Number);
-
-    return new Date(y, m - 1, d);
-}
-
 function longDate(date) {
     return date.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
 }
@@ -28,20 +21,7 @@ function stamp(iso) {
     return iso ? longDate(new Date(iso)) : '—';
 }
 
-/** «Vence en 12 días», «Venció hace 3 días», «Vence hoy». */
-const remaining = computed(() => {
-    if (!props.license?.valid_until) return 'Sin vigencia: sigue en trámite';
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const days = Math.round((localDate(props.license.valid_until) - today) / 86_400_000);
-
-    if (days === 0) return 'Vence hoy';
-    if (days > 0) return days === 1 ? 'Vence mañana' : `Vence en ${days} días`;
-
-    return days === -1 ? 'Venció ayer' : `Venció hace ${-days} días`;
-});
+const remaining = computed(() => remainingLabel(props.license?.valid_until));
 
 const status = computed(() => (props.license ? licenseStatus(props.license.status) : null));
 

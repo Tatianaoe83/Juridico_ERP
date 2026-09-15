@@ -37,6 +37,34 @@ export const LICENSE_STATUS = {
 
 const NEUTRAL_TONE = 'bg-slate-50 text-slate-600 ring-slate-500/15 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10';
 
+/** «2026-09-15» en hora local: con new Date(iso) saldría un día antes. */
+export function localDate(iso) {
+    const [y, m, d] = iso.split('-').map(Number);
+
+    return new Date(y, m - 1, d);
+}
+
+/** Días de hoy a la vigencia: negativo si ya venció, null si no tiene fecha. */
+export function daysLeft(iso) {
+    if (!iso) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return Math.round((localDate(iso) - today) / 86_400_000);
+}
+
+/** «Vence en 12 días», «Venció hace 3 días», «Vence hoy». */
+export function remainingLabel(iso) {
+    const days = daysLeft(iso);
+
+    if (days === null) return 'Sin vigencia: sigue en trámite';
+    if (days === 0) return 'Vence hoy';
+    if (days > 0) return days === 1 ? 'Vence mañana' : `Vence en ${days} días`;
+
+    return days === -1 ? 'Venció ayer' : `Venció hace ${-days} días`;
+}
+
 /** Un valor que no está en el mapa sale tal cual, en gris. */
 export function licenseStatus(value) {
     return LICENSE_STATUS[value] ?? { label: value, tone: NEUTRAL_TONE };

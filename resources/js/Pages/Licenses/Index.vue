@@ -17,7 +17,7 @@ import AppShell from '@/Layouts/AppShell.vue';
 import LicenseFormDialog from '@/components/app/LicenseFormDialog.vue';
 import LicenseShowDialog from '@/components/app/LicenseShowDialog.vue';
 import { usePermissions } from '@/composables/usePermissions';
-import { LICENSE_STATUS, licenseStatus } from '@/lib/licenses';
+import { LICENSE_STATUS, daysLeft, licenseStatus } from '@/lib/licenses';
 
 const props = defineProps({
     /** { data: [{ id, name, company, authority, valid_until, status }], meta } */
@@ -152,6 +152,26 @@ function shortDate(iso) {
     const [y, m, d] = iso.split('-').map(Number);
 
     return new Date(y, m - 1, d).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** «12 días», «Hoy», «Vencida hace 3 días». Corto: va en una columna angosta. */
+function daysText(iso) {
+    const days = daysLeft(iso);
+
+    if (days === 0) return 'Hoy';
+    if (days > 0) return days === 1 ? '1 día' : `${days} días`;
+
+    return days === -1 ? 'Vencida hace 1 día' : `Vencida hace ${-days} días`;
+}
+
+/** Mismos cortes que el estatus: rojo vencida, ámbar a 30 días o menos. */
+function daysTone(iso) {
+    const days = daysLeft(iso);
+
+    if (days < 0) return 'text-red-600 dark:text-red-400';
+    if (days <= 30) return 'text-amber-600 dark:text-amber-400';
+
+    return 'text-slate-700 dark:text-slate-200';
 }
 
 const STATUS = LICENSE_STATUS;
@@ -343,6 +363,7 @@ const PAGE_BTN =
                                 <th :class="[TH, 'hidden @3xl:table-cell']">Empresa</th>
                                 <th :class="[TH, 'hidden @4xl:table-cell']">Autoridad</th>
                                 <th :class="[TH, 'hidden @lg:table-cell']">Vigencia</th>
+                                <th :class="[TH, 'hidden @lg:table-cell']">Días restantes</th>
                                 <th :class="[TH, 'hidden @2xl:table-cell']">Estatus</th>
                                 <th :class="[TH, 'text-right']">Acciones</th>
                             </tr>
@@ -368,7 +389,7 @@ const PAGE_BTN =
                                             <span class="block truncate text-[0.7rem] text-slate-400 @4xl:hidden dark:text-brand-gray/80">
                                                 <span class="@3xl:hidden">{{ license.company ?? 'Sin empresa' }}</span>
                                                 <span v-if="license.authority"><span class="@3xl:hidden"> · </span>{{ license.authority }}</span>
-                                                <span class="@lg:hidden"> · vigencia {{ shortDate(license.valid_until) }}</span>
+                                                <span class="@lg:hidden"> · vigencia {{ shortDate(license.valid_until) }}<template v-if="license.valid_until"> ({{ daysText(license.valid_until) }})</template></span>
                                                 <span class="@2xl:hidden"> · {{ statusOf(license.status).label }}</span>
                                             </span>
                                         </span>
@@ -385,6 +406,13 @@ const PAGE_BTN =
 
                                 <td :class="[TD, 'hidden whitespace-nowrap text-slate-600 tabular-nums @lg:table-cell dark:text-slate-300']">
                                     {{ license.valid_until ? shortDate(license.valid_until) : 'Por definir' }}
+                                </td>
+
+                                <td :class="[TD, 'hidden whitespace-nowrap tabular-nums @lg:table-cell']">
+                                    <span v-if="license.valid_until" class="font-semibold" :class="daysTone(license.valid_until)">
+                                        {{ daysText(license.valid_until) }}
+                                    </span>
+                                    <span v-else class="text-slate-400 dark:text-brand-gray/70">—</span>
                                 </td>
 
                                 <td :class="[TD, 'hidden @2xl:table-cell']">
@@ -421,7 +449,7 @@ const PAGE_BTN =
                             </tr>
 
                             <tr v-if="!licenses.data.length">
-                                <td colspan="6" class="px-6 py-8 text-center tall:py-14">
+                                <td colspan="7" class="px-6 py-8 text-center tall:py-14">
                                     <span
                                         class="mx-auto mb-2.5 grid size-10 place-content-center rounded-xl bg-slate-100 text-slate-400 dark:bg-white/[0.05] dark:text-brand-gray"
                                     >
