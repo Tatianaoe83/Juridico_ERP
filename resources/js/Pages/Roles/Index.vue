@@ -1,20 +1,18 @@
 <script setup>
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ChevronLeft, ChevronRight, Eye, Lock, Pencil, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, Eye, Pencil, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
-import { useSwal } from '@/composables/useSwal';
+import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
 import { roleMeta, roleTone } from '@/lib/users';
 
 const props = defineProps({
-    /** [{ id, name, users_count, permissions_count, unrestricted, system, can }] */
+    /** [{ id, name, users_count, permissions_count, unrestricted, can }] */
     roles: { type: Array, required: true },
     totalPermissions: { type: Number, default: 0 },
 });
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Roles' }];
-
-const { confirmDelete, blocks } = useSwal();
 
 /* ---------- Búsqueda y páginas ---------- */
 
@@ -94,29 +92,17 @@ onBeforeUnmount(() => observer?.disconnect());
 
 /* ---------- Eliminar ---------- */
 
+const deleteOpen = ref(false);
+const toDelete = ref(null);
 const deleting = ref(null);
 
-async function destroy(role) {
-    const { lead, panel, note, stack } = blocks;
+function askDelete(role) {
+    toDelete.value = role;
+    deleteOpen.value = true;
+}
 
-    const ok = await confirmDelete({
-        title: '¿Seguro que quieres eliminar este rol?',
-        html: stack(
-            lead(`<span class="font-semibold">${escapeHtml(roleMeta(role.name).label)}</span>`),
-            panel({
-                label: 'Qué se pierde',
-                tone: 'danger',
-                items: [
-                    `Sus ${role.permissions_count} permisos asignados`,
-                    'No se podrá asignar a nuevos usuarios',
-                ],
-            }),
-            note('Esta acción no se puede deshacer.'),
-        ),
-        confirmText: 'Sí, eliminar',
-    });
-
-    if (!ok) return;
+function destroy() {
+    const role = toDelete.value;
 
     deleting.value = role.id;
 
@@ -126,16 +112,11 @@ async function destroy(role) {
     });
 }
 
-/** El nombre de un rol lo escribe una persona y va dentro de HTML. */
-function escapeHtml(text = '') {
-    return text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-}
-
 const people = (n) => (n === 1 ? '1 usuario' : `${n} usuarios`);
 
 /** Por qué no se puede borrar, para el título del botón deshabilitado. */
 function deleteBlocker(role) {
-    if (role.system) return 'Los roles del sistema no se pueden eliminar';
+    if (role.unrestricted) return 'El superadmin no se puede eliminar';
     if (role.users_count) return `Tiene ${people(role.users_count)}: reasígnalos primero`;
 
     return 'Eliminar';
@@ -243,18 +224,8 @@ const PAGE_BTN =
                                             <component :is="roleMeta(role.name).icon" class="size-3.5" />
                                         </span>
                                         <span class="min-w-0">
-                                            <span class="flex items-center gap-2">
-                                                <span class="truncate font-semibold text-slate-800 dark:text-white">
-                                                    {{ roleMeta(role.name).label }}
-                                                </span>
-                                                <span
-                                                    v-if="role.system"
-                                                    class="inline-flex shrink-0 items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[0.55rem] font-bold tracking-wide text-slate-500 uppercase dark:bg-white/10 dark:text-brand-gray"
-                                                    title="Rol del sistema: no se renombra ni se elimina"
-                                                >
-                                                    <Lock class="size-2.5" />
-                                                    Sistema
-                                                </span>
+                                            <span class="block truncate font-semibold text-slate-800 dark:text-white">
+                                                {{ roleMeta(role.name).label }}
                                             </span>
                                             <code class="block truncate font-mono text-[0.7rem] text-slate-400 dark:text-brand-gray/80">
                                                 {{ role.name }}<span class="@2xl:hidden"> · {{ people(role.users_count) }} · {{ role.unrestricted ? 'acceso total' : `${role.permissions_count} permisos` }}</span>
@@ -316,7 +287,7 @@ const PAGE_BTN =
                                             :aria-label="`Eliminar ${roleMeta(role.name).label}`"
                                             :title="deleteBlocker(role)"
                                             :disabled="!role.can.delete || deleting === role.id"
-                                            @click="destroy(role)"
+                                            @click="askDelete(role)"
                                         >
                                             <Trash2 class="size-4" />
                                         </button>
@@ -403,5 +374,11 @@ const PAGE_BTN =
                 </div>
             </div>
         </div>
+
+        <ConfirmDeleteDialog
+            v-model:open="deleteOpen"
+            :text="`¿Seguro que quieres eliminar el rol «${toDelete ? roleMeta(toDelete.name).label : ''}»? Se pierden sus permisos asignados.`"
+            @confirm="destroy"
+        />
     </AppShell>
 </template>

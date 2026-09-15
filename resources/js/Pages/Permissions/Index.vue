@@ -5,7 +5,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import PermissionFormDialog from '@/components/app/PermissionFormDialog.vue';
 import PermissionShowDialog from '@/components/app/PermissionShowDialog.vue';
-import { useSwal } from '@/composables/useSwal';
+import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
 import { roleMeta } from '@/lib/users';
 
 const props = defineProps({
@@ -14,8 +14,6 @@ const props = defineProps({
 });
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Permisos' }];
-
-const { confirmDelete, blocks } = useSwal();
 
 /* ---------- Búsqueda y páginas ---------- */
 
@@ -122,28 +120,17 @@ function show(permission) {
 
 /* ---------- Eliminar ---------- */
 
+const deleteOpen = ref(false);
+const toDelete = ref(null);
 const deleting = ref(null);
 
-async function destroy(permission) {
-    const { lead, panel, note, stack } = blocks;
+function askDelete(permission) {
+    toDelete.value = permission;
+    deleteOpen.value = true;
+}
 
-    const ok = await confirmDelete({
-        title: '¿Seguro que quieres eliminar este permiso?',
-        html: stack(
-            lead(`<span class="font-mono font-semibold">${escapeHtml(permission.name)}</span>`),
-            panel({
-                label: 'Qué se pierde',
-                tone: 'danger',
-                items: permission.roles.length
-                    ? [`Se quita de: ${permission.roles.map((role) => escapeHtml(roleMeta(role).label)).join(', ')}`, 'Lo que el código proteja con él dejará de estar accesible']
-                    : ['Lo que el código proteja con él dejará de estar accesible'],
-            }),
-            note('Esta acción no se puede deshacer.'),
-        ),
-        confirmText: 'Sí, eliminar',
-    });
-
-    if (!ok) return;
+function destroy() {
+    const permission = toDelete.value;
 
     deleting.value = permission.id;
 
@@ -153,10 +140,16 @@ async function destroy(permission) {
     });
 }
 
-/** El nombre lo escribe una persona y va dentro de HTML del SweetAlert. */
-function escapeHtml(text = '') {
-    return text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-}
+/** Avisa de qué roles lo pierden: es lo que cambia para la gente al borrarlo. */
+const deleteText = computed(() => {
+    const permission = toDelete.value;
+
+    if (!permission) return '';
+
+    const roles = permission.roles.map((role) => roleMeta(role).label).join(', ');
+
+    return `¿Seguro que quieres eliminar el permiso «${permission.name}»?${roles ? ` Se quitará de: ${roles}.` : ''}`;
+});
 
 /* Versión compacta de las medidas de usuarios y roles. */
 const TH = 'px-3 py-2 text-left text-[0.62rem] font-bold uppercase tracking-[0.14em] whitespace-nowrap tall:py-2.5 @2xl:px-4 @6xl:px-6';
@@ -289,7 +282,7 @@ const PAGE_BTN =
                                             :aria-label="`Eliminar ${permission.name}`"
                                             title="Eliminar"
                                             :disabled="deleting === permission.id"
-                                            @click="destroy(permission)"
+                                            @click="askDelete(permission)"
                                         >
                                             <Trash2 class="size-4" />
                                         </button>
@@ -380,5 +373,7 @@ const PAGE_BTN =
         <PermissionFormDialog v-model:open="formOpen" :permission="editing" />
 
         <PermissionShowDialog v-model:open="showOpen" :permission="viewing" @edit="edit" />
+
+        <ConfirmDeleteDialog v-model:open="deleteOpen" :text="deleteText" @confirm="destroy" />
     </AppShell>
 </template>

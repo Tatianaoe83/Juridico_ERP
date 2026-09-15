@@ -1,12 +1,12 @@
 <script setup>
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, KeyRound, Loader2, Lock, Save, ShieldPlus, Tag, TriangleAlert } from 'lucide-vue-next';
+import { ArrowLeft, KeyRound, Loader2, Save, ShieldPlus, Tag, TriangleAlert } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import { roleMeta } from '@/lib/users';
 
 const props = defineProps({
-    /** null = alta · { id, name, system, permissions: [] } = edición. */
+    /** null = alta · { id, name, permissions: [] } = edición. */
     role: { type: Object, default: null },
     /** [{ key, area, permissions: [{ name, label }] }] — solo los que existen. */
     groups: { type: Array, required: true },
@@ -66,9 +66,6 @@ const sensitive = computed(() => selected.value.has('roles.manage'));
 /* ---------- Guardar ---------- */
 
 function submit() {
-    // El nombre de un rol del sistema no viaja: el servidor lo rechaza.
-    form.transform((data) => (props.role?.system ? { permissions: data.permissions } : data));
-
     editing.value ? form.patch(`/roles/${props.role.id}`) : form.post('/roles');
 }
 
@@ -151,20 +148,11 @@ const CHECK =
                                 autofocus
                                 autocomplete="off"
                                 placeholder="ej. abogado_senior"
-                                :readonly="role?.system"
                                 :aria-invalid="Boolean(form.errors.name)"
-                                class="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 font-mono text-sm text-slate-900 outline-none transition-[border-color,background-color,box-shadow] duration-150 placeholder:font-sans placeholder:text-slate-400 hover:border-slate-300 focus:border-brand/60 focus:bg-white focus:ring-4 focus:ring-brand/10 read-only:cursor-not-allowed read-only:bg-slate-100 read-only:text-slate-500 read-only:hover:border-slate-200 read-only:focus:ring-0 aria-invalid:border-red-400 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:read-only:bg-white/[0.02] dark:read-only:text-brand-gray dark:focus:border-brand-gray/60 dark:focus:ring-white/10"
-                                :class="role?.system && 'pr-10'"
-                            />
-                            <Lock
-                                v-if="role?.system"
-                                class="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-slate-400"
+                                class="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 font-mono text-sm text-slate-900 outline-none transition-[border-color,background-color,box-shadow] duration-150 placeholder:font-sans placeholder:text-slate-400 hover:border-slate-300 focus:border-brand/60 focus:bg-white focus:ring-4 focus:ring-brand/10 aria-invalid:border-red-400 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:focus:border-brand-gray/60 dark:focus:ring-white/10"
                             />
                         </div>
                         <p v-if="form.errors.name" class="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">{{ form.errors.name }}</p>
-                        <p v-else-if="role?.system" class="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-brand-gray">
-                            Rol del sistema: el nombre no cambia porque el código lo busca así.
-                        </p>
                     </section>
 
                     <!-- Resumen de la selección -->

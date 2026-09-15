@@ -26,12 +26,6 @@ class RoleController extends Controller
     /** De más a menos privilegio; lo que no esté aquí va al final. */
     public const ORDER = ['superadmin', 'admin', 'user'];
 
-    /**
-     * Roles de los que depende el código por nombre (el Gate, el seeder, el
-     * alta de usuarios): renombrarlos o borrarlos rompería la app.
-     */
-    private const SYSTEM = ['superadmin', 'admin', 'user'];
-
     /** Ordena en PHP y no con FIELD(): esa función es de MySQL y los tests usan SQLite. */
     public static function rank(string $role): int
     {
@@ -121,21 +115,13 @@ class RoleController extends Controller
             'El superadmin no usa permisos: pasa por el Gate y marcárselos no cambiaría nada.',
         );
 
-        $system = in_array($role->name, self::SYSTEM, true);
-
         $data = $request->validate([
-            // El nombre de un rol del sistema no viaja: el código lo busca por nombre.
-            'name' => $system
-                ? ['prohibited']
-                : ['required', Rule::unique('roles', 'name')->ignore($role)],
+            'name' => ['required', Rule::unique('roles', 'name')->ignore($role)],
             ...$this->permissionRules(),
         ], $this->messages());
 
-        DB::transaction(function () use ($role, $data, $system) {
-            if (! $system) {
-                $role->update(['name' => $data['name']]);
-            }
-
+        DB::transaction(function () use ($role, $data) {
+            $role->update(['name' => $data['name']]);
             $role->syncPermissions($data['permissions'] ?? []);
         });
 
@@ -147,7 +133,8 @@ class RoleController extends Controller
     /** DELETE /roles/{role} */
     public function destroy(Role $role): RedirectResponse
     {
-        abort_if(in_array($role->name, self::SYSTEM, true), 422, 'Los roles del sistema no se pueden eliminar.');
+        // El Gate lo busca por nombre para dar acceso total: sin él nadie administra.
+        abort_if($this->unrestricted($role), 422, 'El superadmin no se puede eliminar.');
 
         // Borrarlo dejaría a esas personas sin rol y sin acceso de golpe.
         $users = $role->users()->count();
@@ -164,8 +151,6 @@ class RoleController extends Controller
     /** @return array<string, mixed> */
     private function summary(Role $role): array
     {
-        $system = in_array($role->name, self::SYSTEM, true);
-
         return [
             'id' => $role->id,
             'name' => $role->name,
@@ -173,10 +158,9 @@ class RoleController extends Controller
             'permissions_count' => $role->permissions_count,
             // El superadmin se resuelve en el Gate, no con permisos.
             'unrestricted' => $this->unrestricted($role),
-            'system' => $system,
             'can' => [
                 'update' => ! $this->unrestricted($role),
-                'delete' => ! $system && $role->users_count === 0,
+                'delete' => ! $this->unrestricted($role) && $role->users_count === 0,
             ],
             'created_at' => $role->created_at?->toIso8601String(),
         ];
@@ -203,7 +187,6 @@ class RoleController extends Controller
             'name.unique' => 'Ya existe un rol con ese nombre.',
             'permissions.required' => 'Marca al menos un permiso.',
             'permissions.min' => 'Marca al menos un permiso.',
-            'name.prohibited' => 'El nombre de un rol del sistema no se puede cambiar.',
         ];
     }
 

@@ -5,7 +5,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import UserFormDialog from '@/components/app/UserFormDialog.vue';
 import UserShowDialog from '@/components/app/UserShowDialog.vue';
-import { useSwal } from '@/composables/useSwal';
+import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
 import { roleMeta, roleTone, userInitials } from '@/lib/users';
 
 const props = defineProps({
@@ -19,8 +19,6 @@ const props = defineProps({
 });
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Usuarios' }];
-
-const { confirmDelete, blocks } = useSwal();
 
 /* ---------- Búsqueda y páginas ---------- */
 
@@ -132,26 +130,17 @@ function show(user) {
 
 /* ---------- Eliminar ---------- */
 
+const deleteOpen = ref(false);
+const toDelete = ref(null);
 const deleting = ref(null);
 
-async function destroy(user) {
-    const { lead, panel, note, stack } = blocks;
+function askDelete(user) {
+    toDelete.value = user;
+    deleteOpen.value = true;
+}
 
-    const ok = await confirmDelete({
-        title: '¿Seguro que quieres eliminar a este usuario?',
-        html: stack(
-            lead(`<span class="font-semibold">${escapeHtml(user.name)}</span><br><span class="text-muted-foreground">${escapeHtml(user.email)}</span>`),
-            panel({
-                label: 'Qué se pierde',
-                tone: 'danger',
-                items: ['Ya no podrá iniciar sesión', 'Se cierran sus sesiones y tokens de acceso'],
-            }),
-            note('Esta acción no se puede deshacer.'),
-        ),
-        confirmText: 'Sí, eliminar',
-    });
-
-    if (!ok) return;
+function destroy() {
+    const user = toDelete.value;
 
     deleting.value = user.id;
 
@@ -159,11 +148,6 @@ async function destroy(user) {
         preserveScroll: true,
         onFinish: () => (deleting.value = null),
     });
-}
-
-/** El nombre lo escribe un usuario y va dentro de HTML del SweetAlert. */
-function escapeHtml(text = '') {
-    return text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
 function shortDate(iso) {
@@ -345,7 +329,7 @@ const PAGE_BTN =
                                             :aria-label="`Eliminar a ${user.name}`"
                                             title="Eliminar"
                                             :disabled="deleting === user.id"
-                                            @click="destroy(user)"
+                                            @click="askDelete(user)"
                                         >
                                             <Trash2 class="size-4" />
                                         </button>
@@ -441,5 +425,11 @@ const PAGE_BTN =
         />
 
         <UserShowDialog v-model:open="showOpen" :user="viewing" @edit="edit" />
+
+        <ConfirmDeleteDialog
+            v-model:open="deleteOpen"
+            :text="`¿Seguro que quieres eliminar a ${toDelete?.name ?? ''} (${toDelete?.email ?? ''})? Ya no podrá iniciar sesión y se cierran sus sesiones.`"
+            @confirm="destroy"
+        />
     </AppShell>
 </template>
