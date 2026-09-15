@@ -90,6 +90,21 @@ const nav = computed(() =>
         .map((section) => ({ ...section, items: section.items.filter((item) => can(item.permission)) }))
         .filter((section) => section.items.length),
 );
+
+/**
+ * Solo un grupo abierto a la vez. Arranca abierto el de la página actual: el
+ * layout se monta en cada visita, así que al navegar queda a la vista el
+ * grupo donde uno está. Abrir otro cierra el anterior; tocar el abierto lo cierra.
+ */
+const currentGroup = computed(
+    () => nav.value.find((section) => section.items.some((item) => page.url.split('?')[0].startsWith(item.href)))?.group,
+);
+
+const openGroup = ref(currentGroup.value ?? nav.value[0]?.group ?? null);
+
+function toggleGroup(group) {
+    openGroup.value = openGroup.value === group ? null : group;
+}
 </script>
 
 <template>
@@ -181,13 +196,15 @@ const nav = computed(() =>
                     <div class="mx-6 h-px bg-gradient-to-r from-brand/15 via-brand/5 to-transparent dark:from-white/15 dark:via-white/5" />
 
                     <!-- Si algún día el menú no cabe, desplaza solo la lista -->
-                    <nav aria-label="Principal" class="min-h-0 flex-1 space-y-5 overflow-x-hidden overflow-y-auto px-4 py-5">
+                    <nav aria-label="Principal" class="min-h-0 flex-1 space-y-3 overflow-x-hidden overflow-y-auto px-4 py-5">
                         <SidebarGroup
                             v-for="section in nav"
                             :key="section.group"
                             :label="section.group"
                             :items="section.items"
+                            :open="openGroup === section.group"
                             :compact="compact"
+                            @toggle="toggleGroup(section.group)"
                         />
                     </nav>
 
