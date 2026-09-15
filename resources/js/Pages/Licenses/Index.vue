@@ -1,28 +1,62 @@
 <script setup>
 import { Head, router } from '@inertiajs/vue3';
-import { BellRing, ChevronLeft, ChevronRight, Eye, FileBadge, Pencil, Search, Trash2, X } from 'lucide-vue-next';
+import {
+    BellRing,
+    CalendarCheck,
+    CalendarClock,
+    CalendarX,
+    Check,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    Eye,
+    FileBadge,
+    Hourglass,
+    Pencil,
+    Search,
+    Trash2,
+    X,
+} from 'lucide-vue-next';
+import {
+    SelectContent,
+    SelectIcon,
+    SelectItem,
+    SelectItemIndicator,
+    SelectItemText,
+    SelectPortal,
+    SelectRoot,
+    SelectTrigger,
+    SelectViewport,
+} from 'reka-ui';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 
 const props = defineProps({
     /** { data: [{ id, name, company, authority, valid_until, status }], meta } */
     licenses: { type: Object, required: true },
+    /** { total, active, expiring, expired, in_progress } — de todo el catálogo, sin filtros. */
+    stats: { type: Object, required: true },
     filters: { type: Object, default: () => ({}) },
 });
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Licencias y permisos' }];
 
-/* ---------- Búsqueda y páginas ---------- */
+/* ---------- Búsqueda, estado y páginas ---------- */
 
 // El servidor pagina de 10 en 10, igual que las demás tablas.
 const PER_PAGE = 10;
 
 const search = ref(props.filters.search ?? '');
+const status = ref(props.filters.status ?? '');
 
 function visit(params) {
     router.get(
         '/licencias',
-        { ...(search.value ? { search: search.value } : {}), ...params },
+        {
+            ...(search.value ? { search: search.value } : {}),
+            ...(status.value ? { status: status.value } : {}),
+            ...params,
+        },
         { preserveState: true, preserveScroll: true, replace: true },
     );
 }
@@ -34,6 +68,22 @@ watch(search, () => {
     clearTimeout(timer);
     timer = setTimeout(() => visit({}), 350);
 });
+
+// El estado se elige de una vez: va directo. Cambiarlo vuelve a la página 1.
+watch(status, () => visit({}));
+
+/** El Select de reka-ui no acepta '' como valor de opción: «todos» viaja como 'all'. */
+const statusModel = computed({
+    get: () => status.value || 'all',
+    set: (value) => (status.value = value === 'all' ? '' : value),
+});
+
+const filtering = computed(() => Boolean(search.value || status.value));
+
+function clearFilters() {
+    search.value = '';
+    status.value = '';
+}
 
 function goTo(page) {
     visit({ page });
@@ -104,27 +154,72 @@ function shortDate(iso) {
     return new Date(y, m - 1, d).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-/** Estatus guardado en la base (en inglés) → etiqueta y color. Uno desconocido sale tal cual, en gris. */
+/** Valores del enum `status` (en inglés) → etiqueta, icono y color. */
 const STATUS = {
     active: {
         label: 'Vigente',
+        plural: 'Vigentes',
+        icon: CalendarCheck,
+        dot: 'bg-emerald-500',
         tone: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/25',
+    },
+    expiring: {
+        label: 'Por vencer',
+        plural: 'Por vencer',
+        icon: CalendarClock,
+        dot: 'bg-amber-500',
+        tone: 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/25',
+    },
+    expired: {
+        label: 'Vencido',
+        plural: 'Vencidos',
+        icon: CalendarX,
+        dot: 'bg-red-500',
+        tone: 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-400/10 dark:text-red-300 dark:ring-red-400/25',
     },
     in_progress: {
         label: 'En trámite',
+        plural: 'En trámite',
+        icon: Hourglass,
+        dot: 'bg-brand-light dark:bg-brand-gray',
         tone: 'bg-brand/[0.06] text-brand ring-brand/15 dark:bg-brand-light/25 dark:text-white dark:ring-brand-gray/25',
-    },
-    expired: {
-        label: 'Vencida',
-        tone: 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-400/10 dark:text-red-300 dark:ring-red-400/25',
-    },
-    cancelled: {
-        label: 'Cancelada',
-        tone: 'bg-slate-50 text-slate-600 ring-slate-500/15 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10',
     },
 };
 
-const statusOf = (status) => STATUS[status] ?? { label: status, tone: STATUS.cancelled.tone };
+const NEUTRAL_TONE = 'bg-slate-50 text-slate-600 ring-slate-500/15 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10';
+
+const statusOf = (value) => STATUS[value] ?? { label: value, tone: NEUTRAL_TONE };
+
+const statusOptions = [
+    { key: 'all', label: 'Todos los estados', dot: 'bg-slate-300 dark:bg-white/25' },
+    ...Object.entries(STATUS).map(([key, meta]) => ({ key, label: meta.label, dot: meta.dot })),
+];
+
+/* ---------- Resumen ---------- */
+
+// Solo informan: son de todo el catálogo y no filtran la tabla.
+const cards = computed(() => [
+    {
+        key: 'total',
+        label: 'Total',
+        value: props.stats.total,
+        hint: props.stats.total === 1 ? 'registro' : 'registros',
+        icon: FileBadge,
+        tone: 'bg-brand/[0.07] text-brand ring-brand/15 dark:bg-white/10 dark:text-white dark:ring-white/10',
+    },
+    ...Object.entries(STATUS).map(([key, meta]) => {
+        const value = props.stats[key] ?? 0;
+
+        return {
+            key,
+            label: meta.plural,
+            value,
+            hint: `${props.stats.total ? Math.round((value / props.stats.total) * 100) : 0}% del total`,
+            icon: meta.icon,
+            tone: meta.tone,
+        };
+    }),
+]);
 
 /* Mismas medidas que la tabla de permisos. */
 const TH = 'px-3 py-2 text-left text-[0.62rem] font-bold uppercase tracking-[0.14em] whitespace-nowrap tall:py-2.5 @2xl:px-4 @6xl:px-6';
@@ -162,32 +257,98 @@ const PAGE_BTN =
                 </div>
             </div>
 
+            <!-- Resumen: de todo el catálogo, no cambia con los filtros de la tabla -->
+            <section aria-label="Resumen" class="mb-3 grid shrink-0 grid-cols-2 gap-2.5 tall:mb-4 sm:grid-cols-3 lg:grid-cols-5 tall:gap-3">
+                <article
+                    v-for="card in cards"
+                    :key="card.key"
+                    class="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-3.5 py-3 shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none"
+                >
+                    <span class="grid size-9 shrink-0 place-content-center rounded-xl ring-1 ring-inset" :class="card.tone">
+                        <component :is="card.icon" class="size-4" />
+                    </span>
+                    <div class="min-w-0">
+                        <p class="truncate text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">{{ card.label }}</p>
+                        <p class="text-xl leading-tight font-bold text-slate-800 tabular-nums dark:text-white">{{ card.value }}</p>
+                        <p class="truncate text-[0.68rem] text-slate-400 dark:text-brand-gray/70">{{ card.hint }}</p>
+                    </div>
+                </article>
+            </section>
+
             <div
                 class="@container flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] md:min-h-0 md:flex-1 dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none"
             >
-                <!-- Barra: búsqueda y conteo -->
+                <!-- Barra: búsqueda, estado y conteo -->
                 <div class="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2.5 tall:py-3 @2xl:px-4 @6xl:px-6">
-                    <label class="relative w-full @xl:max-w-sm">
-                        <span class="sr-only">Buscar licencias y permisos</span>
-                        <input
-                            v-model="search"
-                            type="search"
-                            placeholder="Buscar por nombre, empresa o autoridad…"
-                            class="peer h-9 w-full rounded-lg border border-slate-200 bg-slate-50/70 pr-9 pl-9 text-[0.8rem] text-slate-900 outline-none transition-[border-color,background-color,box-shadow] duration-150 placeholder:text-slate-400 hover:border-slate-300 focus:border-brand/50 focus:bg-white focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/30 dark:hover:border-white/20 dark:focus:border-brand-gray/50 dark:focus:bg-white/[0.06] dark:focus:ring-white/10 [&::-webkit-search-cancel-button]:hidden"
-                        />
-                        <Search
-                            class="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-slate-400 transition-colors peer-focus:text-brand dark:text-white/35 dark:peer-focus:text-white"
-                        />
-                        <button
-                            v-if="search"
-                            type="button"
-                            class="absolute top-1/2 right-1.5 grid size-6 -translate-y-1/2 cursor-pointer place-content-center rounded-md text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
-                            aria-label="Limpiar búsqueda"
-                            @click="search = ''"
-                        >
-                            <X class="size-3.5" />
-                        </button>
-                    </label>
+                    <div class="flex w-full flex-wrap items-center gap-2 @xl:w-auto">
+                        <label class="relative w-full @xl:w-80">
+                            <span class="sr-only">Buscar licencias y permisos</span>
+                            <input
+                                v-model="search"
+                                type="search"
+                                placeholder="Buscar por nombre, empresa o autoridad…"
+                                class="peer h-9 w-full rounded-lg border border-slate-200 bg-slate-50/70 pr-9 pl-9 text-[0.8rem] text-slate-900 outline-none transition-[border-color,background-color,box-shadow] duration-150 placeholder:text-slate-400 hover:border-slate-300 focus:border-brand/50 focus:bg-white focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/30 dark:hover:border-white/20 dark:focus:border-brand-gray/50 dark:focus:bg-white/[0.06] dark:focus:ring-white/10 [&::-webkit-search-cancel-button]:hidden"
+                            />
+                            <Search
+                                class="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-slate-400 transition-colors peer-focus:text-brand dark:text-white/35 dark:peer-focus:text-white"
+                            />
+                            <button
+                                v-if="search"
+                                type="button"
+                                class="absolute top-1/2 right-1.5 grid size-6 -translate-y-1/2 cursor-pointer place-content-center rounded-md text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+                                aria-label="Limpiar búsqueda"
+                                @click="search = ''"
+                            >
+                                <X class="size-3.5" />
+                            </button>
+                        </label>
+
+                        <!-- Estado: lista propia en vez del <select> nativo, con el color de cada uno -->
+                        <SelectRoot v-model="statusModel">
+                            <SelectTrigger
+                                aria-label="Filtrar por estado"
+                                class="group flex h-9 w-full cursor-pointer items-center gap-2 rounded-lg border px-3 text-[0.8rem] outline-none transition-[border-color,background-color,box-shadow] duration-150 focus-visible:ring-4 focus-visible:ring-brand/10 data-[state=open]:border-brand/50 data-[state=open]:bg-white data-[state=open]:ring-4 data-[state=open]:ring-brand/10 @xl:w-48 dark:focus-visible:ring-white/10 dark:data-[state=open]:border-brand-gray/50 dark:data-[state=open]:bg-white/[0.06] dark:data-[state=open]:ring-white/10"
+                                :class="
+                                    status
+                                        ? 'border-brand/40 bg-brand/[0.04] text-slate-900 dark:border-brand-gray/40 dark:bg-white/[0.06] dark:text-white'
+                                        : 'border-slate-200 bg-slate-50/70 text-slate-500 hover:border-slate-300 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/20'
+                                "
+                            >
+                                <span class="size-2 shrink-0 rounded-full" :class="status ? STATUS[status].dot : 'bg-slate-300 dark:bg-white/25'" />
+                                <span class="flex-1 truncate text-left" :class="status && 'font-semibold'">
+                                    {{ status ? STATUS[status].label : 'Todos los estados' }}
+                                </span>
+                                <SelectIcon as-child>
+                                    <ChevronDown
+                                        class="size-3.5 shrink-0 text-slate-400 transition-transform duration-200 group-data-[state=open]:rotate-180 dark:text-white/35"
+                                    />
+                                </SelectIcon>
+                            </SelectTrigger>
+
+                            <SelectPortal>
+                                <SelectContent
+                                    position="popper"
+                                    :side-offset="6"
+                                    class="z-50 max-h-72 min-w-[var(--reka-select-trigger-width)] overflow-hidden rounded-xl border border-slate-200/80 bg-white p-1 font-corporate shadow-xl shadow-brand-deep/10 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-1 dark:border-white/10 dark:bg-brand-panel dark:shadow-black/40"
+                                >
+                                    <SelectViewport>
+                                        <SelectItem
+                                            v-for="option in statusOptions"
+                                            :key="option.key"
+                                            :value="option.key"
+                                            class="flex cursor-pointer items-center gap-2.5 rounded-lg py-2 pr-2 pl-2.5 text-[0.8rem] text-slate-700 outline-none select-none data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900 data-[state=checked]:font-semibold data-[state=checked]:text-brand dark:text-slate-200 dark:data-[highlighted]:bg-white/[0.07] dark:data-[highlighted]:text-white dark:data-[state=checked]:text-white"
+                                        >
+                                            <span class="size-2 shrink-0 rounded-full" :class="option.dot" />
+                                            <SelectItemText class="flex-1">{{ option.label }}</SelectItemText>
+                                            <SelectItemIndicator>
+                                                <Check class="size-3.5" stroke-width="2.5" />
+                                            </SelectItemIndicator>
+                                        </SelectItem>
+                                    </SelectViewport>
+                                </SelectContent>
+                            </SelectPortal>
+                        </SelectRoot>
+                    </div>
 
                     <p class="text-xs text-slate-500 dark:text-brand-gray">
                         <span class="font-bold text-slate-800 dark:text-white">{{ range.total }}</span>
@@ -286,19 +447,19 @@ const PAGE_BTN =
                                     <span
                                         class="mx-auto mb-2.5 grid size-10 place-content-center rounded-xl bg-slate-100 text-slate-400 dark:bg-white/[0.05] dark:text-brand-gray"
                                     >
-                                        <component :is="search ? Search : FileBadge" class="size-5" />
+                                        <component :is="filtering ? Search : FileBadge" class="size-5" />
                                     </span>
-                                    <p class="text-sm font-bold text-slate-800 dark:text-white">{{ search ? 'Sin resultados' : 'Sin registros' }}</p>
+                                    <p class="text-sm font-bold text-slate-800 dark:text-white">{{ filtering ? 'Sin resultados' : 'Sin registros' }}</p>
                                     <p class="mt-1 text-xs text-slate-500 dark:text-brand-gray">
-                                        {{ search ? `Nada coincide con «${search}».` : 'Aún no hay licencias ni permisos registrados.' }}
+                                        {{ filtering ? 'Nada coincide con la búsqueda o el estado elegido.' : 'Aún no hay licencias ni permisos registrados.' }}
                                     </p>
                                     <button
-                                        v-if="search"
+                                        v-if="filtering"
                                         type="button"
                                         class="mt-3 cursor-pointer text-xs font-semibold text-brand hover:underline dark:text-white"
-                                        @click="search = ''"
+                                        @click="clearFilters"
                                     >
-                                        Limpiar búsqueda
+                                        Limpiar filtros
                                     </button>
                                 </td>
                             </tr>

@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('company')->nullable();
             $table->string('authority')->nullable();
             $table->date('valid_until')->nullable()->index();
-            $table->string('status', 20)->default('active')->index();
+            $table->enum('status', ['active', 'expiring', 'expired', 'in_progress'])->default('active')->index();
             $table->text('comments')->nullable();
             $table->timestamp('created_at')->useCurrent();
             $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();

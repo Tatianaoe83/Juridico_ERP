@@ -9,6 +9,9 @@ use Illuminate\Database\Eloquent\Model;
  */
 class License extends Model
 {
+    /** Los mismos valores que el enum de la columna `status`. */
+    public const STATUSES = ['active', 'expiring', 'expired', 'in_progress'];
+
     protected $guarded = [];
 
     protected function casts(): array

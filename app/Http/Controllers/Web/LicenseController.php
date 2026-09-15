@@ -19,17 +19,27 @@ class LicenseController extends Controller
     {
         $search = trim((string) $request->query('search', ''));
 
+        // Un estado que no existe se ignora en vez de dejar la tabla vacía.
+        $status = in_array($request->query('status'), License::STATUSES, true) ? $request->query('status') : null;
+
         $licenses = License::query()
             ->when($search !== '', fn ($query) => $query->where(fn ($q) => $q
                 ->where('name', 'like', "%{$search}%")
                 ->orWhere('company', 'like', "%{$search}%")
                 ->orWhere('authority', 'like', "%{$search}%")))
+            ->when($status, fn ($query) => $query->where('status', $status))
             // Lo que vence antes va primero; lo que no vence, al final.
             ->orderByRaw('valid_until is null')
             ->orderBy('valid_until')
             ->orderBy('name')
             ->paginate(self::PER_PAGE)
             ->withQueryString();
+
+        // El resumen es de todo el catálogo: no cambia con la búsqueda ni el filtro.
+        $counts = License::query()
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
 
         return Inertia::render('Licenses/Index', [
             'licenses' => [
@@ -48,7 +58,11 @@ class LicenseController extends Controller
                     'last_page' => $licenses->lastPage(),
                 ],
             ],
-            'filters' => ['search' => $search],
+            'stats' => [
+                'total' => (int) $counts->sum(),
+                ...collect(License::STATUSES)->mapWithKeys(fn ($s) => [$s => (int) ($counts[$s] ?? 0)])->all(),
+            ],
+            'filters' => ['search' => $search, 'status' => $status],
         ]);
     }
 }
