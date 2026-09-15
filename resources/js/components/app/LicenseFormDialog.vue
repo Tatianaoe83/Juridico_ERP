@@ -1,14 +1,18 @@
 <script setup>
 import { useForm } from '@inertiajs/vue3';
-import { Building2, CalendarDays, FileBadge, FilePlus2, Landmark, Loader2, MessageSquareText, Save } from 'lucide-vue-next';
-import { watch } from 'vue';
+import { Building2, CalendarDays, FileBadge, FilePen, FilePlus2, Landmark, Loader2, MessageSquareText, Save } from 'lucide-vue-next';
+import { computed, watch } from 'vue';
 import AppModal from '@/components/app/AppModal.vue';
 
 const props = defineProps({
     open: { type: Boolean, default: false },
+    /** null = alta · fila de la tabla = edición. */
+    license: { type: Object, default: null },
 });
 
 const emit = defineEmits(['update:open']);
+
+const editing = computed(() => props.license !== null);
 
 // Sin estatus: el servidor lo calcula con la vigencia.
 const form = useForm({
@@ -19,12 +23,19 @@ const form = useForm({
     comments: '',
 });
 
-// Cada apertura parte de cero.
+// Cada apertura parte de cero y, si hay registro, lo carga encima.
 watch(
     () => props.open,
     (open) => {
         if (!open) return;
 
+        form.defaults({
+            name: props.license?.name ?? '',
+            company: props.license?.company ?? '',
+            authority: props.license?.authority ?? '',
+            valid_until: props.license?.valid_until ?? '',
+            comments: props.license?.comments ?? '',
+        });
         form.reset();
         form.clearErrors();
     },
@@ -38,7 +49,9 @@ function submit() {
     // Vacío viaja como null: así la base guarda «sin dato» y no una cadena vacía.
     form.transform((data) => Object.fromEntries(Object.entries(data).map(([key, value]) => [key, value === '' ? null : value])));
 
-    form.post('/licencias', { preserveScroll: true, onSuccess: close });
+    const options = { preserveScroll: true, onSuccess: close };
+
+    editing.value ? form.patch(`/licencias/${props.license.id}`, options) : form.post('/licencias', options);
 }
 
 const FIELD =
@@ -62,9 +75,13 @@ const ERROR = 'mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400';
     <AppModal
         :open="open"
         size="lg"
-        :icon="FilePlus2"
-        title="Nuevo registro"
-        description="Registra una licencia, permiso o trámite. El estatus se calcula con la vigencia."
+        :icon="editing ? FilePen : FilePlus2"
+        :title="editing ? 'Editar registro' : 'Nuevo registro'"
+        :description="
+            editing
+                ? `Actualiza los datos de ${license?.name}. El estatus se recalcula con la vigencia.`
+                : 'Registra una licencia, permiso o trámite. El estatus se calcula con la vigencia.'
+        "
         @update:open="emit('update:open', $event)"
     >
         <form id="license-form" class="grid gap-4 px-6 pt-1 pb-6 short:pb-4 sm:grid-cols-2 sm:px-7" novalidate @submit.prevent="submit">
@@ -172,7 +189,7 @@ const ERROR = 'mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400';
             >
                 <Loader2 v-if="form.processing" class="size-4 animate-spin" />
                 <Save v-else class="size-4" />
-                Guardar
+                {{ editing ? 'Guardar cambios' : 'Guardar' }}
             </button>
         </template>
     </AppModal>

@@ -32,9 +32,20 @@ const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Licenci
 const { can } = usePermissions();
 
 const formOpen = ref(false);
+const editing = ref(null);
 
 const showOpen = ref(false);
 const viewing = ref(null);
+
+function create() {
+    editing.value = null;
+    formOpen.value = true;
+}
+
+function edit(license) {
+    editing.value = license;
+    formOpen.value = true;
+}
 
 function show(license) {
     viewing.value = license;
@@ -248,7 +259,7 @@ const PAGE_BTN =
                     v-if="can('licencias.create')"
                     type="button"
                     class="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
-                    @click="formOpen = true"
+                    @click="create"
                 >
                     <Plus class="size-4" />
                     Nuevo registro
@@ -430,7 +441,14 @@ const PAGE_BTN =
                                         <button type="button" :class="[ACTION, NEUTRAL]" :aria-label="`Ver ${license.name}`" title="Ver detalle" @click="show(license)">
                                             <Eye class="size-4" />
                                         </button>
-                                        <button type="button" :class="[ACTION, NEUTRAL]" :aria-label="`Editar ${license.name}`" title="Editar">
+                                        <button
+                                            v-if="can('licencias.update')"
+                                            type="button"
+                                            :class="[ACTION, NEUTRAL]"
+                                            :aria-label="`Editar ${license.name}`"
+                                            title="Editar"
+                                            @click="edit(license)"
+                                        >
                                             <Pencil class="size-4" />
                                         </button>
                                         <button type="button" :class="[ACTION, NEUTRAL]" :aria-label="`Recordatorio de ${license.name}`" title="Recordatorio">
@@ -528,7 +546,7 @@ const PAGE_BTN =
             </div>
         </div>
 
-        <LicenseFormDialog v-model:open="formOpen" />
+        <LicenseFormDialog v-model:open="formOpen" :license="editing" />
 
         <LicenseShowDialog v-model:open="showOpen" :license="viewing" />
     </AppShell>

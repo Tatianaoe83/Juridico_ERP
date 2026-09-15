@@ -11,7 +11,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Licencias y permisos (Cumplimiento): listado y alta.
+ * Licencias y permisos (Cumplimiento): listado, alta y edición.
  */
 class LicenseController extends Controller
 {
@@ -74,6 +74,27 @@ class LicenseController extends Controller
     /** POST /licencias */
     public function store(Request $request): RedirectResponse
     {
+        $license = License::create($this->validated($request));
+
+        return to_route('licenses.index')->with('success', "Se registró {$license->name}.");
+    }
+
+    /** PATCH /licencias/{license} */
+    public function update(Request $request, License $license): RedirectResponse
+    {
+        $license->update($this->validated($request));
+
+        return to_route('licenses.index')->with('success', "Se actualizó {$license->name}.");
+    }
+
+    /**
+     * Mismos campos al crear y al editar. El estatus nunca viene del
+     * formulario: se recalcula con la vigencia cada vez que se guarda.
+     *
+     * @return array<string, mixed>
+     */
+    private function validated(Request $request): array
+    {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'company' => ['nullable', 'string', 'max:255'],
@@ -85,11 +106,9 @@ class LicenseController extends Controller
             'valid_until.date' => 'La vigencia no es una fecha válida.',
         ]);
 
-        $license = License::create([
+        return [
             ...$data,
             'status' => License::statusFor(isset($data['valid_until']) ? Carbon::parse($data['valid_until']) : null),
-        ]);
-
-        return to_route('licenses.index')->with('success', "Se registró {$license->name}.");
+        ];
     }
 }
