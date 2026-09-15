@@ -10,73 +10,93 @@ use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * Matriz de roles × permisos.
+ * Catálogo de permisos: consulta, alta y edición.
  *
- * Es la única pantalla que redefine qué puede hacer un rol; el resto de la
- * app solo asigna roles ya existentes a personas.
+ * Aquí no se reparten: qué permisos concede cada rol se decide en /roles.
  */
 class PermissionController extends Controller
 {
     public function index(): Response
     {
-        // Mismo orden que la pantalla de roles, resuelto en PHP: FIELD() es de
-        // MySQL y reventaría en cualquier otro motor.
-        $roles = Role::with('permissions:id,name')
+        $permissions = Permission::with('roles:id,name')
+            ->orderBy('name')
             ->get()
-            ->sortBy(fn (Role $role) => RoleController::rank($role->name))
-            ->values();
-
-        $groups = Permission::orderBy('name')
-            ->get()
-            ->groupBy(fn (Permission $permission) => strtok($permission->name, '.'))
-            ->map(fn ($permissions, $prefix) => [
-                'area' => PermissionCatalog::AREAS[$prefix] ?? ucfirst($prefix),
-                'permissions' => $permissions->pluck('name')->values(),
-            ])
-            ->values();
+            ->map(fn (Permission $permission) => $this->summary($permission));
 
         return Inertia::render('Permissions/Index', [
-            'groups' => $groups,
-            'roles' => $roles->map(fn (Role $role) => [
-                'name' => $role->name,
-                'permissions' => $role->permissions->pluck('name'),
-                // Sin casillas: pasa todo por Gate::before. Marcárselas sería
-                // peor, porque un permiso nuevo lo dejaría fuera.
-                'unrestricted' => $role->name === 'superadmin',
-            ]),
+            'permissions' => $permissions,
         ]);
     }
 
-    /** PATCH /permisos — concede o revoca un permiso a un rol. */
-    public function update(Request $request): RedirectResponse
+    /** POST /permisos */
+    public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'role' => ['required', 'string', Rule::exists('roles', 'name')],
-            'permission' => ['required', 'string', Rule::exists('permissions', 'name')],
-            'granted' => ['required', 'boolean'],
-        ]);
+            'name' => ['required', Rule::unique('permissions', 'name')],
+        ], $this->messages());
 
-        $role = Role::findByName($data['role']);
+        $permission = Permission::create(['name' => $data['name'], 'guard_name' => 'web']);
 
-        abort_if(
-            $role->name === 'superadmin',
-            422,
-            'El superadmin no usa permisos: pasa por el Gate y marcárselos no cambiaría nada.',
-        );
+        $this->forgetCache();
 
-        $data['granted']
-            ? $role->givePermissionTo($data['permission'])
-            : $role->revokePermissionTo($data['permission']);
+        return to_route('permissions.index')->with('success', "Se creó el permiso {$permission->name}.");
+    }
 
-        // Spatie cachea el mapa de permisos; sin esto el cambio tarda en verse.
+    /** PATCH /permisos/{permission} */
+    public function update(Request $request, Permission $permission): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', Rule::unique('permissions', 'name')->ignore($permission)],
+        ], $this->messages());
+
+        $permission->update(['name' => $data['name']]);
+
+        $this->forgetCache();
+
+        return to_route('permissions.index')->with('success', "Se actualizó el permiso {$permission->name}.");
+    }
+
+    /** DELETE /permisos/{permission} — Spatie lo quita también de los roles que lo tenían. */
+    public function destroy(Permission $permission): RedirectResponse
+    {
+        $name = $permission->name;
+        $permission->delete();
+
+        $this->forgetCache();
+
+        return to_route('permissions.index')->with('success', "Se eliminó el permiso {$name}.");
+    }
+
+    /** @return array<string, mixed> */
+    private function summary(Permission $permission): array
+    {
+        return [
+            'id' => $permission->id,
+            'name' => $permission->name,
+            'label' => PermissionCatalog::label($permission->name),
+            'area' => PermissionCatalog::area($permission->name),
+            'roles' => $permission->roles
+                ->sortBy(fn ($role) => [RoleController::rank($role->name), $role->name])
+                ->pluck('name')
+                ->values(),
+            'created_at' => $permission->created_at?->toIso8601String(),
+        ];
+    }
+
+    private function messages(): array
+    {
+        return [
+            'name.required' => 'Ponle un nombre al permiso.',
+            'name.unique' => 'Ya existe un permiso con ese nombre.',
+        ];
+    }
+
+    /** Spatie cachea el mapa de permisos; sin esto el cambio tarda en verse. */
+    private function forgetCache(): void
+    {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        $verb = $data['granted'] ? 'concedido a' : 'retirado de';
-
-        return back()->with('success', "{$data['permission']} {$verb} {$data['role']}.");
     }
 }

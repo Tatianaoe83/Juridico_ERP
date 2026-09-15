@@ -95,7 +95,9 @@ Route::middleware('auth')->group(function () {
         Route::patch('/roles/{role}', [RoleController::class, 'update'])->name('roles.update');
         Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
         Route::get('/permisos', [PermissionController::class, 'index'])->name('permissions.index');
-        Route::patch('/permisos', [PermissionController::class, 'update'])->name('permissions.update');
+        Route::post('/permisos', [PermissionController::class, 'store'])->name('permissions.store');
+        Route::patch('/permisos/{permission}', [PermissionController::class, 'update'])->name('permissions.update');
+        Route::delete('/permisos/{permission}', [PermissionController::class, 'destroy'])->name('permissions.destroy');
     });
 
     // Vinculación con Microsoft 365

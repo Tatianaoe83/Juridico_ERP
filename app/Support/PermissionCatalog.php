@@ -36,6 +36,18 @@ class PermissionCatalog
         'events.delete' => 'Eliminar eventos',
     ];
 
+    public static function label(string $name): string
+    {
+        return self::LABELS[$name] ?? $name;
+    }
+
+    public static function area(string $name): string
+    {
+        $prefix = strtok($name, '.');
+
+        return self::AREAS[$prefix] ?? ucfirst($prefix);
+    }
+
     /**
      * Todos los permisos existentes, agrupados por área.
      *
