@@ -52,6 +52,9 @@ class LicenseController extends Controller
                     'authority' => $license->authority,
                     'valid_until' => $license->valid_until?->toDateString(),
                     'status' => $license->status,
+                    // Para el modal de detalle: evita pedir el registro otra vez.
+                    'comments' => $license->comments,
+                    'created_at' => $license->created_at?->toIso8601String(),
                 ]),
                 'meta' => [
                     'total' => $licenses->total(),

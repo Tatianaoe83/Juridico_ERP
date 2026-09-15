@@ -15,6 +15,7 @@ import {
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import LicenseFormDialog from '@/components/app/LicenseFormDialog.vue';
+import LicenseShowDialog from '@/components/app/LicenseShowDialog.vue';
 import { usePermissions } from '@/composables/usePermissions';
 import { LICENSE_STATUS, licenseStatus } from '@/lib/licenses';
 
@@ -31,6 +32,14 @@ const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Licenci
 const { can } = usePermissions();
 
 const formOpen = ref(false);
+
+const showOpen = ref(false);
+const viewing = ref(null);
+
+function show(license) {
+    viewing.value = license;
+    showOpen.value = true;
+}
 
 /* ---------- Búsqueda, estado y páginas ---------- */
 
@@ -390,7 +399,7 @@ const PAGE_BTN =
                                 <!-- Acciones aún sin funcionalidad -->
                                 <td :class="TD">
                                     <div class="flex items-center justify-end gap-0.5 @2xl:gap-1">
-                                        <button type="button" :class="[ACTION, NEUTRAL]" :aria-label="`Ver ${license.name}`" title="Ver detalle">
+                                        <button type="button" :class="[ACTION, NEUTRAL]" :aria-label="`Ver ${license.name}`" title="Ver detalle" @click="show(license)">
                                             <Eye class="size-4" />
                                         </button>
                                         <button type="button" :class="[ACTION, NEUTRAL]" :aria-label="`Editar ${license.name}`" title="Editar">
@@ -492,5 +501,7 @@ const PAGE_BTN =
         </div>
 
         <LicenseFormDialog v-model:open="formOpen" />
+
+        <LicenseShowDialog v-model:open="showOpen" :license="viewing" />
     </AppShell>
 </template>
