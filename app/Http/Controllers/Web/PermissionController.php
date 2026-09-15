@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Support\PermissionCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -20,14 +21,6 @@ use Spatie\Permission\PermissionRegistrar;
  */
 class PermissionController extends Controller
 {
-    /** Etiquetas de las áreas, deducidas del prefijo del permiso. */
-    private const AREAS = [
-        'users' => 'Usuarios',
-        'roles' => 'Roles',
-        'calendar' => 'Calendario',
-        'events' => 'Eventos',
-    ];
-
     public function index(): Response
     {
         // Mismo orden que la pantalla de roles, resuelto en PHP: FIELD() es de
@@ -41,7 +34,7 @@ class PermissionController extends Controller
             ->get()
             ->groupBy(fn (Permission $permission) => strtok($permission->name, '.'))
             ->map(fn ($permissions, $prefix) => [
-                'area' => self::AREAS[$prefix] ?? ucfirst($prefix),
+                'area' => PermissionCatalog::AREAS[$prefix] ?? ucfirst($prefix),
                 'permissions' => $permissions->pluck('name')->values(),
             ])
             ->values();

@@ -88,6 +88,12 @@ Route::middleware('auth')->group(function () {
     // app: quien lo controla puede concederse cualquier otra cosa.
     Route::middleware('can:roles.manage')->group(function () {
         Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
+        Route::get('/roles/crear', [RoleController::class, 'create'])->name('roles.create');
+        Route::post('/roles', [RoleController::class, 'store'])->name('roles.store');
+        Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
+        Route::get('/roles/{role}/editar', [RoleController::class, 'edit'])->name('roles.edit');
+        Route::patch('/roles/{role}', [RoleController::class, 'update'])->name('roles.update');
+        Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
         Route::get('/permisos', [PermissionController::class, 'index'])->name('permissions.index');
         Route::patch('/permisos', [PermissionController::class, 'update'])->name('permissions.update');
     });
