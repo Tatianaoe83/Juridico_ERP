@@ -75,7 +75,7 @@ const nav = computed(() =>
         {
             group: 'Cumplimiento',
             items: [
-                { href: '/licencias', label: 'Licencias y permisos', icon: FileBadge, permission: 'licencias.view' },
+                { href: '/licencias', label: 'Licencias y Permisos', icon: FileBadge, permission: 'licencias.view' },
             ],
         },
         {

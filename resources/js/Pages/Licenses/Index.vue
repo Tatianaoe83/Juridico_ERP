@@ -26,7 +26,7 @@ const props = defineProps({
     filters: { type: Object, default: () => ({}) },
 });
 
-const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Licencias y permisos' }];
+const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Licencias y Permisos' }];
 
 const { can } = usePermissions();
 
@@ -197,7 +197,7 @@ const PAGE_BTN =
 </script>
 
 <template>
-    <Head title="Licencias y permisos" />
+    <Head title="Licencias y Permisos" />
 
     <AppShell :breadcrumbs="breadcrumbs">
         <div class="flex flex-col md:h-full md:min-h-0">
@@ -211,7 +211,7 @@ const PAGE_BTN =
                     </span>
                     <div>
                         <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Cumplimiento</p>
-                        <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Licencias y permisos</h1>
+                        <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Licencias y Permisos</h1>
                     </div>
                 </div>
 
