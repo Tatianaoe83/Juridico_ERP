@@ -5,6 +5,7 @@ use App\Http\Controllers\Web\CalendarController;
 use App\Http\Controllers\Web\CalendarEventController;
 use App\Http\Controllers\Web\CalendarShareController;
 use App\Http\Controllers\Web\EventController;
+use App\Http\Controllers\Web\LicenseController;
 use App\Http\Controllers\Web\PermissionController;
 use App\Http\Controllers\Web\RoleController;
 use App\Http\Controllers\Web\UserController;
@@ -73,6 +74,11 @@ Route::middleware('auth')->group(function () {
         Route::delete('/calendario/compartir', [CalendarShareController::class, 'destroy'])
             ->name('calendar.unshare');
     });
+
+    // Cumplimiento
+    Route::get('/licencias', [LicenseController::class, 'index'])
+        ->middleware('can:licencias.view')
+        ->name('licenses.index');
 
     // Administración de usuarios. La Policy afina por registro: quién puede
     // tocar a quién no lo resuelve un permiso suelto.

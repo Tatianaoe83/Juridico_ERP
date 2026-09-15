@@ -4,6 +4,7 @@ import {
     CalendarCheck,
     CalendarDays,
     ChevronRight,
+    FileBadge,
     KeyRound,
     Moon,
     PanelLeftClose,
@@ -69,6 +70,12 @@ const nav = computed(() =>
             items: [
                 { href: '/calendario', label: 'Calendario', icon: CalendarDays, permission: 'calendar.view' },
                 { href: '/compartido', label: 'Compartir', icon: CalendarCheck, permission: 'calendar.view' },
+            ],
+        },
+        {
+            group: 'Cumplimiento',
+            items: [
+                { href: '/licencias', label: 'Licencias y permisos', icon: FileBadge, permission: 'licencias.view' },
             ],
         },
         {
