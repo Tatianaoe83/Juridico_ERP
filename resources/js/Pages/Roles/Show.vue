@@ -223,15 +223,12 @@ const LABEL = 'flex items-center gap-2 text-[0.68rem] font-bold uppercase tracki
                                         <Check v-if="has(permission.name)" class="size-3" stroke-width="3" />
                                         <Minus v-else class="size-3" stroke-width="3" />
                                     </span>
-                                    <span
-                                        class="min-w-0 flex-1 truncate text-sm"
+                                    <code
+                                        class="min-w-0 flex-1 truncate font-mono text-[0.8rem]"
                                         :class="has(permission.name) ? 'font-semibold text-slate-800 dark:text-white' : 'text-slate-400 dark:text-brand-gray/70'"
                                     >
-                                        {{ permission.label }}
-                                        <span class="sr-only">{{ has(permission.name) ? '(concedido)' : '(no concedido)' }}</span>
-                                    </span>
-                                    <code class="hidden shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[0.65rem] text-slate-500 @lg:block dark:bg-white/[0.06] dark:text-brand-gray">
                                         {{ permission.name }}
+                                        <span class="sr-only">{{ has(permission.name) ? '(concedido)' : '(no concedido)' }}</span>
                                     </code>
                                 </li>
                             </ul>

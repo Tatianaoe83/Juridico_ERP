@@ -193,7 +193,7 @@ const CHECK =
                             <TriangleAlert class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-300" />
                             <p class="text-xs leading-relaxed text-amber-800 dark:text-amber-200/90">
                                 <span class="font-bold">Permiso sensible.</span>
-                                Con «Administrar roles y permisos» cualquiera de este rol puede concederse todo lo demás.
+                                Con <code class="font-mono font-semibold">roles.manage</code> cualquiera de este rol puede concederse todo lo demás.
                             </p>
                         </div>
                     </section>
@@ -266,15 +266,10 @@ const CHECK =
                                         :checked="selected.has(permission.name)"
                                         @change="toggle(permission.name)"
                                     />
-                                    <span class="min-w-0 flex-1">
-                                        <span
-                                            class="block truncate text-sm"
-                                            :class="selected.has(permission.name) ? 'font-semibold text-slate-800 dark:text-white' : 'text-slate-600 dark:text-slate-300'"
-                                        >
-                                            {{ permission.label }}
-                                        </span>
-                                    </span>
-                                    <code class="hidden shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[0.65rem] text-slate-500 @lg:block dark:bg-white/[0.06] dark:text-brand-gray">
+                                    <code
+                                        class="min-w-0 flex-1 truncate font-mono text-[0.8rem]"
+                                        :class="selected.has(permission.name) ? 'font-semibold text-slate-800 dark:text-white' : 'text-slate-600 dark:text-slate-300'"
+                                    >
                                         {{ permission.name }}
                                     </code>
                                 </label>
