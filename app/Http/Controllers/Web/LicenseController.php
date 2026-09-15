@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\License;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Licencias y permisos (Cumplimiento). Por ahora solo el listado.
+ * Licencias y permisos (Cumplimiento): listado y alta.
  */
 class LicenseController extends Controller
 {
@@ -64,5 +66,27 @@ class LicenseController extends Controller
             ],
             'filters' => ['search' => $search, 'status' => $status],
         ]);
+    }
+
+    /** POST /licencias */
+    public function store(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'company' => ['nullable', 'string', 'max:255'],
+            'authority' => ['nullable', 'string', 'max:255'],
+            'valid_until' => ['nullable', 'date'],
+            'comments' => ['nullable', 'string'],
+        ], [
+            'name.required' => 'Escribe el nombre o trámite.',
+            'valid_until.date' => 'La vigencia no es una fecha válida.',
+        ]);
+
+        $license = License::create([
+            ...$data,
+            'status' => License::statusFor(isset($data['valid_until']) ? Carbon::parse($data['valid_until']) : null),
+        ]);
+
+        return to_route('licenses.index')->with('success', "Se registró {$license->name}.");
     }
 }

@@ -79,6 +79,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/licencias', [LicenseController::class, 'index'])
         ->middleware('can:licencias.view')
         ->name('licenses.index');
+    Route::post('/licencias', [LicenseController::class, 'store'])
+        ->middleware('can:licencias.create')
+        ->name('licenses.store');
 
     // Administración de usuarios. La Policy afina por registro: quién puede
     // tocar a quién no lo resuelve un permiso suelto.

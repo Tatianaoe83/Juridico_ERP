@@ -1,22 +1,6 @@
 <script setup>
 import { Head, router } from '@inertiajs/vue3';
-import {
-    BellRing,
-    CalendarCheck,
-    CalendarClock,
-    CalendarX,
-    Check,
-    ChevronDown,
-    ChevronLeft,
-    ChevronRight,
-    Eye,
-    FileBadge,
-    Hourglass,
-    Pencil,
-    Search,
-    Trash2,
-    X,
-} from 'lucide-vue-next';
+import { BellRing, Check, ChevronDown, ChevronLeft, ChevronRight, Eye, FileBadge, Pencil, Plus, Search, Trash2, X } from 'lucide-vue-next';
 import {
     SelectContent,
     SelectIcon,
@@ -30,6 +14,9 @@ import {
 } from 'reka-ui';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
+import LicenseFormDialog from '@/components/app/LicenseFormDialog.vue';
+import { usePermissions } from '@/composables/usePermissions';
+import { LICENSE_STATUS, licenseStatus } from '@/lib/licenses';
 
 const props = defineProps({
     /** { data: [{ id, name, company, authority, valid_until, status }], meta } */
@@ -40,6 +27,10 @@ const props = defineProps({
 });
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Licencias y permisos' }];
+
+const { can } = usePermissions();
+
+const formOpen = ref(false);
 
 /* ---------- Búsqueda, estado y páginas ---------- */
 
@@ -154,41 +145,9 @@ function shortDate(iso) {
     return new Date(y, m - 1, d).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-/** Valores del enum `status` (en inglés) → etiqueta, icono y color. */
-const STATUS = {
-    active: {
-        label: 'Vigente',
-        plural: 'Vigentes',
-        icon: CalendarCheck,
-        dot: 'bg-emerald-500',
-        tone: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/25',
-    },
-    expiring: {
-        label: 'Por vencer',
-        plural: 'Por vencer',
-        icon: CalendarClock,
-        dot: 'bg-amber-500',
-        tone: 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/25',
-    },
-    expired: {
-        label: 'Vencido',
-        plural: 'Vencidos',
-        icon: CalendarX,
-        dot: 'bg-red-500',
-        tone: 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-400/10 dark:text-red-300 dark:ring-red-400/25',
-    },
-    in_progress: {
-        label: 'En trámite',
-        plural: 'En trámite',
-        icon: Hourglass,
-        dot: 'bg-brand-light dark:bg-brand-gray',
-        tone: 'bg-brand/[0.06] text-brand ring-brand/15 dark:bg-brand-light/25 dark:text-white dark:ring-brand-gray/25',
-    },
-};
+const STATUS = LICENSE_STATUS;
 
-const NEUTRAL_TONE = 'bg-slate-50 text-slate-600 ring-slate-500/15 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10';
-
-const statusOf = (value) => STATUS[value] ?? { label: value, tone: NEUTRAL_TONE };
+const statusOf = licenseStatus;
 
 const statusOptions = [
     { key: 'all', label: 'Todos los estados', dot: 'bg-slate-300 dark:bg-white/25' },
@@ -255,6 +214,16 @@ const PAGE_BTN =
                         <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Licencias y permisos</h1>
                     </div>
                 </div>
+
+                <button
+                    v-if="can('licencias.create')"
+                    type="button"
+                    class="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
+                    @click="formOpen = true"
+                >
+                    <Plus class="size-4" />
+                    Nuevo registro
+                </button>
             </div>
 
             <!-- Resumen: de todo el catálogo, no cambia con los filtros de la tabla -->
@@ -406,7 +375,7 @@ const PAGE_BTN =
                                 </td>
 
                                 <td :class="[TD, 'hidden whitespace-nowrap text-slate-600 tabular-nums @lg:table-cell dark:text-slate-300']">
-                                    {{ license.valid_until ? shortDate(license.valid_until) : 'Sin vencimiento' }}
+                                    {{ license.valid_until ? shortDate(license.valid_until) : 'Por definir' }}
                                 </td>
 
                                 <td :class="[TD, 'hidden @2xl:table-cell']">
@@ -521,5 +490,7 @@ const PAGE_BTN =
                 </div>
             </div>
         </div>
+
+        <LicenseFormDialog v-model:open="formOpen" />
     </AppShell>
 </template>
