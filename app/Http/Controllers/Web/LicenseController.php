@@ -11,7 +11,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Licencias y permisos (Cumplimiento): listado, alta y edición.
+ * Licencias y permisos (Cumplimiento): listado, alta, edición y baja.
  */
 class LicenseController extends Controller
 {
@@ -85,6 +85,15 @@ class LicenseController extends Controller
         $license->update($this->validated($request));
 
         return to_route('licenses.index')->with('success', "Se actualizó {$license->name}.");
+    }
+
+    /** DELETE /licencias/{license} */
+    public function destroy(License $license): RedirectResponse
+    {
+        $name = $license->name;
+        $license->delete();
+
+        return to_route('licenses.index')->with('success', "Se eliminó {$name}.");
     }
 
     /**

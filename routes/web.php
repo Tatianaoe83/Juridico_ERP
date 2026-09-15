@@ -85,6 +85,9 @@ Route::middleware('auth')->group(function () {
     Route::patch('/licencias/{license}', [LicenseController::class, 'update'])
         ->middleware('can:licencias.update')
         ->name('licenses.update');
+    Route::delete('/licencias/{license}', [LicenseController::class, 'destroy'])
+        ->middleware('can:licencias.delete')
+        ->name('licenses.destroy');
 
     // Administración de usuarios. La Policy afina por registro: quién puede
     // tocar a quién no lo resuelve un permiso suelto.

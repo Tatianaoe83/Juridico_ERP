@@ -14,6 +14,7 @@ import {
 } from 'reka-ui';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
+import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
 import LicenseFormDialog from '@/components/app/LicenseFormDialog.vue';
 import LicenseShowDialog from '@/components/app/LicenseShowDialog.vue';
 import { usePermissions } from '@/composables/usePermissions';
@@ -50,6 +51,28 @@ function edit(license) {
 function show(license) {
     viewing.value = license;
     showOpen.value = true;
+}
+
+/* ---------- Eliminar ---------- */
+
+const deleteOpen = ref(false);
+const toDelete = ref(null);
+const deleting = ref(null);
+
+function askDelete(license) {
+    toDelete.value = license;
+    deleteOpen.value = true;
+}
+
+function destroy() {
+    const license = toDelete.value;
+
+    deleting.value = license.id;
+
+    router.delete(`/licencias/${license.id}`, {
+        preserveScroll: true,
+        onFinish: () => (deleting.value = null),
+    });
 }
 
 /* ---------- Búsqueda, estado y páginas ---------- */
@@ -385,6 +408,7 @@ const PAGE_BTN =
                                 v-for="license in licenses.data"
                                 :key="license.id"
                                 class="transition-colors duration-150 hover:bg-slate-50/80 dark:hover:bg-white/[0.025]"
+                                :class="deleting === license.id && 'pointer-events-none opacity-40'"
                                 :style="rowHeight ? { height: `${rowHeight}px` } : null"
                             >
                                 <td :class="[TD, 'w-full max-w-0']">
@@ -455,10 +479,13 @@ const PAGE_BTN =
                                             <BellRing class="size-4" />
                                         </button>
                                         <button
+                                            v-if="can('licencias.delete')"
                                             type="button"
                                             :class="[ACTION, 'text-slate-500 hover:bg-red-50 hover:text-red-600 focus-visible:ring-red-500/25 dark:text-brand-gray dark:hover:bg-red-500/10 dark:hover:text-red-300']"
                                             :aria-label="`Eliminar ${license.name}`"
                                             title="Eliminar"
+                                            :disabled="deleting === license.id"
+                                            @click="askDelete(license)"
                                         >
                                             <Trash2 class="size-4" />
                                         </button>
@@ -549,5 +576,11 @@ const PAGE_BTN =
         <LicenseFormDialog v-model:open="formOpen" :license="editing" />
 
         <LicenseShowDialog v-model:open="showOpen" :license="viewing" />
+
+        <ConfirmDeleteDialog
+            v-model:open="deleteOpen"
+            :text="`¿Seguro que quieres eliminar «${toDelete?.name ?? ''}»?`"
+            @confirm="destroy"
+        />
     </AppShell>
 </template>
