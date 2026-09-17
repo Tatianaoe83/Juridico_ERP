@@ -36,10 +36,6 @@ class LicenseCalendar
             return false;
         }
 
-        if ($license->valid_until === null) {
-            return $this->forget($license, $actor);
-        }
-
         try {
             $data = $this->event($license, $actor, $this->sharedWith($calendar));
 

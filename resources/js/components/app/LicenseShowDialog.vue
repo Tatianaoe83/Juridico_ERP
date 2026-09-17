@@ -43,9 +43,7 @@ const tiles = computed(() =>
             {
                 icon: CalendarDays,
                 label: 'Vigencia',
-                value: props.license.valid_until
-                    ? longDate(localDate(props.license.valid_until)) + validTime(props.license.valid_time)
-                    : 'Por definir',
+                value: longDate(localDate(props.license.valid_until)) + validTime(props.license.valid_time),
                 hint: remaining.value,
             },
             { icon: CalendarPlus, label: 'Fecha de alta', value: stamp(props.license.created_at) },

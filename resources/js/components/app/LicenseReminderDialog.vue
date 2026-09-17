@@ -1,6 +1,6 @@
 <script setup>
 import { router, useForm } from '@inertiajs/vue3';
-import { BellOff, BellRing, CalendarClock, Check, Info, Loader2, Lock, Users } from 'lucide-vue-next';
+import { BellOff, BellRing, CalendarClock, Check, Loader2, Lock, Users } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import AppModal from '@/components/app/AppModal.vue';
 import { localDate, reminderOptions } from '@/lib/licenses';
@@ -58,7 +58,7 @@ function submit() {
 
 /** Inicio del evento: la vigencia con su hora, o medianoche si es de todo el día. */
 const startsAt = computed(() => {
-    if (!props.license?.valid_until) return null;
+    if (!props.license) return null;
 
     const day = localDate(props.license.valid_until);
 
@@ -96,7 +96,6 @@ function shortMoment(minutes) {
 /** Resumen de lo elegido: lo que de verdad va a pasar, en una línea. */
 const summary = computed(() => {
     if (form.minutes_before === null) return 'Elige cuándo quieres el aviso.';
-    if (!startsAt.value) return 'Se programará en cuanto la licencia tenga vigencia.';
 
     const moment = momentFor(form.minutes_before);
 
@@ -153,17 +152,6 @@ const SECTION = 'mb-2.5 flex items-center gap-2 text-[0.62rem] font-bold upperca
         @update:open="emit('update:open', $event)"
     >
         <div v-if="license" class="space-y-5 px-6 pt-1 pb-6 short:space-y-4 short:pb-4 sm:px-7">
-            <!-- Sin vigencia no hay desde dónde contar: se guarda, pero no sale nada aún -->
-            <div
-                v-if="!license.valid_until"
-                class="flex gap-2.5 rounded-xl border border-amber-300/60 bg-amber-50 px-3.5 py-3 dark:border-amber-400/25 dark:bg-amber-400/10"
-            >
-                <Info class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-300" />
-                <p class="text-xs leading-relaxed text-amber-800 dark:text-amber-200/90">
-                    Este registro sigue en trámite y no tiene vigencia. Puedes dejar el aviso listo: empezará a contar cuando le pongas la fecha.
-                </p>
-            </div>
-
             <!-- Cuándo -->
             <section>
                 <h3 :class="SECTION">

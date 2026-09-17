@@ -14,7 +14,7 @@ use Illuminate\Support\Carbon;
 class License extends Model
 {
     /** Los mismos valores que el enum de la columna `status`. */
-    public const STATUSES = ['active', 'expiring', 'expired', 'in_progress'];
+    public const STATUSES = ['active', 'expiring', 'expired'];
 
     /** Días antes de la vigencia en que pasa a «por vencer». */
     public const WARNING_DAYS = 30;
@@ -33,15 +33,10 @@ class License extends Model
     protected $guarded = [];
 
     /**
-     * El estado no lo elige nadie: sale de la vigencia. Sin fecha todavía es
-     * un trámite en curso; con fecha, depende de cuánto le falta.
+     * El estado no lo elige nadie: sale de la vigencia y de cuánto le falta.
      */
-    public static function statusFor(?CarbonInterface $validUntil): string
+    public static function statusFor(CarbonInterface $validUntil): string
     {
-        if ($validUntil === null) {
-            return 'in_progress';
-        }
-
         $today = today();
 
         if ($validUntil->lt($today)) {
@@ -55,12 +50,8 @@ class License extends Model
      * Vigencia con hora, para el calendario. Sin hora devuelve el inicio del
      * día y el evento se marca de todo el día.
      */
-    public function expiresAt(): ?Carbon
+    public function expiresAt(): Carbon
     {
-        if ($this->valid_until === null) {
-            return null;
-        }
-
         $moment = $this->valid_until->copy()->startOfDay();
 
         if ($this->valid_time === null) {

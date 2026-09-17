@@ -82,7 +82,7 @@ const ERROR = 'mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400';
         :description="
             editing
                 ? `Actualiza los datos de ${license?.name}. El estatus se recalcula con la vigencia.`
-                : 'Registra una licencia, permiso o trámite. El estatus se calcula con la vigencia.'
+                : 'Registra una licencia o permiso. El estatus se calcula con la vigencia.'
         "
         @update:open="emit('update:open', $event)"
     >
@@ -143,13 +143,14 @@ const ERROR = 'mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400';
             <div>
                 <label for="license-valid-until" :class="LABEL">
                     Vigencia
-                    <span class="font-normal text-slate-400 dark:text-brand-gray">· vacía si sigue en trámite</span>
+                    <span class="font-normal text-red-500 dark:text-red-400">*</span>
                 </label>
                 <div class="relative">
                     <input
                         id="license-valid-until"
                         v-model="form.valid_until"
                         type="date"
+                        required
                         :class="FIELD"
                         :aria-invalid="Boolean(form.errors.valid_until)"
                     />

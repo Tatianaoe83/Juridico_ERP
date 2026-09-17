@@ -156,7 +156,7 @@ class LicenseController extends Controller
         $agendada = $this->calendar->sync($license->load('creator'), $request->user());
 
         return to_route('licenses.index')
-            ->with('success', "Se registró {$license->name}.".$this->calendarNote($license, $agendada));
+            ->with('success', "Se registró {$license->name}.".$this->calendarNote($agendada));
     }
 
     /** PATCH /licencias/{license} */
@@ -168,7 +168,7 @@ class LicenseController extends Controller
         $agendada = $this->calendar->sync($license->load('creator'), $request->user());
 
         return to_route('licenses.index')
-            ->with('success', "Se actualizó {$license->name}.".$this->calendarNote($license, $agendada));
+            ->with('success', "Se actualizó {$license->name}.".$this->calendarNote($agendada));
     }
 
     /** DELETE /licencias/{license} */
@@ -188,12 +188,8 @@ class LicenseController extends Controller
      * Agendar es un extra: si Outlook no respondió o la cuenta no está
      * vinculada, se dice en el mismo aviso en vez de fallar el guardado.
      */
-    private function calendarNote(License $license, bool $agendada): string
+    private function calendarNote(bool $agendada): string
     {
-        if ($license->valid_until === null) {
-            return '';
-        }
-
         return $agendada
             ? ' Se agendó en el calendario.'
             : ' No se pudo agendar en el calendario: revisa la conexión con Outlook.';
@@ -211,21 +207,21 @@ class LicenseController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'company' => ['nullable', 'string', 'max:255'],
             'authority' => ['nullable', 'string', 'max:255'],
-            'valid_until' => ['nullable', 'date'],
+            'valid_until' => ['required', 'date'],
             // La hora solo tiene sentido con fecha: sin vigencia no hay qué agendar.
             'valid_time' => ['nullable', 'date_format:H:i,H:i:s'],
             'comments' => ['nullable', 'string'],
         ], [
             'name.required' => 'Escribe el nombre o trámite.',
+            'valid_until.required' => 'Pon la fecha de vencimiento.',
             'valid_until.date' => 'La vigencia no es una fecha válida.',
             'valid_time.date_format' => 'La hora no es válida.',
         ]);
 
         return [
             ...$data,
-            // Sin fecha, la hora sobra: se tira para no dejar un dato huérfano.
-            'valid_time' => filled($data['valid_until'] ?? null) ? ($data['valid_time'] ?? null) : null,
-            'status' => License::statusFor(isset($data['valid_until']) ? Carbon::parse($data['valid_until']) : null),
+            'valid_time' => $data['valid_time'] ?? null,
+            'status' => License::statusFor(Carbon::parse($data['valid_until'])),
         ];
     }
 }

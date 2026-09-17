@@ -14,7 +14,7 @@ import { LICENSE_STATUS, daysLeft, licenseStatus } from '@/lib/licenses';
 const props = defineProps({
     /** { data: [{ id, name, company, authority, valid_until, valid_time, status, created_by, notification }], meta } */
     licenses: { type: Object, required: true },
-    /** { total, active, expiring, expired, in_progress } — de todo el catálogo, sin filtros. */
+    /** { total, active, expiring, expired } — de todo el catálogo, sin filtros. */
     stats: { type: Object, required: true },
     /** { search, status, company, authority, year, month } — lo que ya viene aplicado. */
     filters: { type: Object, default: () => ({}) },
@@ -335,7 +335,7 @@ const PAGE_BTN =
             </div>
 
             <!-- Resumen: de todo el catálogo, no cambia con los filtros de la tabla -->
-            <section aria-label="Resumen" class="mb-3 grid shrink-0 grid-cols-2 gap-2.5 tall:mb-4 sm:grid-cols-3 lg:grid-cols-5 tall:gap-3">
+            <section aria-label="Resumen" class="mb-3 grid shrink-0 grid-cols-2 gap-2.5 tall:mb-4 lg:grid-cols-4 tall:gap-3">
                 <article
                     v-for="card in cards"
                     :key="card.key"
@@ -533,7 +533,7 @@ const PAGE_BTN =
                                 </td>
 
                                 <td :class="[TD, 'hidden whitespace-nowrap text-slate-600 tabular-nums @lg:table-cell dark:text-slate-300']">
-                                    {{ license.valid_until ? shortDate(license.valid_until) : 'Por definir' }}
+                                    {{ shortDate(license.valid_until) }}
                                     <span v-if="license.valid_time" class="text-slate-400 dark:text-brand-gray/80">{{ license.valid_time }}</span>
                                 </td>
 
