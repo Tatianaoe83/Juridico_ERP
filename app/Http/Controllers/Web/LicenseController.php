@@ -62,10 +62,7 @@ class LicenseController extends Controller
                     'created_by' => $license->creator?->name,
                     // Para el modal de la campana; null = sin recordatorio.
                     'notification' => $license->notification ? [
-                        'days_before' => $license->notification->days_before,
-                        'send_time' => substr($license->notification->send_time, 0, 5),
-                        'recipients' => $license->notification->recipients,
-                        'recurring' => $license->notification->recurring,
+                        'minutes_before' => $license->notification->minutes_before,
                     ] : null,
                 ]),
                 'meta' => [
@@ -80,6 +77,9 @@ class LicenseController extends Controller
                 ...collect(License::STATUSES)->mapWithKeys(fn ($s) => [$s => (int) ($counts[$s] ?? 0)])->all(),
             ],
             'filters' => ['search' => $search, 'status' => $status],
+            // Quién recibe la invitación y el correo: con quién está compartido
+            // el calendario. Se muestra de solo lectura en el modal del aviso.
+            'sharedWith' => $this->calendar->sharedWith($request->user()->calendarOwner()),
         ]);
     }
 

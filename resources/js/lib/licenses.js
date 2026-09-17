@@ -69,3 +69,47 @@ export function remainingLabel(iso) {
 export function licenseStatus(value) {
     return LICENSE_STATUS[value] ?? { label: value, tone: NEUTRAL_TONE };
 }
+
+/**
+ * Aviso de vencimiento, en minutos antes del inicio del evento: los mismos
+ * que entiende Outlook, que es quien lanza la alerta. Los mismos presets que
+ * ofrece Outlook y en las dos variantes, porque el punto de partida cambia:
+ * con hora se cuenta desde ella; sin hora el evento arranca a medianoche, así
+ * que «el día anterior a las 9:00» son 900 minutos.
+ *
+ * Los valores tienen que existir en License::REMINDER_MINUTES.
+ */
+const REMINDERS_TIMED = [
+    { value: 0, label: 'En el momento del evento' },
+    { value: 5, label: '5 minutos antes' },
+    { value: 15, label: '15 minutos antes' },
+    { value: 30, label: '30 minutos antes' },
+    { value: 60, label: '1 hora antes' },
+    { value: 120, label: '2 horas antes' },
+    { value: 720, label: '12 horas antes' },
+    { value: 1440, label: '1 día antes' },
+    { value: 2880, label: '2 días antes' },
+    { value: 10080, label: '1 semana antes' },
+];
+
+const REMINDERS_ALL_DAY = [
+    { value: 0, label: 'El día del evento, a medianoche' },
+    { value: 15, label: 'El día anterior, 23:45' },
+    { value: 420, label: 'El día anterior, 17:00' },
+    { value: 900, label: 'El día anterior, 9:00' },
+    { value: 2340, label: '2 días antes, 9:00' },
+    { value: 9540, label: '1 semana antes, 9:00' },
+    { value: 10080, label: '1 semana antes, a medianoche' },
+];
+
+/** Opciones según el evento: con hora o de todo el día. */
+export function reminderOptions(hasTime) {
+    return hasTime ? REMINDERS_TIMED : REMINDERS_ALL_DAY;
+}
+
+/** Etiqueta de un aviso guardado; null = ninguno. */
+export function reminderLabel(minutes, hasTime) {
+    if (minutes === null || minutes === undefined) return 'Sin aviso';
+
+    return reminderOptions(hasTime).find((option) => option.value === minutes)?.label ?? `${minutes} minutos antes`;
+}

@@ -298,6 +298,13 @@ class MicrosoftGraph
                 ->all(),
             // Sin esto la invitación llega sin botones de Aceptar/Rechazar.
             'responseRequested' => $attendees !== [],
+            // Recordatorio propio de Outlook: la alerta que salta en Outlook y
+            // Teams. Quien no lo manda (los eventos normales) deja que cada
+            // buzón use su valor por omisión.
+            'isReminderOn' => array_key_exists('reminder_minutes', $data)
+                ? $data['reminder_minutes'] !== null
+                : null,
+            'reminderMinutesBeforeStart' => $data['reminder_minutes'] ?? null,
         ], fn ($value) => $value !== null);
     }
 

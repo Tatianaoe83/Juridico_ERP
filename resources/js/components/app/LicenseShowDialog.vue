@@ -1,13 +1,13 @@
 <script setup>
-import { Building2, CalendarDays, CalendarPlus, FileBadge, Landmark, MessageSquareText, UserRound } from 'lucide-vue-next';
+import { BellRing, Building2, CalendarDays, CalendarPlus, FileBadge, Landmark, MessageSquareText, UserRound } from 'lucide-vue-next';
 import { DialogClose } from 'reka-ui';
 import { computed } from 'vue';
 import AppModal from '@/components/app/AppModal.vue';
-import { licenseStatus, localDate, remainingLabel } from '@/lib/licenses';
+import { licenseStatus, localDate, reminderLabel, remainingLabel } from '@/lib/licenses';
 
 const props = defineProps({
     open: { type: Boolean, default: false },
-    /** Fila de la tabla: { id, name, company, authority, valid_until, valid_time, status, comments, created_at, created_by } */
+    /** Fila de la tabla: { id, name, company, authority, valid_until, valid_time, status, comments, created_at, created_by, notification } */
     license: { type: Object, default: null },
 });
 
@@ -50,6 +50,11 @@ const tiles = computed(() =>
             },
             { icon: CalendarPlus, label: 'Fecha de alta', value: stamp(props.license.created_at) },
             { icon: UserRound, label: 'Registró', value: props.license.created_by ?? '—' },
+            {
+                icon: BellRing,
+                label: 'Aviso',
+                value: reminderLabel(props.license.notification?.minutes_before ?? null, Boolean(props.license.valid_time)),
+            },
         ]
         : [],
 );

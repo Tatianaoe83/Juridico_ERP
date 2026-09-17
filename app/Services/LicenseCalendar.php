@@ -6,6 +6,7 @@ use App\Models\License;
 use App\Models\User;
 use App\Services\Microsoft\CalendarOwner;
 use App\Services\Microsoft\MicrosoftGraph;
+use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 /**
@@ -40,7 +41,7 @@ class LicenseCalendar
         }
 
         try {
-            $data = $this->event($license, $actor, $this->guests($license, $calendar));
+            $data = $this->event($license, $actor, $this->sharedWith($calendar));
 
             // Si el evento se borró desde Outlook, el PATCH falla: se vuelve a
             // crear en vez de dejar la licencia sin nada en el calendario.
@@ -127,42 +128,53 @@ class LicenseCalendar
             'start' => $start,
             'end' => $allDay ? $start->copy() : $start->copy()->addMinutes(self::DURATION_MINUTES),
             'attendees' => $guests,
+            // La alerta la lanza Outlook en cada buzón; el servidor no manda nada.
+            'reminder_minutes' => $license->notification?->minutes_before,
         ];
     }
 
     /**
-     * A quién invita Outlook. Dos listas que se suman:
+     * A quién invita Outlook: los mismos con los que está compartido el
+     * calendario. No hay lista aparte que mantener.
      *
-     *  - Con quién está compartido el calendario: los mismos que ya ven todo
-     *    el panorama, igual que en los eventos normales.
-     *  - Los correos del recordatorio de esta licencia: a quien le interesa
-     *    este vencimiento en concreto, aunque no tenga el calendario.
-     *
-     * Con la invitación no hace falta aceptar ningún calendario compartido: el
+     * Con la invitación nadie tiene que aceptar un calendario compartido: el
      * evento cae en la bandeja y en la agenda propia, con Aceptar y Rechazar.
+     *
+     * La lista la manda Outlook, así que se cachea un rato: se consulta al
+     * pintar la tabla de licencias y en cada guardado, y no cambia de un
+     * minuto a otro.
      *
      * @return list<string>
      */
-    private function guests(License $license, CalendarOwner $calendar): array
+    public function sharedWith(?CalendarOwner $calendar): array
     {
-        try {
-            $shared = collect($this->graph->calendarPermissions($calendar))->pluck('email');
-        } catch (Throwable $e) {
-            // Se agenda igual, solo que sin los del calendario compartido.
-            report($e);
-
-            $shared = collect();
+        if (! $calendar?->canWriteCalendar()) {
+            return [];
         }
 
-        return $shared
-            ->merge($license->notification?->recipients ?? [])
-            ->filter()
-            ->map(fn (string $email) => mb_strtolower(trim($email)))
-            ->filter(fn (string $email) => (bool) filter_var($email, FILTER_VALIDATE_EMAIL))
-            // El organizador no puede figurar como invitado de su propio evento.
-            ->reject(fn (string $email) => $email === mb_strtolower($calendar->mailboxEmail()))
-            ->unique()
-            ->values()
-            ->all();
+        return Cache::remember(
+            'license-calendar-shared:'.mb_strtolower($calendar->mailboxEmail()),
+            now()->addMinutes(5),
+            function () use ($calendar) {
+                try {
+                    $shared = collect($this->graph->calendarPermissions($calendar))->pluck('email');
+                } catch (Throwable $e) {
+                    // Sin la lista se agenda igual, solo que sin invitados.
+                    report($e);
+
+                    return [];
+                }
+
+                return $shared
+                    ->filter()
+                    ->map(fn (string $email) => mb_strtolower(trim($email)))
+                    ->filter(fn (string $email) => (bool) filter_var($email, FILTER_VALIDATE_EMAIL))
+                    // El organizador no puede figurar como invitado de su propio evento.
+                    ->reject(fn (string $email) => $email === mb_strtolower($calendar->mailboxEmail()))
+                    ->unique()
+                    ->values()
+                    ->all();
+            },
+        );
     }
 }

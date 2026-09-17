@@ -19,6 +19,17 @@ class License extends Model
     /** Días antes de la vigencia en que pasa a «por vencer». */
     public const WARNING_DAYS = 30;
 
+    /**
+     * Minutos antes del evento que acepta el recordatorio de Outlook. Son los
+     * mismos presets que ofrece Outlook, en las dos variantes: con hora se
+     * cuentan desde ella; sin hora el evento arranca a medianoche, así que
+     * «el día anterior a las 9:00» son 900 minutos.
+     *
+     * La lista existe para no dejar pasar cualquier número: el selector solo
+     * muestra estos y el servidor no acepta otros.
+     */
+    public const REMINDER_MINUTES = [0, 5, 15, 30, 60, 120, 420, 720, 900, 1440, 2340, 2880, 9540, 10080];
+
     protected $guarded = [];
 
     /**

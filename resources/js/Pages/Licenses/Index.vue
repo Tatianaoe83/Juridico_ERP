@@ -22,11 +22,13 @@ import { usePermissions } from '@/composables/usePermissions';
 import { LICENSE_STATUS, daysLeft, licenseStatus } from '@/lib/licenses';
 
 const props = defineProps({
-    /** { data: [{ id, name, company, authority, valid_until, valid_time, status, created_by }], meta } */
+    /** { data: [{ id, name, company, authority, valid_until, valid_time, status, created_by, notification }], meta } */
     licenses: { type: Object, required: true },
     /** { total, active, expiring, expired, in_progress } — de todo el catálogo, sin filtros. */
     stats: { type: Object, required: true },
     filters: { type: Object, default: () => ({}) },
+    /** Correos con acceso al calendario: a ellos les llega el aviso. */
+    sharedWith: { type: Array, default: () => [] },
 });
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Licencias y Permisos' }];
@@ -496,8 +498,8 @@ const PAGE_BTN =
                                                     ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 focus-visible:ring-amber-500/25 dark:bg-amber-400/10 dark:text-amber-300 dark:hover:bg-amber-400/20'
                                                     : NEUTRAL,
                                             ]"
-                                            :aria-label="`Recordatorio de ${license.name}${license.notification ? ' (activo)' : ''}`"
-                                            :title="license.notification ? 'Recordatorio activo' : 'Configurar recordatorio'"
+                                            :aria-label="`Aviso de ${license.name}${license.notification ? ' (activo)' : ''}`"
+                                            :title="license.notification ? 'Aviso activo' : 'Configurar aviso'"
                                             @click="remind(license)"
                                         >
                                             <BellRing class="size-4" />
@@ -606,7 +608,7 @@ const PAGE_BTN =
 
         <LicenseShowDialog v-model:open="showOpen" :license="viewing" />
 
-        <LicenseReminderDialog v-model:open="reminderOpen" :license="reminding" />
+        <LicenseReminderDialog v-model:open="reminderOpen" :license="reminding" :shared-with="sharedWith" />
 
         <ConfirmDeleteDialog
             v-model:open="deleteOpen"
