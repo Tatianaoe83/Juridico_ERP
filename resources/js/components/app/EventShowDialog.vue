@@ -1,5 +1,5 @@
 <script setup>
-import { AlignLeft, CalendarClock, CalendarDays, MapPin, UserRound, Users } from 'lucide-vue-next';
+import { AlignLeft, CalendarClock, CalendarDays, UserRound, Users } from 'lucide-vue-next';
 import { DialogClose } from 'reka-ui';
 import { computed } from 'vue';
 import AppModal from '@/components/app/AppModal.vue';
@@ -64,14 +64,6 @@ const TILE_VALUE = 'mt-1.5 text-[0.85rem] font-bold text-slate-800 dark:text-whi
                 </div>
 
                 <div :class="TILE">
-                    <dt :class="TILE_LABEL">
-                        <MapPin class="size-3.5" />
-                        Lugar
-                    </dt>
-                    <dd :class="TILE_VALUE" :title="event.location ?? ''">{{ event.location || 'Sin ubicación' }}</dd>
-                </div>
-
-                <div :class="[TILE, 'sm:col-span-2']">
                     <dt :class="TILE_LABEL">
                         <UserRound class="size-3.5" />
                         Organiza

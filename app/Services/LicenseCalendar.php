@@ -117,9 +117,10 @@ class LicenseCalendar
         ]);
 
         return [
-            'title' => "Vence: {$license->name}",
+            'title' => $license->name,
             'description' => implode("\n", $lines),
-            'location' => $license->authority,
+            // Outlook pone la autoridad en «Ubicación» y confunde: va en la descripción.
+            'location' => null,
             'all_day' => $allDay,
             'start' => $start,
             'end' => $allDay ? $start->copy() : $start->copy()->addMinutes(self::DURATION_MINUTES),

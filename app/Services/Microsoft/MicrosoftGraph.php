@@ -169,7 +169,7 @@ class MicrosoftGraph
             ->get(self::BASE.$this->calendarPath($calendar).'/calendarView', [
                 'startDateTime' => $from->toIso8601String(),
                 'endDateTime' => $to->toIso8601String(),
-                '$select' => 'id,subject,bodyPreview,start,end,isAllDay,location,organizer,attendees,webLink,showAs,isCancelled',
+                '$select' => 'id,subject,bodyPreview,start,end,isAllDay,location,organizer,attendees,responseStatus,webLink,showAs,isCancelled',
                 '$orderby' => 'start/dateTime',
                 '$top' => 200,
             ])
@@ -179,7 +179,7 @@ class MicrosoftGraph
 
         return collect($response->json('value', []))
             ->reject(fn (array $event) => $event['isCancelled'] ?? false)
-            ->map(fn (array $event) => $this->mapEvent($event))
+            ->map(fn (array $event) => $this->mapEvent($event, $calendar->mailboxEmail()))
             ->values()
             ->all();
     }
@@ -285,9 +285,9 @@ class MicrosoftGraph
             'body' => filled($data['description'])
                 ? ['contentType' => 'text', 'content' => $data['description']]
                 : null,
-            'location' => filled($data['location'])
-                ? ['displayName' => $data['location']]
-                : null,
+            // Siempre viaja, aunque venga vacío: así un PATCH limpia la
+            // ubicación que hubiera quedado de antes.
+            'location' => ['displayName' => (string) ($data['location'] ?? '')],
             // Con asistentes, Outlook manda la invitación, propaga los cambios
             // y avisa la cancelación. Nada de eso lo hace la app.
             'attendees' => collect($attendees)
@@ -314,8 +314,14 @@ class MicrosoftGraph
      * @param  array<string, mixed>  $event
      * @return array<string, mixed>
      */
-    private function mapEvent(array $event): array
+    private function mapEvent(array $event, ?string $viewer = null): array
     {
+        // En modo delegado cada buzón guarda su propia copia del evento y solo
+        // la del organizador lleva las respuestas de los demás: en la copia de
+        // quien fue invitado todos los asistentes salen como «none». Lo que sí
+        // es fiable ahí es `responseStatus`, que es lo que contestó ese buzón,
+        // así que con eso se corrige su propia fila.
+        $mine = $event['responseStatus']['response'] ?? null;
         return [
             'id' => $event['id'],
             'title' => ($event['subject'] ?? '') ?: '(Sin asunto)',
@@ -331,12 +337,23 @@ class MicrosoftGraph
             // Quiénes están vinculados a este evento y qué contestaron.
             // Graph mantiene la lista: no hay tabla local que sincronizar.
             'attendees' => collect($event['attendees'] ?? [])
-                ->map(fn (array $attendee) => [
-                    'email' => $attendee['emailAddress']['address'] ?? null,
-                    'name' => $attendee['emailAddress']['name'] ?? null,
+                ->map(function (array $attendee) use ($viewer, $mine) {
+                    $email = $attendee['emailAddress']['address'] ?? null;
                     // none · accepted · declined · tentativelyAccepted · organizer
-                    'response' => $attendee['status']['response'] ?? 'none',
-                ])
+                    $response = $attendee['status']['response'] ?? 'none';
+
+                    $isViewer = $viewer !== null
+                        && $email !== null
+                        && strcasecmp($email, $viewer) === 0;
+
+                    return [
+                        'email' => $email,
+                        'name' => $attendee['emailAddress']['name'] ?? null,
+                        'response' => $isViewer && filled($mine) && $mine !== 'notResponded'
+                            ? $mine
+                            : $response,
+                    ];
+                })
                 ->filter(fn (array $attendee) => filled($attendee['email']))
                 ->values()
                 ->all(),
