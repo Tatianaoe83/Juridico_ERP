@@ -19,6 +19,7 @@ import { TooltipProvider } from 'reka-ui';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import SidebarGroup from '@/components/app/SidebarGroup.vue';
+import SidebarLink from '@/components/app/SidebarLink.vue';
 import UserMenu from '@/components/app/UserMenu.vue';
 import { Toaster } from '@/components/ui/sonner';
 import { usePermissions } from '@/composables/usePermissions';
@@ -66,7 +67,9 @@ watch(
 const nav = computed(() =>
     [
         {
-            group: 'General',
+            // Sin título: Calendario y Compartir son temas por sí mismos, no
+            // partes de uno mayor. Van fijos arriba, sin plegarse.
+            group: null,
             items: [
                 { href: '/calendario', label: 'Calendario', icon: CalendarDays, permission: 'calendar.view' },
                 { href: '/compartido', label: 'Compartir', icon: CalendarCheck, permission: 'calendar.view' },
@@ -100,7 +103,8 @@ const currentGroup = computed(
     () => nav.value.find((section) => section.items.some((item) => page.url.split('?')[0].startsWith(item.href)))?.group,
 );
 
-const openGroup = ref(currentGroup.value ?? nav.value[0]?.group ?? null);
+// Sin página dentro de un grupo —los sueltos no cuentan— todos arrancan cerrados.
+const openGroup = ref(currentGroup.value ?? null);
 
 function toggleGroup(group) {
     openGroup.value = openGroup.value === group ? null : group;
@@ -197,15 +201,28 @@ function toggleGroup(group) {
 
                     <!-- Si algún día el menú no cabe, desplaza solo la lista -->
                     <nav aria-label="Principal" class="min-h-0 flex-1 space-y-3 overflow-x-hidden overflow-y-auto px-4 py-5">
-                        <SidebarGroup
-                            v-for="section in nav"
-                            :key="section.group"
-                            :label="section.group"
-                            :items="section.items"
-                            :open="openGroup === section.group"
-                            :compact="compact"
-                            @toggle="toggleGroup(section.group)"
-                        />
+                        <template v-for="(section, index) in nav" :key="section.group ?? `suelto-${index}`">
+                            <!-- Sin título: enlaces fijos, siempre visibles -->
+                            <div v-if="!section.group" class="space-y-1">
+                                <SidebarLink
+                                    v-for="item in section.items"
+                                    :key="item.href"
+                                    :href="item.href"
+                                    :label="item.label"
+                                    :icon="item.icon"
+                                    :compact="compact"
+                                />
+                            </div>
+
+                            <SidebarGroup
+                                v-else
+                                :label="section.group"
+                                :items="section.items"
+                                :open="openGroup === section.group"
+                                :compact="compact"
+                                @toggle="toggleGroup(section.group)"
+                            />
+                        </template>
                     </nav>
 
                     <!-- Tarjeta de marca: el mismo panel azul del login, en pequeño -->
