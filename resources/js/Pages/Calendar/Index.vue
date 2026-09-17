@@ -1,28 +1,21 @@
 <script setup>
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import {
-    CalendarDays,
-    CalendarPlus,
-    ChevronLeft,
-    ChevronRight,
-    ExternalLink,
-    Loader2,
-    MapPin,
-    Pencil,
-    RefreshCw,
-    Trash2,
-    Unlink,
-    X,
-} from 'lucide-vue-next';
+import { CalendarDays, ChevronLeft, ChevronRight, Loader2, RefreshCw, TriangleAlert, Unlink, X } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
-import EventFormDialog from '@/components/app/EventFormDialog.vue';
-import { Button } from '@/components/ui/button';
+import EventShowDialog from '@/components/app/EventShowDialog.vue';
 import { useEventDisplay } from '@/composables/useEventDisplay';
 import { usePermissions } from '@/composables/usePermissions';
 import { useSwal } from '@/composables/useSwal';
 
+/**
+ * Agenda del mes, de solo lectura.
+ *
+ * La agenda se administra en Outlook: aquí se consulta. Un evento abre su
+ * detalle en un modal —y no Outlook en otra pestaña— porque sacar a la persona
+ * de la app para leer una hora es un viaje de ida.
+ */
 const props = defineProps({
     /** null cuando el usuario aún no vincula su cuenta de Microsoft. */
     connection: { type: Object, default: null },
@@ -35,22 +28,7 @@ const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Calenda
 
 const { confirmDelete, blocks } = useSwal();
 const { can } = usePermissions();
-
-/* ---------- Alta y edición ---------- */
-
-const dialogOpen = ref(false);
-const dialogEvent = ref(null);
-
-function create() {
-    dialogEvent.value = null;
-    dialogOpen.value = true;
-}
-
-/** La rejilla ya trae el evento completo de Graph: no hace falta ir por él. */
-function edit(event) {
-    dialogEvent.value = event;
-    dialogOpen.value = true;
-}
+const { guests, longDayLabel, timeLabel, startLabel } = useEventDisplay();
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
@@ -63,14 +41,10 @@ function startOfMonth(date) {
 }
 
 function key(date) {
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
-        date.getDate(),
-    ).padStart(2, '0')}`;
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-const monthLabel = computed(() =>
-    cursor.value.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }),
-);
+const monthLabel = computed(() => cursor.value.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }));
 
 /** Semanas completas de lunes a domingo que cubren el mes. */
 const days = computed(() => {
@@ -104,25 +78,39 @@ const byDay = computed(() =>
     events.value.reduce((map, event) => {
         const day = (event.start ?? '').slice(0, 10);
         (map[day] ??= []).push(event);
+
         return map;
     }, {}),
 );
 
-const { guests, response, longDayLabel, timeLabel, startLabel } = useEventDisplay();
-
 /** Cuántos eventos caben en una celda antes de resumir el resto. */
 const PER_CELL = 3;
 
-/* ---------- Tooltip y popover flotantes ---------- */
+/**
+ * Cinco o seis semanas según el mes. Las filas se reparten el alto del card en
+ * partes iguales para que la rejilla lo llene sin dejar hueco abajo ni estirar
+ * de más un mes corto.
+ */
+const weekRows = computed(() => ({ gridTemplateRows: `repeat(${days.value.length / 7}, minmax(0, 1fr))` }));
+
+/* ---------- Detalle ---------- */
+
+const detailOpen = ref(false);
+const detail = ref(null);
+
+/** La rejilla ya trae el evento completo de Graph: no hace falta ir por él. */
+function show(event) {
+    closeDay();
+    detail.value = event;
+    detailOpen.value = true;
+}
+
+/* ---------- Todos los eventos de un día ---------- */
 
 /**
- * Los dos paneles van en `position: fixed` y fuera de la rejilla: dentro de una
- * celda los recortaría el `overflow-hidden` del contenedor del calendario.
+ * El panel va en `position: fixed` y fuera de la rejilla: dentro de una celda
+ * lo recortaría el `overflow-hidden` del contenedor del calendario.
  */
-const tip = ref(null);
-const tipEvent = ref(null);
-const tipStyle = ref({});
-
 const pop = ref(null);
 const popDay = ref(null);
 const popStyle = ref({});
@@ -130,43 +118,28 @@ const popStyle = ref({});
 const popEvents = computed(() => (popDay.value ? (byDay.value[popDay.value.key] ?? []) : []));
 
 /**
- * Coloca un panel bajo el elemento, o encima si no cabe. Se mide después de
- * pintar porque el alto depende del contenido: un evento con seis invitados
- * ocupa el doble que uno sin ninguno.
+ * Coloca el panel bajo el elemento, o encima si no cabe. Se mide después de
+ * pintar porque el alto depende de cuántos eventos tenga el día.
  */
 async function anchorTo(target, panel, style, width) {
     const pad = 10;
     const rect = target.getBoundingClientRect();
-
     const left = Math.max(pad, Math.min(rect.left, window.innerWidth - width - pad));
+
     style.value = { left: `${left}px`, top: `${rect.bottom + 6}px` };
 
     await nextTick();
 
     const height = panel.value?.offsetHeight ?? 0;
     const fitsBelow = rect.bottom + 6 + height + pad <= window.innerHeight;
-    const top = fitsBelow ? rect.bottom + 6 : Math.max(pad, rect.top - height - 6);
 
-    style.value = { left: `${left}px`, top: `${top}px` };
-}
-
-function showTip(event, mouseEvent) {
-    // El popover abierto manda: un tooltip encima lo taparía.
-    if (popDay.value) return;
-
-    tipEvent.value = event;
-    anchorTo(mouseEvent.currentTarget, tip, tipStyle, 256);
-}
-
-function hideTip() {
-    tipEvent.value = null;
+    style.value = { left: `${left}px`, top: `${fitsBelow ? rect.bottom + 6 : Math.max(pad, rect.top - height - 6)}px` };
 }
 
 function openDay(cell, mouseEvent) {
-    hideTip();
     popDay.value = popDay.value?.key === cell.key ? null : cell;
 
-    if (popDay.value) anchorTo(mouseEvent.currentTarget, pop, popStyle, 256);
+    if (popDay.value) anchorTo(mouseEvent.currentTarget, pop, popStyle, 272);
 }
 
 function closeDay() {
@@ -187,14 +160,13 @@ onBeforeUnmount(() => {
     document.removeEventListener('keydown', onKeydown);
 });
 
-// Cambiar de mes o recargar deja los paneles apuntando a nada.
-watch(events, () => {
-    hideTip();
-    closeDay();
-});
+// Cambiar de mes o recargar deja el panel apuntando a nada.
+watch(events, closeDay);
 
-/** `fresh` salta el caché: es lo que hace útil al botón Actualizar cuando el
- *  cambio se hizo desde Outlook y la app no se enteró. */
+/**
+ * `fresh` salta el caché: es lo que hace útil al botón Actualizar cuando el
+ * cambio se hizo desde Outlook y la app no se enteró.
+ */
 async function load(fresh = false) {
     if (!props.connection) return;
 
@@ -221,44 +193,6 @@ function move(months) {
     cursor.value = new Date(cursor.value.getFullYear(), cursor.value.getMonth() + months, 1);
 }
 
-/**
- * Borra en Outlook y recarga la rejilla. La respuesta del servidor sube la
- * versión del caché, así que el evento ya no vuelve en la siguiente lectura.
- */
-async function destroy(event) {
-    const invited = guests(event).length;
-
-    const ok = await confirmDelete({
-        title: '¿Eliminar evento?',
-        html: blocks.stack(
-            blocks.lead(
-                `<span class="font-medium">${event.title}</span><br>` +
-                    `<span class="text-muted-foreground">${longDayLabel(event.start)} · ${timeLabel(event)}</span>`,
-            ),
-            blocks.panel({
-                label: 'Se pierde',
-                tone: 'danger',
-                items: [
-                    'El evento desaparece de tu calendario de Outlook',
-                    invited
-                        ? `Los ${invited} invitados reciben la cancelación`
-                        : 'Nadie recibe aviso: el evento no tiene invitados',
-                ],
-            }),
-            blocks.note('No se puede deshacer desde aquí.'),
-        ),
-    });
-
-    if (!ok) return;
-
-    router.delete('/eventos', {
-        data: { event_id: event.id },
-        preserveScroll: true,
-        preserveState: true,
-        onSuccess: () => load(true),
-    });
-}
-
 async function disconnect() {
     const ok = await confirmDelete({
         title: '¿Desvincular cuenta?',
@@ -268,17 +202,11 @@ async function disconnect() {
             blocks.panel({
                 label: 'Se pierde',
                 tone: 'danger',
-                items: [
-                    'El acceso guardado a tu cuenta de Microsoft',
-                    'La vista del calendario y el alta de eventos, hasta reconectar',
-                ],
+                items: ['El acceso guardado a tu cuenta de Microsoft', 'La vista del calendario, hasta reconectar'],
             }),
             blocks.panel({
                 label: 'No se toca',
-                items: [
-                    'Tus eventos, que siguen en Outlook',
-                    'El calendario y con quién está compartido',
-                ],
+                items: ['Tus eventos, que siguen en Outlook', 'El calendario y con quién está compartido'],
             }),
             blocks.note('Al reconectar se recupera todo, incluida la lista de compartidos.'),
         ),
@@ -292,305 +220,228 @@ async function disconnect() {
 // interpretaría como `fresh` y saltarían el caché en cada cambio de mes.
 watch(cursor, () => load());
 onMounted(() => load());
+
+/* ---------- Medidas ---------- */
+
+const NAV_BTN =
+    'grid size-9 cursor-pointer place-content-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors duration-150 ' +
+    'hover:border-slate-300 hover:bg-slate-50 hover:text-brand focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/15 ' +
+    'dark:border-white/10 dark:bg-white/[0.04] dark:text-brand-gray dark:hover:bg-white/[0.08] dark:hover:text-white';
+
+const GHOST_BTN =
+    'inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[0.8rem] font-semibold text-slate-600 ' +
+    'transition-colors duration-150 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-4 ' +
+    'focus-visible:ring-brand/15 disabled:pointer-events-none disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-brand-gray ' +
+    'dark:hover:bg-white/[0.08] dark:hover:text-white';
+
+// Chip del evento: el punto de marca lo ancla al calendario de la app.
+const CHIP =
+    'flex w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[0.7rem] leading-tight transition-colors duration-150 ' +
+    'hover:bg-brand/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 dark:hover:bg-white/[0.08]';
 </script>
 
 <template>
     <Head title="Calendario" />
 
     <AppShell :breadcrumbs="breadcrumbs">
-        <!-- Encabezado -->
-        <div class="mb-5 flex flex-wrap items-start justify-between gap-4">
-            <div class="flex flex-col gap-3">
-                <!-- Icono y título -->
+        <div class="flex flex-col md:h-full md:min-h-0">
+            <!-- Encabezado -->
+            <div class="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 tall:mb-4">
                 <div class="flex items-center gap-3">
-                    <span class="grid size-10 place-content-center rounded-lg bg-accent text-accent-foreground">
-                        <CalendarDays class="size-5" />
+                    <span
+                        class="grid size-9 place-content-center rounded-xl bg-gradient-to-br from-brand-light to-brand text-white shadow-md shadow-brand/25 ring-1 ring-white/10"
+                    >
+                        <CalendarDays class="size-4" />
                     </span>
-                    <h1 class="text-2xl font-semibold tracking-tight">Calendario</h1>
-                </div>
-
-                <!-- Cuenta registrada -->
-                <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-                    <p v-if="connection">
-                        <span class="text-muted-foreground">Correo principal:</span>
-                        <span class="ml-1 font-medium">{{ connection.email }}</span>
-                    </p>
-                    <p v-else-if="mode === 'delegated'" class="text-muted-foreground">Conecta tu cuenta para ver tu agenda</p>
-                </div>
-            </div>
-
-            <div v-if="connection" class="flex items-center gap-2">
-                <Button v-if="can('events.create')" size="sm" @click="create">
-                    <CalendarPlus class="size-4" />
-                    Nuevo evento
-                </Button>
-                <Button variant="outline" size="sm" :disabled="loading" @click="load(true)">
-                    <RefreshCw class="size-4" :class="loading && 'animate-spin'" />
-                    Actualizar
-                </Button>
-                <Button v-if="mode === 'delegated' && can('calendar.link')" variant="outline" size="sm" @click="disconnect">
-                    <Unlink class="size-4" />
-                    Desvincular
-                </Button>
-            </div>
-
-            <!-- Redirección fuera de la app: enlace normal, no Inertia -->
-            <a
-                v-else-if="mode === 'delegated'"
-                href="/auth/microsoft/redirect"
-                class="rounded-md bg-[#459AF7] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#3b86d8]"
-            >
-                Conectar con outlook
-            </a>
-        </div>
-
-        <!-- Sin vincular -->
-        <div
-            v-if="!connection"
-            class="grid place-content-center gap-2 rounded-xl border border-dashed bg-card p-16 text-center"
-        >
-            <CalendarDays class="mx-auto size-8 text-muted-foreground" />
-            <template v-if="mode === 'delegated'">
-                <p class="font-medium">Tu agenda de Outlook aún no está conectada</p>
-                <p class="max-w-md text-sm text-muted-foreground">
-                    Al conectar, el sistema lee los eventos de tu calendario de Microsoft 365. Es solo
-                    lectura y puedes desvincular cuando quieras.
-                </p>
-            </template>
-            <template v-else>
-                <p class="font-medium">El calendario general no está configurado</p>
-                <p class="max-w-md text-sm text-muted-foreground">
-                    Falta indicar el buzón general en
-                    <code class="rounded bg-muted px-1 py-0.5 text-xs">MS_MAILBOX</code>. Avisa al administrador.
-                </p>
-            </template>
-        </div>
-
-        <!-- Calendario -->
-        <template v-else>
-            <div class="mb-3 flex items-center gap-2">
-                <Button variant="outline" size="icon" aria-label="Mes anterior" @click="move(-1)">
-                    <ChevronLeft class="size-4" />
-                </Button>
-                <Button variant="outline" size="icon" aria-label="Mes siguiente" @click="move(1)">
-                    <ChevronRight class="size-4" />
-                </Button>
-                <Button variant="outline" size="sm" @click="cursor = startOfMonth(new Date())">Hoy</Button>
-                <span class="ml-1 text-lg font-medium capitalize">{{ monthLabel }}</span>
-                <Loader2 v-if="loading" class="size-4 animate-spin text-muted-foreground" />
-            </div>
-
-            <p
-                v-if="error"
-                class="mb-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-            >
-                {{ error }}
-                <a v-if="mode === 'delegated'" href="/auth/microsoft/redirect" class="ml-1 underline">
-                    Reconectar
-                </a>
-            </p>
-
-            <div class="overflow-hidden rounded-xl border bg-card">
-                <div class="grid grid-cols-7 border-b bg-muted/40 text-xs font-medium text-muted-foreground">
-                    <div v-for="day in WEEKDAYS" :key="day" class="px-2 py-2 text-center">{{ day }}</div>
-                </div>
-
-                <div class="grid grid-cols-7">
-                    <div
-                        v-for="cell in days"
-                        :key="cell.key"
-                        class="min-h-15 border-b border-r p-1.5"
-                        :class="cell.outside && 'bg-muted/20'"
-                    >
-                        <span
-                            class="inline-grid size-6 place-content-center rounded-full text-xs"
-                            :class="[
-                                cell.today && 'bg-primary font-semibold text-primary-foreground',
-                                cell.outside && 'text-muted-foreground/50',
-                            ]"
-                        >
-                            {{ cell.day }}
-                        </span>
-
-                        <ul class="mt-1 space-y-1">
-                            <li
-                                v-for="event in (byDay[cell.key] ?? []).slice(0, PER_CELL)"
-                                :key="event.id"
-                                class="group relative rounded hover:bg-accent"
-                            >
-                                <!-- Sin `title`: lo sustituye el tooltip, y el nativo del
-                                     navegador se encimaría con medio segundo de retraso -->
-                                <a
-                                    :href="event.url"
-                                    target="_blank"
-                                    rel="noopener"
-                                    class="flex items-center gap-1 rounded px-1 py-0.5 text-[0.7rem] leading-tight"
-                                    @mouseenter="showTip(event, $event)"
-                                    @mouseleave="hideTip"
-                                    @focus="showTip(event, $event)"
-                                    @blur="hideTip"
-                                >
-                                    <span class="size-1.5 shrink-0 rounded-full bg-[#459AF7]" />
-                                    <!-- Una sola línea: el título se corta con puntos suspensivos
-                                         y el detalle completo lo da el tooltip -->
-                                    <span class="min-w-0 flex-1 truncate">
-                                        <span class="text-muted-foreground">{{ startLabel(event) }}</span>
-                                        <span class="ml-1">{{ event.title }}</span>
-                                    </span>
-                                    <ExternalLink class="size-3 shrink-0 opacity-0 group-hover:opacity-60" />
-                                </a>
-
-                                <!-- Flotan sobre el evento: las celdas no tienen alto para una fila propia -->
-                                <div
-                                    class="absolute right-0.5 top-0.5 hidden gap-0.5 rounded bg-card/95 p-0.5 shadow-sm group-hover:flex group-focus-within:flex"
-                                >
-                                    <button
-                                        type="button"
-                                        class="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                                        title="Editar"
-                                        v-if="can('events.update')"
-                                        aria-label="Editar evento"
-                                        @click="edit(event)"
-                                    >
-                                        <Pencil class="size-3" />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="rounded p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                                        title="Eliminar"
-                                        v-if="can('events.delete')"
-                                        aria-label="Eliminar evento"
-                                        @click="destroy(event)"
-                                    >
-                                        <Trash2 class="size-3" />
-                                    </button>
-                                </div>
-                            </li>
-                            <li v-if="(byDay[cell.key] ?? []).length > PER_CELL">
-                                <button
-                                    type="button"
-                                    class="w-full rounded px-1 py-0.5 text-left text-[0.7rem] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                                    :class="popDay?.key === cell.key && 'bg-accent text-foreground'"
-                                    @click.stop="openDay(cell, $event)"
-                                >
-                                    +{{ byDay[cell.key].length - PER_CELL }} más
-                                </button>
-                            </li>
-                        </ul>
+                    <div>
+                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Microsoft 365</p>
+                        <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Calendario</h1>
                     </div>
                 </div>
-            </div>
 
-            <!-- Detalle del evento al pasar el cursor -->
-            <div
-                ref="tip"
-                class="pointer-events-none fixed z-40 w-64 rounded-xl border bg-card p-3 shadow-lg transition-opacity duration-150"
-                :class="tipEvent ? 'opacity-100' : 'opacity-0'"
-                :style="tipStyle"
-                aria-hidden="true"
-            >
-                <template v-if="tipEvent">
-                    <p class="text-sm font-medium leading-tight">{{ tipEvent.title }}</p>
-                    <p class="mt-0.5 text-xs capitalize text-muted-foreground">
-                        {{ longDayLabel(tipEvent.start) }} · {{ timeLabel(tipEvent) }}
-                    </p>
-
-                    <p v-if="tipEvent.location" class="mt-1.5 flex items-start gap-1.5 text-xs">
-                        <MapPin class="mt-0.5 size-3 shrink-0 text-muted-foreground" />
-                        <span>{{ tipEvent.location }}</span>
-                    </p>
-
-                    <p v-if="tipEvent.organizer" class="mt-1 text-xs text-muted-foreground">
-                        Organiza {{ tipEvent.organizer }}
-                    </p>
-
-                    <div v-if="guests(tipEvent).length" class="mt-2 space-y-1 border-t pt-2">
-                        <p
-                            v-for="guest in guests(tipEvent).slice(0, 5)"
-                            :key="guest.email"
-                            class="flex items-center gap-1.5 text-xs"
-                        >
-                            <span class="size-1.5 shrink-0 rounded-full" :class="response(guest).dot" />
-                            <span class="min-w-0 truncate">{{ guest.name || guest.email }}</span>
-                            <span class="ml-auto shrink-0 text-[0.65rem] text-muted-foreground">
-                                {{ response(guest).label }}
-                            </span>
-                        </p>
-                        <p
-                            v-if="guests(tipEvent).length > 5"
-                            class="text-[0.65rem] text-muted-foreground"
-                        >
-                            +{{ guests(tipEvent).length - 5 }} invitados más
-                        </p>
-                    </div>
-                </template>
-            </div>
-
-            <!-- Todos los eventos del día -->
-            <div
-                v-show="popDay"
-                ref="pop"
-                class="fixed z-50 w-64 overflow-hidden rounded-xl border bg-card shadow-xl"
-                :style="popStyle"
-                @click.stop
-            >
-                <div class="flex items-center justify-between gap-2 border-b px-3 py-2">
-                    <p class="truncate text-xs font-medium capitalize">
-                        {{ popDay ? longDayLabel(popDay.key) : '' }}
-                    </p>
+                <div v-if="connection" class="flex items-center gap-2">
+                    <button type="button" :class="GHOST_BTN" :disabled="loading" @click="load(true)">
+                        <RefreshCw class="size-4" :class="loading && 'animate-spin'" />
+                        Actualizar
+                    </button>
                     <button
+                        v-if="mode === 'delegated' && can('calendar.link')"
                         type="button"
-                        class="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                        aria-label="Cerrar"
-                        @click="closeDay"
+                        :class="GHOST_BTN"
+                        @click="disconnect"
                     >
-                        <X class="size-3.5" />
+                        <Unlink class="size-4" />
+                        Desvincular
                     </button>
                 </div>
 
-                <ul class="max-h-64 overflow-y-auto p-1.5">
-                    <li v-for="event in popEvents" :key="event.id" class="group/row flex items-start gap-2 rounded p-1.5 hover:bg-accent">
-                        <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-[#459AF7]" />
-                        <a
-                            :href="event.url"
-                            target="_blank"
-                            rel="noopener"
-                            class="min-w-0 flex-1"
-                        >
-                            <span class="block truncate text-xs font-medium">{{ event.title }}</span>
-                            <span class="block text-[0.65rem] text-muted-foreground">
-                                {{ timeLabel(event) }}<template v-if="event.location"> · {{ event.location }}</template>
-                            </span>
-                        </a>
-                        <span class="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100">
-                            <button
-                                type="button"
-                                class="rounded p-0.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-                                v-if="can('events.update')"
-                                aria-label="Editar evento"
-                                @click="closeDay(); edit(event)"
-                            >
-                                <Pencil class="size-3" />
-                            </button>
-                            <button
-                                type="button"
-                                class="rounded p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                                v-if="can('events.delete')"
-                                aria-label="Eliminar evento"
-                                @click="closeDay(); destroy(event)"
-                            >
-                                <Trash2 class="size-3" />
-                            </button>
-                        </span>
-                    </li>
-                </ul>
+                <!-- Redirección fuera de la app: enlace normal, no Inertia -->
+                <a
+                    v-else-if="mode === 'delegated'"
+                    href="/auth/microsoft/redirect"
+                    class="inline-flex h-9 items-center gap-2 rounded-xl bg-brand px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
+                >
+                    Conectar con Outlook
+                </a>
             </div>
 
-            <p v-if="connection.synced_at" class="mt-3 text-xs text-muted-foreground">
-                Última sincronización: {{ new Date(connection.synced_at).toLocaleString('es-MX') }}
-            </p>
+            <!-- Sin vincular -->
+            <div
+                v-if="!connection"
+                class="grid place-content-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white p-16 text-center dark:border-white/15 dark:bg-brand-deep"
+            >
+                <CalendarDays class="mx-auto size-8 text-slate-300 dark:text-white/25" />
+                <template v-if="mode === 'delegated'">
+                    <p class="font-bold text-slate-800 dark:text-white">Tu agenda de Outlook aún no está conectada</p>
+                    <p class="max-w-md text-[0.8rem] leading-relaxed text-slate-500 dark:text-brand-gray">
+                        Al conectar, el sistema lee los eventos de tu calendario de Microsoft 365. Es solo lectura y puedes desvincular cuando quieras.
+                    </p>
+                </template>
+                <template v-else>
+                    <p class="font-bold text-slate-800 dark:text-white">El calendario general no está configurado</p>
+                    <p class="max-w-md text-[0.8rem] leading-relaxed text-slate-500 dark:text-brand-gray">
+                        Falta indicar el buzón general en
+                        <code class="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-white/10">MS_MAILBOX</code>. Avisa al administrador.
+                    </p>
+                </template>
+            </div>
 
-            <EventFormDialog v-model:open="dialogOpen" :event="dialogEvent" @saved="load(true)" />
-        </template>
+            <!-- Calendario -->
+            <template v-else>
+                <p
+                    v-if="error"
+                    class="mb-3 flex items-center gap-2 rounded-xl border border-red-300/60 bg-red-50 px-3.5 py-2.5 text-[0.8rem] text-red-700 dark:border-red-400/25 dark:bg-red-400/10 dark:text-red-300"
+                    role="alert"
+                >
+                    <TriangleAlert class="size-4 shrink-0" />
+                    <span>{{ error }}</span>
+                    <a v-if="mode === 'delegated'" href="/auth/microsoft/redirect" class="ml-auto font-semibold underline underline-offset-2">
+                        Reconectar
+                    </a>
+                </p>
+
+                <div
+                    class="@container flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] md:min-h-0 md:flex-1 dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none"
+                >
+                    <!-- Barra: mes y navegación -->
+                    <div class="flex shrink-0 flex-wrap items-center gap-2 px-3 py-2.5 tall:py-3 @2xl:px-4 @6xl:px-6">
+                        <button type="button" :class="NAV_BTN" aria-label="Mes anterior" @click="move(-1)">
+                            <ChevronLeft class="size-4" />
+                        </button>
+                        <button type="button" :class="NAV_BTN" aria-label="Mes siguiente" @click="move(1)">
+                            <ChevronRight class="size-4" />
+                        </button>
+                        <button type="button" :class="GHOST_BTN" @click="cursor = startOfMonth(new Date())">Hoy</button>
+
+                        <h2 class="ml-1 text-[0.95rem] font-bold capitalize text-brand dark:text-white">{{ monthLabel }}</h2>
+                        <Loader2 v-if="loading" class="size-4 animate-spin text-slate-400 dark:text-brand-gray" aria-label="Cargando eventos" />
+
+                        <p v-if="connection.synced_at" class="ml-auto hidden text-[0.7rem] text-slate-400 @2xl:block dark:text-brand-gray/80">
+                            Sincronizado {{ new Date(connection.synced_at).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) }}
+                        </p>
+                    </div>
+
+                    <div class="flex flex-col border-t border-slate-100 md:min-h-0 md:flex-1 dark:border-white/[0.06]">
+                        <!-- Encabezado de días, pegado al desplazar -->
+                        <div
+                            class="grid shrink-0 grid-cols-7 border-b border-slate-100 bg-slate-50 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-500 dark:border-white/[0.06] dark:bg-brand-deep dark:text-brand-gray"
+                        >
+                            <div v-for="day in WEEKDAYS" :key="day" class="px-2 py-2 text-center">{{ day }}</div>
+                        </div>
+
+                        <div class="grid grid-cols-7 md:min-h-0 md:flex-1" :style="weekRows">
+                            <div
+                                v-for="cell in days"
+                                :key="cell.key"
+                                class="flex min-h-20 flex-col overflow-hidden border-b border-r border-slate-100 p-1.5 transition-colors duration-150 last:border-r-0 md:min-h-0 dark:border-white/[0.06]"
+                                :class="cell.outside ? 'bg-slate-50/60 dark:bg-white/[0.015]' : 'bg-white dark:bg-brand-deep'"
+                            >
+                                <!-- Hoy se marca con la pastilla de marca, no solo con color de texto -->
+                                <span
+                                    class="inline-grid size-6 place-content-center rounded-full text-[0.7rem] font-semibold tabular-nums"
+                                    :class="[
+                                        cell.today && 'bg-brand text-white shadow-sm shadow-brand/30 dark:bg-brand-light',
+                                        !cell.today && cell.outside && 'text-slate-300 dark:text-white/25',
+                                        !cell.today && !cell.outside && 'text-slate-600 dark:text-slate-300',
+                                    ]"
+                                >
+                                    {{ cell.day }}
+                                </span>
+
+                                <ul class="mt-1 min-h-0 flex-1 space-y-0.5 overflow-y-auto">
+                                    <li v-for="event in (byDay[cell.key] ?? []).slice(0, PER_CELL)" :key="event.id">
+                                        <button type="button" :class="CHIP" :aria-label="`Ver ${event.title}`" @click.stop="show(event)">
+                                            <span class="size-1.5 shrink-0 rounded-full bg-brand dark:bg-brand-gray" />
+                                            <!-- Una sola línea: el título se corta y el detalle lo da el modal -->
+                                            <span class="min-w-0 flex-1 truncate">
+                                                <span class="tabular-nums text-slate-400 dark:text-brand-gray/80">{{ startLabel(event) }}</span>
+                                                <span class="ml-1 font-medium text-slate-700 dark:text-slate-200">{{ event.title }}</span>
+                                            </span>
+                                        </button>
+                                    </li>
+
+                                    <li v-if="(byDay[cell.key] ?? []).length > PER_CELL">
+                                        <button
+                                            type="button"
+                                            class="w-full cursor-pointer rounded-md px-1.5 py-0.5 text-left text-[0.68rem] font-semibold text-slate-500 transition-colors duration-150 hover:bg-slate-100 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 dark:text-brand-gray dark:hover:bg-white/[0.08] dark:hover:text-white"
+                                            :class="popDay?.key === cell.key && 'bg-slate-100 text-brand dark:bg-white/[0.08] dark:text-white'"
+                                            @click.stop="openDay(cell, $event)"
+                                        >
+                                            +{{ byDay[cell.key].length - PER_CELL }} más
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Todos los eventos del día -->
+                <div
+                    v-show="popDay"
+                    ref="pop"
+                    class="fixed z-50 w-68 overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-xl shadow-brand-deep/10 dark:border-white/10 dark:bg-brand-panel dark:shadow-black/40"
+                    :style="popStyle"
+                    @click.stop
+                >
+                    <div class="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-white/[0.06]">
+                        <p class="truncate text-[0.72rem] font-bold capitalize text-slate-700 dark:text-white">
+                            {{ popDay ? longDayLabel(popDay.key) : '' }}
+                        </p>
+                        <button
+                            type="button"
+                            class="grid size-6 cursor-pointer place-content-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+                            aria-label="Cerrar"
+                            @click="closeDay"
+                        >
+                            <X class="size-3.5" />
+                        </button>
+                    </div>
+
+                    <ul class="max-h-64 overflow-y-auto p-1.5">
+                        <li v-for="event in popEvents" :key="event.id">
+                            <button
+                                type="button"
+                                class="flex w-full cursor-pointer items-start gap-2 rounded-lg p-1.5 text-left transition-colors duration-150 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 dark:hover:bg-white/[0.06]"
+                                @click="show(event)"
+                            >
+                                <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand dark:bg-brand-gray" />
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-[0.75rem] font-semibold text-slate-800 dark:text-white">{{ event.title }}</span>
+                                    <span class="block truncate text-[0.68rem] text-slate-500 dark:text-brand-gray">
+                                        {{ timeLabel(event) }}<template v-if="event.location"> · {{ event.location }}</template>
+                                    </span>
+                                </span>
+                                <span v-if="guests(event).length" class="shrink-0 text-[0.65rem] tabular-nums text-slate-400 dark:text-brand-gray/80">
+                                    {{ guests(event).length }}
+                                </span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+
+                <EventShowDialog v-model:open="detailOpen" :event="detail" />
+            </template>
+        </div>
     </AppShell>
 </template>
