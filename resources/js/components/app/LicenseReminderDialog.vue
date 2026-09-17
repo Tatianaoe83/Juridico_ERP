@@ -1,7 +1,7 @@
 <script setup>
 import { router, useForm } from '@inertiajs/vue3';
 import { BellOff, BellRing, CalendarClock, Check, Loader2, Lock, Users } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import AppModal from '@/components/app/AppModal.vue';
 import { localDate, reminderOptions } from '@/lib/licenses';
 
@@ -30,6 +30,29 @@ const hasTime = computed(() => Boolean(props.license?.valid_time));
 
 const options = computed(() => reminderOptions(hasTime.value));
 
+/**
+ * Reloj de la máquina de quien usa la app: con él se descartan los avisos que
+ * ya no se pueden lanzar. Se refresca cada medio minuto mientras el modal está
+ * abierto, para que una opción no siga viva después de su hora.
+ */
+const now = ref(new Date());
+let ticker = null;
+
+watch(
+    () => props.open,
+    (open) => {
+        clearInterval(ticker);
+
+        if (!open) return;
+
+        now.value = new Date();
+        ticker = setInterval(() => (now.value = new Date()), 30_000);
+    },
+    { immediate: true },
+);
+
+onBeforeUnmount(() => clearInterval(ticker));
+
 // Cada apertura carga lo guardado; sin aviso previo, ninguno seleccionado.
 watch(
     () => props.open,
@@ -49,7 +72,7 @@ function close() {
 }
 
 function submit() {
-    if (form.minutes_before === null) return;
+    if (form.minutes_before === null || isPast(form.minutes_before)) return;
 
     form.put(`/licencias/${props.license.id}/recordatorio`, { preserveScroll: true, onSuccess: close });
 }
@@ -93,13 +116,20 @@ function shortMoment(minutes) {
     return moment ? moment.toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
 }
 
+/** Un aviso cuya hora ya pasó no lo va a lanzar nadie: se ofrece deshabilitado. */
+function isPast(minutes) {
+    const moment = momentFor(minutes);
+
+    return Boolean(moment) && moment <= now.value;
+}
+
 /** Resumen de lo elegido: lo que de verdad va a pasar, en una línea. */
 const summary = computed(() => {
     if (form.minutes_before === null) return 'Elige cuándo quieres el aviso.';
 
     const moment = momentFor(form.minutes_before);
 
-    return `${moment < new Date() ? 'Tocaba el' : 'Avisa el'} ${longMoment(moment)}`;
+    return `${moment <= now.value ? 'Ya pasó: tocaba el' : 'Avisa el'} ${longMoment(moment)}`;
 });
 
 /* ---------- Quitar ---------- */
@@ -139,6 +169,10 @@ const CARD_OFF =
 const CARD_ON =
     'border-brand bg-brand/[0.06] dark:border-brand-gray/60 dark:bg-white/[0.10]';
 
+// Se queda a la vista, apagada: quien la busca entiende que existe pero ya no cabe.
+const CARD_PAST =
+    'cursor-not-allowed border-slate-200 bg-slate-50 opacity-55 dark:border-white/[0.06] dark:bg-white/[0.02]';
+
 const SECTION = 'mb-2.5 flex items-center gap-2 text-[0.62rem] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-brand-gray/80';
 </script>
 
@@ -165,13 +199,17 @@ const SECTION = 'mb-2.5 flex items-center gap-2 text-[0.62rem] font-bold upperca
                         <label
                             v-for="option in options"
                             :key="option.value"
-                            :class="[CARD, form.minutes_before === option.value ? CARD_ON : CARD_OFF]"
+                            :class="[
+                                CARD,
+                                isPast(option.value) ? CARD_PAST : form.minutes_before === option.value ? CARD_ON : CARD_OFF,
+                            ]"
                         >
                             <input
                                 v-model="form.minutes_before"
                                 type="radio"
                                 name="minutes_before"
                                 :value="option.value"
+                                :disabled="isPast(option.value)"
                                 class="sr-only"
                             />
                             <!-- La palomita, y no solo el color, marca lo elegido -->
@@ -193,7 +231,7 @@ const SECTION = 'mb-2.5 flex items-center gap-2 text-[0.62rem] font-bold upperca
                                     {{ option.label }}
                                 </span>
                                 <span v-if="startsAt" class="block truncate text-[0.68rem] tabular-nums text-slate-400 dark:text-brand-gray/80">
-                                    {{ shortMoment(option.value) }}
+                                    {{ isPast(option.value) ? `Ya pasó · ${shortMoment(option.value)}` : shortMoment(option.value) }}
                                 </span>
                             </span>
                         </label>
@@ -279,7 +317,7 @@ const SECTION = 'mb-2.5 flex items-center gap-2 text-[0.62rem] font-bold upperca
                 type="submit"
                 form="reminder-form"
                 class="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px disabled:pointer-events-none disabled:opacity-60 dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
-                :disabled="form.processing || form.minutes_before === null"
+                :disabled="form.processing || form.minutes_before === null || isPast(form.minutes_before)"
             >
                 <Loader2 v-if="form.processing" class="size-4 animate-spin" />
                 <BellRing v-else class="size-4" />

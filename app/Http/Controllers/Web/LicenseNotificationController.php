@@ -24,7 +24,18 @@ class LicenseNotificationController extends Controller
     public function update(Request $request, License $license): RedirectResponse
     {
         $data = $request->validate([
-            'minutes_before' => ['required', 'integer', Rule::in(License::REMINDER_MINUTES)],
+            'minutes_before' => [
+                'required',
+                'integer',
+                Rule::in(License::REMINDER_MINUTES),
+                // El front ya apaga las opciones vencidas; esto cierra la puerta
+                // al que manda el PUT a mano o deja el modal abierto una hora.
+                function (string $attribute, mixed $value, callable $fail) use ($license) {
+                    if ($license->expiresAt()->copy()->subMinutes((int) $value)->isPast()) {
+                        $fail('Ese aviso ya pasó: elige uno más cercano al vencimiento.');
+                    }
+                },
+            ],
         ], [
             'minutes_before.required' => 'Elige cuándo avisar.',
             'minutes_before.in' => 'Ese aviso no está en la lista.',
