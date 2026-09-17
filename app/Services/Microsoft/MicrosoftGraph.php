@@ -207,7 +207,7 @@ class MicrosoftGraph
 
         $calendar->markSynced();
 
-        return $this->mapEvent($event);
+        return $this->mapEvent($event, $calendar->mailboxEmail());
     }
 
     /**
@@ -233,7 +233,7 @@ class MicrosoftGraph
 
         $calendar->markSynced();
 
-        return $this->mapEvent($event);
+        return $this->mapEvent($event, $calendar->mailboxEmail());
     }
 
     /**
@@ -247,12 +247,12 @@ class MicrosoftGraph
         $event = $this->client($calendar)
             ->withHeaders(['Prefer' => 'outlook.timezone="'.config('app.timezone').'"'])
             ->get(self::BASE.$this->eventPath($calendar, $eventId), [
-                '$select' => 'id,subject,bodyPreview,start,end,isAllDay,location,organizer,attendees,webLink,showAs',
+                '$select' => 'id,subject,bodyPreview,start,end,isAllDay,location,organizer,attendees,responseStatus,webLink,showAs',
             ])
             ->throw()
             ->json();
 
-        return $this->mapEvent($event);
+        return $this->mapEvent($event, $calendar->mailboxEmail());
     }
 
     /** Borra el evento del calendario. Graph responde 204 sin cuerpo. */

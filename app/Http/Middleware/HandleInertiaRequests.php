@@ -46,6 +46,10 @@ class HandleInertiaRequests extends Middleware
                     ? (new UserResource($request->user()->load('roles.permissions')))->resolve($request)
                     : null,
             ],
+            // Reloj del servidor: el front lo usa para no ofrecer avisos que ya
+            // pasaron. Con el del navegador bastaba un PC descuadrado para
+            // habilitar una opción que el back después rechaza.
+            'now' => now()->toIso8601String(),
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

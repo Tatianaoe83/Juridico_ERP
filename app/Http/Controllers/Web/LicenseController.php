@@ -164,11 +164,16 @@ class LicenseController extends Controller
     {
         $license->update($this->validated($request));
 
+        // Mover la vigencia hacia atrás puede dejar el aviso en el pasado: ahí
+        // ya no suena nadie, así que se quita y se dice, en vez de sincronizar
+        // un evento con una alerta muerta.
+        $vencido = $this->dropStaleReminder($license);
+
         // La vigencia pudo moverse (o borrarse): el evento sigue al registro.
-        $agendada = $this->calendar->sync($license->load('creator'), $request->user());
+        $agendada = $this->calendar->sync($license->load('creator', 'notification'), $request->user());
 
         return to_route('licenses.index')
-            ->with('success', "Se actualizó {$license->name}.".$this->calendarNote($agendada));
+            ->with('success', "Se actualizó {$license->name}.".$vencido.$this->calendarNote($agendada));
     }
 
     /** DELETE /licencias/{license} */
@@ -182,6 +187,25 @@ class LicenseController extends Controller
         $license->delete();
 
         return to_route('licenses.index')->with('success', "Se eliminó {$name}.");
+    }
+
+    /**
+     * Quita el aviso que quedó antes de «ahora» tras mover la vigencia: Outlook
+     * no lanza alertas del pasado y dejarlo guardado solo engaña a quien lo ve
+     * en la tabla. Devuelve la frase que se suma al mensaje de éxito.
+     */
+    private function dropStaleReminder(License $license): string
+    {
+        $minutes = $license->notification?->minutes_before;
+
+        if ($minutes === null || ! $license->expiresAt()->copy()->subMinutes($minutes)->isPast()) {
+            return '';
+        }
+
+        $license->notification()->delete();
+        $license->unsetRelation('notification');
+
+        return ' Se quitó el aviso: con la nueva vigencia ya había pasado.';
     }
 
     /**

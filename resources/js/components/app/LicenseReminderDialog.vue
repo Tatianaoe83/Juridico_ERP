@@ -1,6 +1,6 @@
 <script setup>
-import { router, useForm } from '@inertiajs/vue3';
-import { BellOff, BellRing, CalendarClock, Check, Loader2, Lock, Users } from 'lucide-vue-next';
+import { router, useForm, usePage } from '@inertiajs/vue3';
+import { BellOff, BellRing, CalendarClock, Check, Loader2, Lock, TriangleAlert, Users } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import AppModal from '@/components/app/AppModal.vue';
 import { localDate, reminderOptions } from '@/lib/licenses';
@@ -31,11 +31,24 @@ const hasTime = computed(() => Boolean(props.license?.valid_time));
 const options = computed(() => reminderOptions(hasTime.value));
 
 /**
- * Reloj de la máquina de quien usa la app: con él se descartan los avisos que
- * ya no se pueden lanzar. Se refresca cada medio minuto mientras el modal está
- * abierto, para que una opción no siga viva después de su hora.
+ * Reloj con el que se descartan los avisos que ya no se pueden lanzar. Manda
+ * el del servidor (`now` compartido por Inertia), que es quien valida al
+ * guardar: si el PC va adelantado o atrasado, el modal seguiría ofreciendo
+ * opciones que el back rechaza. Se mide el desfase una vez y se le suma el
+ * tiempo transcurrido; se refresca cada medio minuto mientras está abierto.
  */
-const now = ref(new Date());
+const page = usePage();
+
+/** Milisegundos que el reloj del navegador va por delante del servidor. */
+const skew = (() => {
+    const served = Date.parse(page.props.now ?? '');
+
+    return Number.isNaN(served) ? 0 : Date.now() - served;
+})();
+
+const serverNow = () => new Date(Date.now() - skew);
+
+const now = ref(serverNow());
 let ticker = null;
 
 watch(
@@ -45,8 +58,8 @@ watch(
 
         if (!open) return;
 
-        now.value = new Date();
-        ticker = setInterval(() => (now.value = new Date()), 30_000);
+        now.value = serverNow();
+        ticker = setInterval(() => (now.value = serverNow()), 30_000);
     },
     { immediate: true },
 );
@@ -123,6 +136,12 @@ function isPast(minutes) {
     return Boolean(moment) && moment <= now.value;
 }
 
+/** Sin una sola opción viva no hay nada que guardar: la vigencia ya quedó atrás. */
+const allPast = computed(() => options.value.every((option) => isPast(option.value)));
+
+/** El aviso ya guardado quedó en el pasado: se ve marcado y solo se puede quitar. */
+const savedIsPast = computed(() => existing.value !== null && isPast(existing.value.minutes_before));
+
 /** Resumen de lo elegido: lo que de verdad va a pasar, en una línea. */
 const summary = computed(() => {
     if (form.minutes_before === null) return 'Elige cuándo quieres el aviso.';
@@ -193,6 +212,26 @@ const SECTION = 'mb-2.5 flex items-center gap-2 text-[0.62rem] font-bold upperca
                     Cuándo avisar
                     <span class="h-px flex-1 bg-slate-100 dark:bg-white/[0.06]" />
                 </h3>
+
+                <!-- Sin esto el modal se ve roto: todo apagado y sin explicación -->
+                <p
+                    v-if="allPast"
+                    class="mb-2.5 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[0.72rem] leading-relaxed text-amber-800 ring-1 ring-inset ring-amber-600/15 dark:bg-amber-400/10 dark:text-amber-200 dark:ring-amber-400/20"
+                >
+                    <TriangleAlert class="mt-0.5 size-3.5 shrink-0" />
+                    <span>
+                        {{ startsAt ? `Venció el ${longMoment(startsAt)}` : 'Ya venció' }}: todos los avisos quedaron atrás. Cambia la vigencia
+                        de la licencia si necesitas uno nuevo.
+                    </span>
+                </p>
+
+                <p
+                    v-else-if="savedIsPast"
+                    class="mb-2.5 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[0.72rem] leading-relaxed text-amber-800 ring-1 ring-inset ring-amber-600/15 dark:bg-amber-400/10 dark:text-amber-200 dark:ring-amber-400/20"
+                >
+                    <TriangleAlert class="mt-0.5 size-3.5 shrink-0" />
+                    <span>El aviso guardado ya pasó y no volverá a sonar. Elige uno de los que siguen disponibles o quítalo.</span>
+                </p>
 
                 <form id="reminder-form" novalidate @submit.prevent="submit">
                     <div class="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Cuándo avisar">

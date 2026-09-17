@@ -17,7 +17,7 @@ class CalendarEventController extends Controller
      * Ventana del caché. Corta a propósito: los cambios hechos desde Outlook no
      * avisan a la app, así que este es el retraso máximo con el que se ven.
      */
-    private const CACHE_MINUTES = 2;
+    private const CACHE_MINUTES = 1;
 
     public function __construct(private readonly MicrosoftGraph $graph) {}
 

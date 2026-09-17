@@ -1,1 +1,0 @@
-import{r as e}from"./_plugin-vue_export-helper-Buv4IeNF.js";var t=e(`ChevronLeftIcon`,[[`path`,{d:`m15 18-6-6 6-6`,key:`1wnfg3`}]]),n=e(`XIcon`,[[`path`,{d:`M18 6 6 18`,key:`1bl5f8`}],[`path`,{d:`m6 6 12 12`,key:`d8bk6v`}]]);export{t as n,n as t};
