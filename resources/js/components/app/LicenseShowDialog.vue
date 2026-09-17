@@ -1,5 +1,5 @@
 <script setup>
-import { Building2, CalendarDays, CalendarPlus, FileBadge, Landmark, MessageSquareText } from 'lucide-vue-next';
+import { Building2, CalendarDays, CalendarPlus, FileBadge, Landmark, MessageSquareText, UserRound } from 'lucide-vue-next';
 import { DialogClose } from 'reka-ui';
 import { computed } from 'vue';
 import AppModal from '@/components/app/AppModal.vue';
@@ -7,7 +7,7 @@ import { licenseStatus, localDate, remainingLabel } from '@/lib/licenses';
 
 const props = defineProps({
     open: { type: Boolean, default: false },
-    /** Fila de la tabla: { id, name, company, authority, valid_until, status, comments, created_at } */
+    /** Fila de la tabla: { id, name, company, authority, valid_until, valid_time, status, comments, created_at, created_by } */
     license: { type: Object, default: null },
 });
 
@@ -17,8 +17,18 @@ function longDate(date) {
     return date.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+/** El alta lleva hora: importa saber a qué momento se registró, no solo el día. */
 function stamp(iso) {
-    return iso ? longDate(new Date(iso)) : '—';
+    if (!iso) return '—';
+
+    const moment = new Date(iso);
+
+    return `${longDate(moment)}, ${moment.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+/** «14:30» a partir de la hora guardada; sin hora, la vigencia es de todo el día. */
+function validTime(time) {
+    return time ? ` · ${time} h` : ' · todo el día';
 }
 
 const remaining = computed(() => remainingLabel(props.license?.valid_until));
@@ -33,10 +43,13 @@ const tiles = computed(() =>
             {
                 icon: CalendarDays,
                 label: 'Vigencia',
-                value: props.license.valid_until ? longDate(localDate(props.license.valid_until)) : 'Por definir',
+                value: props.license.valid_until
+                    ? longDate(localDate(props.license.valid_until)) + validTime(props.license.valid_time)
+                    : 'Por definir',
                 hint: remaining.value,
             },
             { icon: CalendarPlus, label: 'Fecha de alta', value: stamp(props.license.created_at) },
+            { icon: UserRound, label: 'Registró', value: props.license.created_by ?? '—' },
         ]
         : [],
 );

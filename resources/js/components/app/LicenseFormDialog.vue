@@ -1,6 +1,6 @@
 <script setup>
 import { useForm } from '@inertiajs/vue3';
-import { Building2, CalendarDays, FileBadge, FilePen, FilePlus2, Landmark, Loader2, MessageSquareText, Save } from 'lucide-vue-next';
+import { Building2, CalendarDays, Clock, FileBadge, FilePen, FilePlus2, Landmark, Loader2, MessageSquareText, Save } from 'lucide-vue-next';
 import { computed, watch } from 'vue';
 import AppModal from '@/components/app/AppModal.vue';
 
@@ -20,6 +20,7 @@ const form = useForm({
     company: '',
     authority: '',
     valid_until: '',
+    valid_time: '',
     comments: '',
 });
 
@@ -34,6 +35,7 @@ watch(
             company: props.license?.company ?? '',
             authority: props.license?.authority ?? '',
             valid_until: props.license?.valid_until ?? '',
+            valid_time: props.license?.valid_time ?? '',
             comments: props.license?.comments ?? '',
         });
         form.reset();
@@ -138,12 +140,12 @@ const ERROR = 'mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400';
                 <p v-if="form.errors.authority" :class="ERROR">{{ form.errors.authority }}</p>
             </div>
 
-            <div class="sm:col-span-2">
+            <div>
                 <label for="license-valid-until" :class="LABEL">
                     Vigencia
                     <span class="font-normal text-slate-400 dark:text-brand-gray">· vacía si sigue en trámite</span>
                 </label>
-                <div class="relative sm:max-w-[calc(50%-0.5rem)]">
+                <div class="relative">
                     <input
                         id="license-valid-until"
                         v-model="form.valid_until"
@@ -154,6 +156,26 @@ const ERROR = 'mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400';
                     <CalendarDays :class="ICON" />
                 </div>
                 <p v-if="form.errors.valid_until" :class="ERROR">{{ form.errors.valid_until }}</p>
+            </div>
+
+            <!-- La hora define a qué momento cae el evento de Outlook; sin ella es de todo el día. -->
+            <div>
+                <label for="license-valid-time" :class="LABEL">
+                    Hora
+                    <span class="font-normal text-slate-400 dark:text-brand-gray">· vacía = todo el día</span>
+                </label>
+                <div class="relative">
+                    <input
+                        id="license-valid-time"
+                        v-model="form.valid_time"
+                        type="time"
+                        :disabled="!form.valid_until"
+                        :class="[FIELD, 'disabled:cursor-not-allowed disabled:opacity-50']"
+                        :aria-invalid="Boolean(form.errors.valid_time)"
+                    />
+                    <Clock :class="ICON" />
+                </div>
+                <p v-if="form.errors.valid_time" :class="ERROR">{{ form.errors.valid_time }}</p>
             </div>
 
             <div class="sm:col-span-2">

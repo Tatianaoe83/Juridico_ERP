@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
 /**
  * Licencia, permiso o trámite que la empresa debe mantener vigente.
@@ -37,10 +40,48 @@ class License extends Model
         return $validUntil->lte($today->copy()->addDays(self::WARNING_DAYS)) ? 'expiring' : 'active';
     }
 
+    /**
+     * Vigencia con hora, para el calendario. Sin hora devuelve el inicio del
+     * día y el evento se marca de todo el día.
+     */
+    public function expiresAt(): ?Carbon
+    {
+        if ($this->valid_until === null) {
+            return null;
+        }
+
+        $moment = $this->valid_until->copy()->startOfDay();
+
+        if ($this->valid_time === null) {
+            return $moment;
+        }
+
+        [$hour, $minute] = explode(':', substr((string) $this->valid_time, 0, 5));
+
+        return $moment->setTime((int) $hour, (int) $minute);
+    }
+
+    /** Sin hora, la vigencia es un día entero en el calendario. */
+    public function isAllDay(): bool
+    {
+        return $this->valid_time === null;
+    }
+
     protected function casts(): array
     {
         return [
             'valid_until' => 'date',
         ];
+    }
+
+    /** Quién dio de alta el registro. */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function notification(): HasOne
+    {
+        return $this->hasOne(LicenseNotification::class);
     }
 }

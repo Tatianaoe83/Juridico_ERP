@@ -16,12 +16,13 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
 import LicenseFormDialog from '@/components/app/LicenseFormDialog.vue';
+import LicenseReminderDialog from '@/components/app/LicenseReminderDialog.vue';
 import LicenseShowDialog from '@/components/app/LicenseShowDialog.vue';
 import { usePermissions } from '@/composables/usePermissions';
 import { LICENSE_STATUS, daysLeft, licenseStatus } from '@/lib/licenses';
 
 const props = defineProps({
-    /** { data: [{ id, name, company, authority, valid_until, status }], meta } */
+    /** { data: [{ id, name, company, authority, valid_until, valid_time, status, created_by }], meta } */
     licenses: { type: Object, required: true },
     /** { total, active, expiring, expired, in_progress } — de todo el catálogo, sin filtros. */
     stats: { type: Object, required: true },
@@ -51,6 +52,14 @@ function edit(license) {
 function show(license) {
     viewing.value = license;
     showOpen.value = true;
+}
+
+const reminderOpen = ref(false);
+const reminding = ref(null);
+
+function remind(license) {
+    reminding.value = license;
+    reminderOpen.value = true;
 }
 
 /* ---------- Eliminar ---------- */
@@ -441,6 +450,7 @@ const PAGE_BTN =
 
                                 <td :class="[TD, 'hidden whitespace-nowrap text-slate-600 tabular-nums @lg:table-cell dark:text-slate-300']">
                                     {{ license.valid_until ? shortDate(license.valid_until) : 'Por definir' }}
+                                    <span v-if="license.valid_time" class="text-slate-400 dark:text-brand-gray/80">{{ license.valid_time }}</span>
                                 </td>
 
                                 <td :class="[TD, 'hidden whitespace-nowrap tabular-nums @lg:table-cell']">
@@ -475,8 +485,27 @@ const PAGE_BTN =
                                         >
                                             <Pencil class="size-4" />
                                         </button>
-                                        <button type="button" :class="[ACTION, NEUTRAL]" :aria-label="`Recordatorio de ${license.name}`" title="Recordatorio">
+                                        <!-- Con recordatorio activo la campana va en color y con punto: se ve sin abrirla -->
+                                        <button
+                                            v-if="can('licencias.update')"
+                                            type="button"
+                                            :class="[
+                                                ACTION,
+                                                'relative',
+                                                license.notification
+                                                    ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 focus-visible:ring-amber-500/25 dark:bg-amber-400/10 dark:text-amber-300 dark:hover:bg-amber-400/20'
+                                                    : NEUTRAL,
+                                            ]"
+                                            :aria-label="`Recordatorio de ${license.name}${license.notification ? ' (activo)' : ''}`"
+                                            :title="license.notification ? 'Recordatorio activo' : 'Configurar recordatorio'"
+                                            @click="remind(license)"
+                                        >
                                             <BellRing class="size-4" />
+                                            <span
+                                                v-if="license.notification"
+                                                class="absolute top-1 right-1 size-1.5 rounded-full bg-amber-500 ring-2 ring-white dark:ring-brand-deep"
+                                                aria-hidden="true"
+                                            />
                                         </button>
                                         <button
                                             v-if="can('licencias.delete')"
@@ -576,6 +605,8 @@ const PAGE_BTN =
         <LicenseFormDialog v-model:open="formOpen" :license="editing" />
 
         <LicenseShowDialog v-model:open="showOpen" :license="viewing" />
+
+        <LicenseReminderDialog v-model:open="reminderOpen" :license="reminding" />
 
         <ConfirmDeleteDialog
             v-model:open="deleteOpen"
