@@ -1,20 +1,10 @@
 <script setup>
 import { Head, router } from '@inertiajs/vue3';
-import { BellRing, Check, ChevronDown, ChevronLeft, ChevronRight, Eye, FileBadge, Pencil, Plus, Search, Trash2, X } from 'lucide-vue-next';
-import {
-    SelectContent,
-    SelectIcon,
-    SelectItem,
-    SelectItemIndicator,
-    SelectItemText,
-    SelectPortal,
-    SelectRoot,
-    SelectTrigger,
-    SelectViewport,
-} from 'reka-ui';
+import { BellRing, Building2, CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Eye, FileBadge, Landmark, ListFilter, Pencil, Plus, Search, Trash2, X } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
+import FilterSelect from '@/components/app/FilterSelect.vue';
 import LicenseFormDialog from '@/components/app/LicenseFormDialog.vue';
 import LicenseReminderDialog from '@/components/app/LicenseReminderDialog.vue';
 import LicenseShowDialog from '@/components/app/LicenseShowDialog.vue';
@@ -26,7 +16,10 @@ const props = defineProps({
     licenses: { type: Object, required: true },
     /** { total, active, expiring, expired, in_progress } — de todo el catálogo, sin filtros. */
     stats: { type: Object, required: true },
+    /** { search, status, company, authority, year, month } — lo que ya viene aplicado. */
     filters: { type: Object, default: () => ({}) },
+    /** { companies: [], authorities: [], years: [] } — sale de lo capturado. */
+    options: { type: Object, default: () => ({ companies: [], authorities: [], years: [] }) },
     /** Correos con acceso al calendario: a ellos les llega el aviso. */
     sharedWith: { type: Array, default: () => [] },
 });
@@ -92,7 +85,13 @@ function destroy() {
 const PER_PAGE = 10;
 
 const search = ref(props.filters.search ?? '');
+
+// Los de lista: se eligen, no se escriben. Vacío = sin filtrar.
 const status = ref(props.filters.status ?? '');
+const company = ref(props.filters.company ?? '');
+const authority = ref(props.filters.authority ?? '');
+const year = ref(props.filters.year ?? '');
+const month = ref(props.filters.month ?? '');
 
 function visit(params) {
     router.get(
@@ -100,6 +99,10 @@ function visit(params) {
         {
             ...(search.value ? { search: search.value } : {}),
             ...(status.value ? { status: status.value } : {}),
+            ...(company.value ? { company: company.value } : {}),
+            ...(authority.value ? { authority: authority.value } : {}),
+            ...(year.value ? { year: year.value } : {}),
+            ...(month.value ? { month: month.value } : {}),
             ...params,
         },
         { preserveState: true, preserveScroll: true, replace: true },
@@ -114,21 +117,57 @@ watch(search, () => {
     timer = setTimeout(() => visit({}), 350);
 });
 
-// El estado se elige de una vez: va directo. Cambiarlo vuelve a la página 1.
-watch(status, () => visit({}));
+// Los de lista se eligen de una vez: van directo. Cambiar cualquiera vuelve a
+// la página 1, porque `visit` no arrastra la que estaba.
+watch([status, company, authority, year, month], () => visit({}));
 
-/** El Select de reka-ui no acepta '' como valor de opción: «todos» viaja como 'all'. */
-const statusModel = computed({
-    get: () => status.value || 'all',
-    set: (value) => (status.value = value === 'all' ? '' : value),
-});
-
-const filtering = computed(() => Boolean(search.value || status.value));
+const filtering = computed(() =>
+    Boolean(search.value || status.value || company.value || authority.value || year.value || month.value),
+);
 
 function clearFilters() {
     search.value = '';
     status.value = '';
+    company.value = '';
+    authority.value = '';
+    year.value = '';
+    month.value = '';
 }
+
+/** Lo aplicado, en fichas: se ve de un vistazo y cada una se quita sola. */
+const activeFilters = computed(() =>
+    [
+        { key: 'status', label: statusOptions.find((o) => o.value === status.value)?.label, clear: () => (status.value = '') },
+        { key: 'company', label: company.value, clear: () => (company.value = '') },
+        { key: 'authority', label: authority.value, clear: () => (authority.value = '') },
+        { key: 'year', label: year.value, clear: () => (year.value = '') },
+        { key: 'month', label: monthOptions.find((o) => o.value === month.value)?.label, clear: () => (month.value = '') },
+    ].filter((chip) => chip.label),
+);
+
+/* ---------- Opciones de los filtros ---------- */
+
+// El estado es el único con catálogo fijo; el resto sale de lo capturado.
+const statusOptions = Object.entries(LICENSE_STATUS).map(([value, meta]) => ({ value, label: meta.label, dot: meta.dot }));
+
+const toOptions = (values) => values.map((value) => ({ value, label: value }));
+
+const companyOptions = computed(() => toOptions(props.options.companies));
+const authorityOptions = computed(() => toOptions(props.options.authorities));
+const yearOptions = computed(() => toOptions(props.options.years));
+
+/**
+ * Los doce, siempre: el año va aparte, así que se puede pedir «todos los
+ * noviembres». Salen del propio navegador para no repetir sus nombres aquí.
+ */
+const monthOptions = Array.from({ length: 12 }, (_, i) => {
+    const label = new Date(2000, i, 1).toLocaleDateString('es-MX', { month: 'long' });
+
+    return {
+        value: String(i + 1).padStart(2, '0'),
+        label: label[0].toUpperCase() + label.slice(1),
+    };
+});
 
 function goTo(page) {
     visit({ page });
@@ -223,11 +262,6 @@ const STATUS = LICENSE_STATUS;
 
 const statusOf = licenseStatus;
 
-const statusOptions = [
-    { key: 'all', label: 'Todos los estados', dot: 'bg-slate-300 dark:bg-white/25' },
-    ...Object.entries(STATUS).map(([key, meta]) => ({ key, label: meta.label, dot: meta.dot })),
-];
-
 /* ---------- Resumen ---------- */
 
 // Solo informan: son de todo el catálogo y no filtran la tabla.
@@ -247,7 +281,7 @@ const cards = computed(() => [
             key,
             label: meta.plural,
             value,
-            hint: `${props.stats.total ? Math.round((value / props.stats.total) * 100) : 0}% del total`,
+            hint: value === 1 ? 'registro' : 'registros',
             icon: meta.icon,
             tone: meta.tone,
         };
@@ -321,10 +355,15 @@ const PAGE_BTN =
             <div
                 class="@container flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] md:min-h-0 md:flex-1 dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none"
             >
-                <!-- Barra: búsqueda, estado y conteo -->
-                <div class="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2.5 tall:py-3 @2xl:px-4 @6xl:px-6">
-                    <div class="flex w-full flex-wrap items-center gap-2 @xl:w-auto">
-                        <label class="relative w-full @xl:w-80">
+                <!-- Barra: buscador y filtros en una sola fila; debajo, lo aplicado -->
+                <div class="flex shrink-0 flex-col gap-2 px-3 py-2.5 tall:py-3 @2xl:px-4 @6xl:px-6">
+                    <!--
+                        Anchos por contenido: cada filtro mide lo que mide su texto más largo
+                        («Todas las autoridades», «Cualquier año») para que nada salga cortado.
+                        Cuando ya no caben, la fila se parte sola en vez de encoger los controles.
+                    -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <label class="relative min-w-0 flex-1 @xl:max-w-xs">
                             <span class="sr-only">Buscar licencias y permisos</span>
                             <input
                                 v-model="search"
@@ -346,57 +385,100 @@ const PAGE_BTN =
                             </button>
                         </label>
 
-                        <!-- Estado: lista propia en vez del <select> nativo, con el color de cada uno -->
-                        <SelectRoot v-model="statusModel">
-                            <SelectTrigger
-                                aria-label="Filtrar por estado"
-                                class="group flex h-9 w-full cursor-pointer items-center gap-2 rounded-lg border px-3 text-[0.8rem] outline-none transition-[border-color,background-color,box-shadow] duration-150 focus-visible:ring-4 focus-visible:ring-brand/10 data-[state=open]:border-brand/50 data-[state=open]:bg-white data-[state=open]:ring-4 data-[state=open]:ring-brand/10 @xl:w-48 dark:focus-visible:ring-white/10 dark:data-[state=open]:border-brand-gray/50 dark:data-[state=open]:bg-white/[0.06] dark:data-[state=open]:ring-white/10"
-                                :class="
-                                    status
-                                        ? 'border-brand/40 bg-brand/[0.04] text-slate-900 dark:border-brand-gray/40 dark:bg-white/[0.06] dark:text-white'
-                                        : 'border-slate-200 bg-slate-50/70 text-slate-500 hover:border-slate-300 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/20'
-                                "
-                            >
-                                <span class="size-2 shrink-0 rounded-full" :class="status ? STATUS[status].dot : 'bg-slate-300 dark:bg-white/25'" />
-                                <span class="flex-1 truncate text-left" :class="status && 'font-semibold'">
-                                    {{ status ? STATUS[status].label : 'Todos los estados' }}
-                                </span>
-                                <SelectIcon as-child>
-                                    <ChevronDown
-                                        class="size-3.5 shrink-0 text-slate-400 transition-transform duration-200 group-data-[state=open]:rotate-180 dark:text-white/35"
-                                    />
-                                </SelectIcon>
-                            </SelectTrigger>
+                        <!-- Mismo control para los cinco: solo cambia por qué filtra -->
+                        <FilterSelect
+                            v-model="status"
+                            :options="statusOptions"
+                            placeholder="Todos los estados"
+                            label="Filtrar por estado"
+                            width="@xl:w-44"
+                        />
 
-                            <SelectPortal>
-                                <SelectContent
-                                    position="popper"
-                                    :side-offset="6"
-                                    class="z-50 max-h-72 min-w-[var(--reka-select-trigger-width)] overflow-hidden rounded-xl border border-slate-200/80 bg-white p-1 font-corporate shadow-xl shadow-brand-deep/10 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-1 dark:border-white/10 dark:bg-brand-panel dark:shadow-black/40"
-                                >
-                                    <SelectViewport>
-                                        <SelectItem
-                                            v-for="option in statusOptions"
-                                            :key="option.key"
-                                            :value="option.key"
-                                            class="flex cursor-pointer items-center gap-2.5 rounded-lg py-2 pr-2 pl-2.5 text-[0.8rem] text-slate-700 outline-none select-none data-[highlighted]:bg-slate-100 data-[highlighted]:text-slate-900 data-[state=checked]:font-semibold data-[state=checked]:text-brand dark:text-slate-200 dark:data-[highlighted]:bg-white/[0.07] dark:data-[highlighted]:text-white dark:data-[state=checked]:text-white"
-                                        >
-                                            <span class="size-2 shrink-0 rounded-full" :class="option.dot" />
-                                            <SelectItemText class="flex-1">{{ option.label }}</SelectItemText>
-                                            <SelectItemIndicator>
-                                                <Check class="size-3.5" stroke-width="2.5" />
-                                            </SelectItemIndicator>
-                                        </SelectItem>
-                                    </SelectViewport>
-                                </SelectContent>
-                            </SelectPortal>
-                        </SelectRoot>
+                        <FilterSelect
+                            v-model="company"
+                            :options="companyOptions"
+                            :icon="Building2"
+                            placeholder="Todas las empresas"
+                            label="Filtrar por empresa"
+                            width="@xl:w-48"
+                        />
+
+                        <FilterSelect
+                            v-model="authority"
+                            :options="authorityOptions"
+                            :icon="Landmark"
+                            placeholder="Todas las autoridades"
+                            label="Filtrar por autoridad"
+                            width="@xl:w-52"
+                        />
+
+                        <FilterSelect
+                            v-model="year"
+                            :options="yearOptions"
+                            :icon="CalendarRange"
+                            placeholder="Cualquier año"
+                            label="Filtrar por año de vencimiento"
+                            width="@xl:w-44"
+                        />
+
+                        <FilterSelect
+                            v-model="month"
+                            :options="monthOptions"
+                            :icon="CalendarDays"
+                            placeholder="Cualquier mes"
+                            label="Filtrar por mes de vencimiento"
+                            width="@xl:w-44"
+                        />
+
+                        <p class="ml-auto shrink-0 text-xs text-slate-500 dark:text-brand-gray">
+                            <span class="font-bold text-slate-800 dark:text-white">{{ range.total }}</span>
+                            {{ range.total === 1 ? 'registro' : 'registros' }}
+                        </p>
                     </div>
 
-                    <p class="text-xs text-slate-500 dark:text-brand-gray">
-                        <span class="font-bold text-slate-800 dark:text-white">{{ range.total }}</span>
-                        {{ range.total === 1 ? 'registro' : 'registros' }}
-                    </p>
+                    <!-- Lo aplicado, incluida la búsqueda: quitar uno no obliga a abrir su lista -->
+                    <div v-if="filtering" class="flex flex-wrap items-center gap-1.5">
+                        <ListFilter class="size-3.5 shrink-0 text-slate-400 dark:text-brand-gray/70" />
+
+                        <span
+                            v-if="search"
+                            class="inline-flex max-w-[14rem] items-center gap-1 rounded-md bg-slate-100 py-0.5 pr-1 pl-2 text-[0.72rem] font-medium text-slate-600 dark:bg-white/[0.07] dark:text-white"
+                        >
+                            <span class="truncate">«{{ search }}»</span>
+                            <button
+                                type="button"
+                                class="grid size-4 shrink-0 cursor-pointer place-content-center rounded text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-white/15 dark:hover:text-white"
+                                aria-label="Quitar la búsqueda"
+                                @click="search = ''"
+                            >
+                                <X class="size-3" />
+                            </button>
+                        </span>
+
+                        <span
+                            v-for="chip in activeFilters"
+                            :key="chip.key"
+                            class="inline-flex max-w-[14rem] items-center gap-1 rounded-md bg-brand/[0.07] py-0.5 pr-1 pl-2 text-[0.72rem] font-semibold text-brand ring-1 ring-inset ring-brand/15 dark:bg-white/10 dark:text-white dark:ring-white/10"
+                        >
+                            <span class="truncate">{{ chip.label }}</span>
+                            <button
+                                type="button"
+                                class="grid size-4 shrink-0 cursor-pointer place-content-center rounded text-brand/60 hover:bg-brand/15 hover:text-brand dark:text-white/60 dark:hover:bg-white/15 dark:hover:text-white"
+                                :aria-label="`Quitar el filtro ${chip.label}`"
+                                @click="chip.clear()"
+                            >
+                                <X class="size-3" />
+                            </button>
+                        </span>
+
+                        <button
+                            type="button"
+                            class="ml-1 cursor-pointer rounded-md px-1.5 py-0.5 text-[0.72rem] font-semibold text-slate-500 underline-offset-2 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-800 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/10 dark:text-brand-gray dark:hover:bg-white/[0.06] dark:hover:text-white"
+                            @click="clearFilters"
+                        >
+                            Limpiar todo
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Sin scroll horizontal: las columnas que no caben se esconden y su dato baja debajo del nombre -->
@@ -533,7 +615,7 @@ const PAGE_BTN =
                                     </span>
                                     <p class="text-sm font-bold text-slate-800 dark:text-white">{{ filtering ? 'Sin resultados' : 'Sin registros' }}</p>
                                     <p class="mt-1 text-xs text-slate-500 dark:text-brand-gray">
-                                        {{ filtering ? 'Nada coincide con la búsqueda o el estado elegido.' : 'Aún no hay licencias ni permisos registrados.' }}
+                                        {{ filtering ? 'Nada coincide con los filtros aplicados.' : 'Aún no hay licencias ni permisos registrados.' }}
                                     </p>
                                     <button
                                         v-if="filtering"

@@ -27,12 +27,27 @@ class LicenseController extends Controller
         // Un estado que no existe se ignora en vez de dejar la tabla vacía.
         $status = in_array($request->query('status'), License::STATUSES, true) ? $request->query('status') : null;
 
+        // Empresa y autoridad se eligen de lo que ya está capturado, así que se
+        // comparan completas; un valor que nadie tiene deja la tabla vacía y
+        // eso es lo correcto: es lo que el filtro dice.
+        $company = trim((string) $request->query('company', '')) ?: null;
+        $authority = trim((string) $request->query('authority', '')) ?: null;
+
+        // Año y mes van por separado: así se puede pedir todo 2027, todos los
+        // noviembres, o noviembre de 2027. Un valor fuera de rango se ignora.
+        $year = preg_match('/^\d{4}$/', (string) $request->query('year', '')) ? (int) $request->query('year') : null;
+        $month = preg_match('/^(0?[1-9]|1[0-2])$/', (string) $request->query('month', '')) ? (int) $request->query('month') : null;
+
         $licenses = License::with(['notification', 'creator'])
             ->when($search !== '', fn ($query) => $query->where(fn ($q) => $q
                 ->where('name', 'like', "%{$search}%")
                 ->orWhere('company', 'like', "%{$search}%")
                 ->orWhere('authority', 'like', "%{$search}%")))
             ->when($status, fn ($query) => $query->where('status', $status))
+            ->when($company, fn ($query) => $query->where('company', $company))
+            ->when($authority, fn ($query) => $query->where('authority', $authority))
+            ->when($year, fn ($query) => $query->whereYear('valid_until', $year))
+            ->when($month, fn ($query) => $query->whereMonth('valid_until', $month))
             // Lo que vence antes va primero; lo que no vence, al final.
             ->orderByRaw('valid_until is null')
             ->orderBy('valid_until')
@@ -76,11 +91,58 @@ class LicenseController extends Controller
                 'total' => (int) $counts->sum(),
                 ...collect(License::STATUSES)->mapWithKeys(fn ($s) => [$s => (int) ($counts[$s] ?? 0)])->all(),
             ],
-            'filters' => ['search' => $search, 'status' => $status],
+            'filters' => [
+                'search' => $search,
+                'status' => $status,
+                'company' => $company,
+                'authority' => $authority,
+                'year' => $year ? (string) $year : null,
+                'month' => $month ? str_pad((string) $month, 2, '0', STR_PAD_LEFT) : null,
+            ],
+            // Las opciones salen de lo capturado: nadie mantiene catálogos y
+            // nunca se ofrece un filtro que no devuelva nada.
+            'options' => [
+                'companies' => $this->distinct('company'),
+                'authorities' => $this->distinct('authority'),
+                'years' => $this->years(),
+            ],
             // Quién recibe la invitación y el correo: con quién está compartido
             // el calendario. Se muestra de solo lectura en el modal del aviso.
             'sharedWith' => $this->calendar->sharedWith($request->user()->calendarOwner()),
         ]);
+    }
+
+    /**
+     * Valores distintos de una columna, para llenar un filtro.
+     *
+     * @return list<string>
+     */
+    private function distinct(string $column): array
+    {
+        return License::query()
+            ->whereNotNull($column)
+            ->where($column, '!=', '')
+            ->distinct()
+            ->orderBy($column)
+            ->pluck($column)
+            ->all();
+    }
+
+    /**
+     * Años en los que vence algo. Los meses no salen de aquí: son los doce
+     * siempre, para poder pedir «todos los noviembres» sin importar el año.
+     *
+     * @return list<string>
+     */
+    private function years(): array
+    {
+        return License::query()
+            ->whereNotNull('valid_until')
+            ->selectRaw('distinct year(valid_until) as year')
+            ->orderBy('year')
+            ->pluck('year')
+            ->map(fn ($year) => (string) $year)
+            ->all();
     }
 
     /** POST /licencias */
