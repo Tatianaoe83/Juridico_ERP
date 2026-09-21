@@ -12,6 +12,7 @@ import {
     Scale,
     ShieldCheck,
     Sun,
+    Truck,
     Users,
 } from 'lucide-vue-next';
 import { useMediaQuery } from '@vueuse/core';
@@ -79,6 +80,7 @@ const nav = computed(() =>
             group: 'Cumplimiento',
             items: [
                 { href: '/licencias', label: 'Licencias y Permisos', icon: FileBadge, permission: 'licencias.view' },
+                { href: '/flotillas', label: 'Flotillas', icon: Truck, permission: 'flotillas.view' },
             ],
         },
         {

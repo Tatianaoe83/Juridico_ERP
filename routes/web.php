@@ -5,6 +5,7 @@ use App\Http\Controllers\Web\CalendarController;
 use App\Http\Controllers\Web\CalendarEventController;
 use App\Http\Controllers\Web\CalendarShareController;
 use App\Http\Controllers\Web\EventController;
+use App\Http\Controllers\Web\FleetController;
 use App\Http\Controllers\Web\LicenseController;
 use App\Http\Controllers\Web\LicenseNotificationController;
 use App\Http\Controllers\Web\PermissionController;
@@ -93,6 +94,9 @@ Route::middleware('auth')->group(function () {
         Route::put('/licencias/{license}/recordatorio', [LicenseNotificationController::class, 'update'])->name('licenses.reminder.update');
         Route::delete('/licencias/{license}/recordatorio', [LicenseNotificationController::class, 'destroy'])->name('licenses.reminder.destroy');
     });
+    Route::get('/flotillas', [FleetController::class, 'index'])
+        ->middleware('can:flotillas.view')
+        ->name('fleets.index');
 
     // Administración de usuarios. La Policy afina por registro: quién puede
     // tocar a quién no lo resuelve un permiso suelto.
