@@ -3,9 +3,12 @@
 namespace App\Services\Microsoft;
 
 use App\Models\MicrosoftAccount;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
+use Throwable;
 
 /**
  * Llamadas a Microsoft Graph.
@@ -18,6 +21,19 @@ use Illuminate\Support\Facades\Http;
 class MicrosoftGraph
 {
     private const BASE = 'https://graph.microsoft.com/v1.0';
+
+    /** Intentos por llamada, contando el primero. */
+    private const RETRIES = 3;
+
+    /** Espera entre intentos, en milisegundos. */
+    private const RETRY_MILLISECONDS = 400;
+
+    /**
+     * Códigos que Graph devuelve cuando el problema es suyo y pasa solo:
+     * saturación (429), servicio caído un momento (503) y tiempo agotado
+     * hablando con Active Directory (504).
+     */
+    private const TRANSIENT = [429, 503, 504];
 
     public function __construct(private readonly MicrosoftOAuth $oauth) {}
 
@@ -365,7 +381,18 @@ class MicrosoftGraph
     {
         return Http::withToken($calendar instanceof MicrosoftAccount
             ? $this->freshToken($calendar)
-            : $this->oauth->appToken());
+            : $this->oauth->appToken())
+            // Graph devuelve 429, 503 y 504 por su cuenta cuando está saturado
+            // o no alcanza a Active Directory. Son fallos de momento: se
+            // reintenta en vez de dejar el evento sin crear.
+            ->retry(self::RETRIES, self::RETRY_MILLISECONDS, function (Throwable $e) {
+                if ($e instanceof ConnectionException) {
+                    return true;
+                }
+
+                return $e instanceof RequestException
+                    && in_array($e->response->status(), self::TRANSIENT, true);
+            }, throw: true);
     }
 
     /** Devuelve un access_token de usuario vigente, renovándolo si hace falta. */

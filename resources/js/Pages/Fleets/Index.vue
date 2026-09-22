@@ -480,6 +480,7 @@ const PAGE_BTN =
                                 <!-- Eliminar es lo único que falta conectar -->
                                 <td :class="[TD, 'w-px']">
                                     <div class="flex items-center justify-end gap-0.5 @2xl:gap-1">
+
                                         <Link :href="`/flotillas/${unit.id}`" :class="[ACTION, NEUTRAL]" :aria-label="`Ver ${unit.policy}`" title="Ver detalle">
                                             <Eye class="size-4" />
                                         </Link>

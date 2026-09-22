@@ -30,6 +30,12 @@ class UnitCalendar
         ['label' => 'Segundo pago', 'date' => 'second_payment_ends_on', 'event' => 'second_payment_event_id'],
     ];
 
+    /**
+     * Anticipación del recordatorio del evento del vencimiento, en minutos:
+     * una semana. Es el recordatorio propio de Outlook, el del reloj.
+     */
+    private const REMINDER_MINUTES = 10080;
+
     public function __construct(private readonly CalendarEvents $events) {}
 
     /**
@@ -44,7 +50,10 @@ class UnitCalendar
             return false;
         }
 
-        $ok = true;
+        // Limpieza de la versión anterior: antes cada aviso era un evento
+        // aparte. Ahora el aviso vive dentro del evento del vencimiento, así
+        // que los sueltos se borran la próxima vez que se guarda la unidad.
+        $ok = $this->forgetReminders($unit, $actor);
 
         foreach (self::PAYMENTS as $payment) {
             $ok = $this->syncPayment($unit, $actor, $payment) && $ok;
@@ -60,7 +69,7 @@ class UnitCalendar
             return false;
         }
 
-        $ok = true;
+        $ok = $this->forgetReminders($unit, $actor);
 
         foreach (self::PAYMENTS as $payment) {
             $ok = $this->forgetEvent($unit, $actor, $payment['event']) && $ok;
@@ -87,6 +96,9 @@ class UnitCalendar
                 $actor,
                 $unit->{$payment['event']},
                 $this->event($unit, $payment['label'], $date),
+                // Sin invitados: con ellos Outlook manda un correo por evento,
+                // y entre vencimientos y avisos son más de veinte por unidad.
+                inviteShared: false,
                 notify: false,
             );
         } catch (Throwable $e) {
@@ -98,6 +110,37 @@ class UnitCalendar
         $unit->forceFill([$payment['event'] => $event['id']])->save();
 
         return true;
+    }
+
+    /**
+     * Borra los eventos-aviso que dejó la versión anterior.
+     *
+     * Se puede quitar, junto con la tabla `unit_reminders`, cuando ya no
+     * queden renglones.
+     */
+    private function forgetReminders(Unit $unit, User $actor): bool
+    {
+        $reminders = $unit->reminders()->get();
+
+        $ok = true;
+
+        foreach ($reminders as $reminder) {
+            try {
+                $this->events->delete($actor, $reminder->event_id, notify: false);
+            } catch (Throwable $e) {
+                report($e);
+
+                $ok = false;
+
+                continue;
+            }
+
+            $reminder->delete();
+        }
+
+        $unit->unsetRelation('reminders');
+
+        return $ok;
     }
 
     private function forgetEvent(Unit $unit, User $actor, string $column): bool
@@ -150,7 +193,9 @@ class UnitCalendar
             'all_day' => true,
             'start' => $day,
             'end' => $day->copy(),
-            'reminder_minutes' => null,
+            // El recordatorio de Outlook: salta una semana antes en el buzón
+            // de quien lo tenga, sin que el servidor mande nada.
+            'reminder_minutes' => self::REMINDER_MINUTES,
         ];
     }
 }

@@ -98,6 +98,12 @@ class Unit extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /** Avisos previos agendados en Outlook: una semana y dos días antes. */
+    public function reminders(): HasMany
+    {
+        return $this->hasMany(UnitReminder::class);
+    }
+
     /** Archivos que respaldan a la unidad: facturas, pólizas, fotos. */
     public function evidences(): HasMany
     {
