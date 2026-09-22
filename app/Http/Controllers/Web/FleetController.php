@@ -239,6 +239,25 @@ class FleetController extends Controller
             ->with('success', "Se actualizó la unidad {$unit->policy}.".$this->calendarNote($agendada, $unit));
     }
 
+    /** DELETE /flotillas/{unit} */
+    public function destroy(Request $request, Unit $unit): RedirectResponse
+    {
+        $policy = $unit->policy;
+
+        // Primero Outlook: después del delete ya no hay de dónde sacar los ids.
+        $this->calendar->forget($unit, $request->user());
+
+        // Los archivos no se van con la fila: el disco no sabe de llaves foráneas.
+        foreach ($unit->evidences as $evidence) {
+            Storage::disk('local')->delete($evidence->path);
+        }
+
+        // Evidencias y avisos se van en cascada con la unidad.
+        $unit->delete();
+
+        return to_route('fleets.index')->with('success', "Se eliminó la unidad {$policy}.");
+    }
+
     /**
      * Borra las evidencias que se quitaron en el formulario: primero el
      * archivo del disco y luego el registro, para no dejar basura colgando.

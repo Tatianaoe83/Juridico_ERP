@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import {
     ArrowLeft,
     BadgeCheck,
@@ -12,11 +12,13 @@ import {
     Paperclip,
     Pencil,
     ScanLine,
+    Trash2,
     Truck,
     User,
 } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
+import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
 import { usePermissions } from '@/composables/usePermissions';
 import { money, paymentCountdown, periodLabel, unitStatus } from '@/lib/units';
 
@@ -34,6 +36,18 @@ const breadcrumbs = [
 const { can } = usePermissions();
 
 const status = computed(() => unitStatus(props.unit.status));
+
+/* ---------- Eliminar ---------- */
+
+const deleteOpen = ref(false);
+const deleting = ref(false);
+
+function destroy() {
+    deleting.value = true;
+
+    // Al terminar manda a la tabla: este detalle ya no existe.
+    router.delete(`/flotillas/${props.unit.id}`, { onFinish: () => (deleting.value = false) });
+}
 
 /** Los datos sueltos, en fichas: cada uno con su icono y su etiqueta. */
 const details = computed(() => [
@@ -120,6 +134,16 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                         <ArrowLeft class="size-4" />
                         Volver
                     </Link>
+                    <button
+                        v-if="can('flotillas.delete')"
+                        type="button"
+                        class="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[0.8rem] font-semibold text-slate-700 transition-colors duration-150 hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/15 disabled:pointer-events-none disabled:opacity-60 dark:border-white/10 dark:bg-transparent dark:text-brand-gray dark:hover:border-red-400/30 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                        :disabled="deleting"
+                        @click="deleteOpen = true"
+                    >
+                        <Trash2 class="size-4" />
+                        Eliminar
+                    </button>
                     <Link
                         v-if="can('flotillas.update')"
                         :href="`/flotillas/${unit.id}/editar`"
@@ -264,5 +288,11 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                 </section>
             </div>
         </div>
+
+        <ConfirmDeleteDialog
+            v-model:open="deleteOpen"
+            :text="`¿Seguro que quieres eliminar la unidad «${unit.policy}»? También se van sus evidencias y sus eventos del calendario.`"
+            @confirm="destroy"
+        />
     </AppShell>
 </template>

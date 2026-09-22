@@ -25,16 +25,28 @@ const { can } = usePermissions();
 
 /* ---------- Eliminar ---------- */
 
-// El modal es el mismo de toda la app; el borrado en sí va después.
+// El modal de confirmación es el mismo de toda la app.
 const deleteOpen = ref(false);
 const toDelete = ref(null);
+const deleting = ref(null);
 
 function askDelete(unit) {
     toDelete.value = unit;
     deleteOpen.value = true;
 }
 
-function destroy() {}
+function destroy() {
+    const unit = toDelete.value;
+
+    // La fila se apaga mientras el servidor borra: también quita sus eventos
+    // de Outlook y sus archivos, así que no es inmediato.
+    deleting.value = unit.id;
+
+    router.delete(`/flotillas/${unit.id}`, {
+        preserveScroll: true,
+        onFinish: () => (deleting.value = null),
+    });
+}
 
 /* ---------- Búsqueda, estado y páginas ---------- */
 
@@ -406,6 +418,7 @@ const PAGE_BTN =
                                 v-for="unit in units.data"
                                 :key="unit.id"
                                 class="transition-colors duration-150 hover:bg-slate-50/80 dark:hover:bg-white/[0.025]"
+                                :class="deleting === unit.id && 'pointer-events-none opacity-40'"
                                 :style="rowHeight ? { height: `${rowHeight}px` } : null"
                             >
                                 <td :class="[TD, 'whitespace-nowrap']">
@@ -499,6 +512,7 @@ const PAGE_BTN =
                                             :class="[ACTION, 'text-slate-500 hover:bg-red-50 hover:text-red-600 focus-visible:ring-red-500/25 dark:text-brand-gray dark:hover:bg-red-500/10 dark:hover:text-red-300']"
                                             :aria-label="`Eliminar ${unit.policy}`"
                                             title="Eliminar"
+                                            :disabled="deleting === unit.id"
                                             @click="askDelete(unit)"
                                         >
                                             <Trash2 class="size-4" />
@@ -587,7 +601,7 @@ const PAGE_BTN =
 
         <ConfirmDeleteDialog
             v-model:open="deleteOpen"
-            :text="`¿Seguro que quieres eliminar la unidad «${toDelete?.policy ?? ''}»?`"
+            :text="`¿Seguro que quieres eliminar la unidad «${toDelete?.policy ?? ''}»? También se van sus evidencias y sus eventos del calendario.`"
             @confirm="destroy"
         />
     </AppShell>

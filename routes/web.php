@@ -111,6 +111,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/flotillas/{unit}/evidencias/{evidence}', [FleetController::class, 'evidence'])
         ->middleware('can:flotillas.view')
         ->name('fleets.evidence');
+    Route::delete('/flotillas/{unit}', [FleetController::class, 'destroy'])
+        ->middleware('can:flotillas.delete')
+        ->name('fleets.destroy');
     Route::get('/flotillas/{unit}/editar', [FleetController::class, 'edit'])
         ->middleware('can:flotillas.update')
         ->name('fleets.edit');
