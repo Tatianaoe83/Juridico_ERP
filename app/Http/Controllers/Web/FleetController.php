@@ -3,9 +3,13 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Fleet\StoreUnitRequest;
 use App\Models\BusinessUnit;
 use App\Models\Unit;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -76,6 +80,56 @@ class FleetController extends Controller
                     ->all(),
             ],
         ]);
+    }
+
+    /**
+     * GET /flotillas/crear
+     *
+     * El alta va en su propia vista y no en un modal: son más de quince
+     * campos, dos rangos de pago y archivos.
+     */
+    public function create(): Response
+    {
+        return Inertia::render('Fleets/Create', [
+            'businessUnits' => BusinessUnit::orderBy('name')->get(['id', 'name']),
+            'statuses' => Unit::STATUSES,
+        ]);
+    }
+
+    /** POST /flotillas */
+    public function store(StoreUnitRequest $request): RedirectResponse
+    {
+        $data = $request->validated();
+
+        // Los archivos no son columnas: se guardan aparte, ya con la unidad creada.
+        unset($data['evidences']);
+
+        $unit = Unit::create([
+            ...$data,
+            'created_by' => $request->user()->id,
+        ]);
+
+        $this->storeEvidences($request, $unit);
+
+        return to_route('fleets.index')->with('success', "Se registró la unidad {$unit->policy}.");
+    }
+
+    /**
+     * Guarda los archivos en disco y deja en la base su ruta y el nombre con
+     * el que los subieron, que es el que se va a descargar.
+     */
+    private function storeEvidences(StoreUnitRequest $request, Unit $unit): void
+    {
+        foreach ($request->file('evidences', []) as $file) {
+            /** @var UploadedFile $file */
+            $unit->evidences()->create([
+                'path' => Storage::disk('local')->putFile("units/{$unit->id}", $file),
+                'name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getClientMimeType(),
+                'size' => $file->getSize(),
+                'uploaded_by' => $request->user()->id,
+            ]);
+        }
     }
 
     /**

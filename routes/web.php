@@ -97,6 +97,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/flotillas', [FleetController::class, 'index'])
         ->middleware('can:flotillas.view')
         ->name('fleets.index');
+    // El alta tiene vista propia: son demasiados campos para un modal.
+    Route::get('/flotillas/crear', [FleetController::class, 'create'])
+        ->middleware('can:flotillas.create')
+        ->name('fleets.create');
+    Route::post('/flotillas', [FleetController::class, 'store'])
+        ->middleware('can:flotillas.create')
+        ->name('fleets.store');
 
     // Administración de usuarios. La Policy afina por registro: quién puede
     // tocar a quién no lo resuelve un permiso suelto.

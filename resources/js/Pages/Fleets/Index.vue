@@ -1,6 +1,6 @@
 <script setup>
-import { Head, router } from '@inertiajs/vue3';
-import { BellRing, Building2, ChevronLeft, ChevronRight, Eye, ListFilter, Pencil, Plus, Search, Trash2, Truck, Wallet, Wrench, X } from 'lucide-vue-next';
+import { Head, Link, router } from '@inertiajs/vue3';
+import { Building2, ChevronLeft, ChevronRight, Eye, ListFilter, Pencil, Plus, Search, Trash2, Truck, Wallet, Wrench, X } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
@@ -26,15 +26,11 @@ const { can } = usePermissions();
 
 /* ---------- Acciones: todavía sin funcionalidad ---------- */
 
-// Los modales de detalle, alta/edición y recordatorio se conectan después;
-// por ahora los botones existen para fijar el lugar de cada acción.
-function create() {}
-
+// El alta ya tiene su vista (/flotillas/crear). Detalle y edición se conectan
+// después; por ahora los botones fijan su lugar.
 function show() {}
 
 function edit() {}
-
-function remind() {}
 
 /* ---------- Eliminar ---------- */
 
@@ -193,13 +189,16 @@ function paymentText(iso) {
     return days === 1 ? 'En 1 día' : `En ${days} días`;
 }
 
-/** Ámbar cuando el pago entra en la ventana de aviso. */
+/** Ámbar cuando el pago entra en la ventana de aviso; si no, discreto. */
 function paymentTone(iso) {
-    if (!iso) return 'text-slate-400 dark:text-brand-gray/70';
-
     return daysLeft(iso) <= PAYMENT_WARNING_DAYS
-        ? 'text-amber-600 dark:text-amber-400'
-        : 'text-slate-700 dark:text-slate-200';
+        ? 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/25'
+        : 'bg-slate-50 text-slate-500 ring-slate-500/15 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10';
+}
+
+/** Si ese semestre es el pago que sigue: solo ese lleva la etiqueta. */
+function isNextPayment(unit, payment) {
+    return Boolean(payment?.starts_on) && payment.starts_on === unit.next_payment;
 }
 
 const statusOf = unitStatus;
@@ -269,15 +268,14 @@ const PAGE_BTN =
                     </div>
                 </div>
 
-                <button
+                <Link
                     v-if="can('flotillas.create')"
-                    type="button"
-                    class="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
-                    @click="create"
+                    href="/flotillas/crear"
+                    class="inline-flex h-9 items-center gap-2 rounded-xl bg-brand px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
                 >
                     <Plus class="size-4" />
                     Nueva unidad
-                </button>
+                </Link>
             </div>
 
             <!-- Resumen: de toda la flotilla, no cambia con los filtros de la tabla -->
@@ -408,11 +406,13 @@ const PAGE_BTN =
                     <table class="w-full text-[0.8rem]">
                         <thead class="sticky top-0 z-10 bg-slate-50 text-slate-500 dark:bg-brand-deep dark:text-brand-gray">
                             <tr>
-                                <th :class="TH">Póliza / unidad</th>
-                                <th :class="[TH, 'hidden @3xl:table-cell']">Unidad de negocio</th>
+                                <th :class="TH">Póliza</th>
+                                <th :class="[TH, 'hidden @2xl:table-cell']">Certificado</th>
+                                <th :class="TH">Unidad</th>
                                 <th :class="[TH, 'hidden @3xl:table-cell']"># Económico</th>
                                 <th :class="[TH, 'hidden @4xl:table-cell']">Placa</th>
-                                <th :class="[TH, 'hidden @4xl:table-cell']">Responsable</th>
+                                <th :class="[TH, 'hidden @3xl:table-cell']">Unidad de negocio</th>
+                                <th :class="[TH, 'hidden @5xl:table-cell']">Responsable</th>
                                 <th :class="[TH, 'hidden @lg:table-cell']">Pagos semestrales</th>
                                 <th :class="[TH, 'hidden @lg:table-cell text-right']">Costo anual</th>
                                 <th :class="[TH, 'hidden @2xl:table-cell']">Estado</th>
@@ -427,6 +427,14 @@ const PAGE_BTN =
                                 class="transition-colors duration-150 hover:bg-slate-50/80 dark:hover:bg-white/[0.025]"
                                 :style="rowHeight ? { height: `${rowHeight}px` } : null"
                             >
+                                <td :class="[TD, 'whitespace-nowrap']">
+                                    <span class="block font-semibold text-slate-800 tabular-nums dark:text-white" :title="unit.policy">{{ unit.policy }}</span>
+                                </td>
+
+                                <td :class="[TD, 'hidden whitespace-nowrap text-slate-600 tabular-nums @2xl:table-cell dark:text-slate-300']">
+                                    {{ unit.certificate ?? '—' }}
+                                </td>
+
                                 <td :class="[TD, 'w-full max-w-0']">
                                     <div class="flex items-center gap-2.5">
                                         <span
@@ -434,22 +442,22 @@ const PAGE_BTN =
                                         >
                                             <Truck class="size-3.5" />
                                         </span>
+                                        <!-- La unidad se reconoce por marca y modelo, no por su póliza -->
                                         <span class="min-w-0">
-                                            <span class="block truncate font-semibold text-slate-800 dark:text-white" :title="unit.policy">{{ unit.policy }}</span>
-                                            <span class="block truncate text-[0.7rem] text-slate-400 dark:text-brand-gray/80">
+                                            <span class="block truncate font-semibold text-slate-800 dark:text-white" :title="`${unit.brand} ${unit.model}`">
                                                 {{ unit.brand }} {{ unit.model }}
+                                            </span>
+                                            <span class="block truncate text-[0.7rem] text-slate-400 dark:text-brand-gray/80">
                                                 <!-- En cards angostos los datos de las columnas ocultas bajan aquí -->
-                                                <span class="@3xl:hidden"> · {{ unit.business_unit ?? 'Sin unidad de negocio' }}</span>
-                                                <span class="@3xl:hidden"> · {{ unit.economic_number ?? 'Sin # económico' }}</span>
+                                                <span class="@3xl:hidden">{{ unit.economic_number ?? 'Sin # económico' }}</span>
                                                 <span v-if="unit.plate" class="@4xl:hidden"> · {{ unit.plate }}</span>
+                                                <span class="@3xl:hidden"> · {{ unit.business_unit ?? 'Sin unidad de negocio' }}</span>
+                                                <span v-if="unit.certificate" class="@2xl:hidden"> · Cert. {{ unit.certificate }}</span>
                                                 <span class="@2xl:hidden"> · {{ statusOf(unit.status).label }}</span>
+                                                <span class="hidden @3xl:inline">{{ unit.serial_number ?? 'Sin número de serie' }}</span>
                                             </span>
                                         </span>
                                     </div>
-                                </td>
-
-                                <td :class="[TD, 'hidden @3xl:table-cell']">
-                                    <span class="block max-w-[12rem] truncate text-slate-600 dark:text-slate-300" :title="unit.business_unit">{{ unit.business_unit ?? '—' }}</span>
                                 </td>
 
                                 <td :class="[TD, 'hidden whitespace-nowrap text-slate-600 tabular-nums @3xl:table-cell dark:text-slate-300']">
@@ -460,16 +468,33 @@ const PAGE_BTN =
                                     {{ unit.plate ?? '—' }}
                                 </td>
 
-                                <td :class="[TD, 'hidden @4xl:table-cell']">
+                                <td :class="[TD, 'hidden @3xl:table-cell']">
+                                    <span class="block max-w-[12rem] truncate text-slate-600 dark:text-slate-300" :title="unit.business_unit">{{ unit.business_unit ?? '—' }}</span>
+                                </td>
+
+                                <td :class="[TD, 'hidden @5xl:table-cell']">
                                     <span class="block max-w-[12rem] truncate text-slate-600 dark:text-slate-300" :title="unit.responsible">{{ unit.responsible ?? '—' }}</span>
                                 </td>
 
-                                <!-- Los dos semestres, uno debajo del otro, y cuánto falta para el que sigue -->
+                                <!--
+                                    Los dos semestres, uno debajo del otro. Cuánto falta va como
+                                    etiqueta en el que sigue, no en una tercera línea suelta.
+                                -->
                                 <td :class="[TD, 'hidden whitespace-nowrap @lg:table-cell']">
-                                    <span class="block text-[0.72rem] text-slate-600 dark:text-slate-300">{{ periodLabel(unit.first_payment) }}</span>
-                                    <span class="block text-[0.72rem] text-slate-600 dark:text-slate-300">{{ periodLabel(unit.second_payment) }}</span>
-                                    <span class="block text-[0.68rem] font-semibold" :class="paymentTone(unit.next_payment)">
-                                        {{ paymentText(unit.next_payment) }}
+                                    <span
+                                        v-for="(payment, i) in [unit.first_payment, unit.second_payment]"
+                                        :key="i"
+                                        class="flex items-center gap-1.5 text-[0.72rem] leading-5 text-slate-600 dark:text-slate-300"
+                                    >
+                                        <span class="w-3 shrink-0 text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/70">{{ i + 1 }}°</span>
+                                        {{ periodLabel(payment) }}
+                                        <span
+                                            v-if="isNextPayment(unit, payment)"
+                                            class="rounded px-1.5 py-0.5 text-[0.62rem] font-bold ring-1 ring-inset"
+                                            :class="paymentTone(payment.starts_on)"
+                                        >
+                                            {{ paymentText(payment.starts_on) }}
+                                        </span>
                                     </span>
                                 </td>
 
@@ -504,16 +529,6 @@ const PAGE_BTN =
                                             <Pencil class="size-4" />
                                         </button>
                                         <button
-                                            v-if="can('flotillas.update')"
-                                            type="button"
-                                            :class="[ACTION, NEUTRAL]"
-                                            :aria-label="`Recordatorio de ${unit.policy}`"
-                                            title="Configurar recordatorio"
-                                            @click="remind(unit)"
-                                        >
-                                            <BellRing class="size-4" />
-                                        </button>
-                                        <button
                                             v-if="can('flotillas.delete')"
                                             type="button"
                                             :class="[ACTION, 'text-slate-500 hover:bg-red-50 hover:text-red-600 focus-visible:ring-red-500/25 dark:text-brand-gray dark:hover:bg-red-500/10 dark:hover:text-red-300']"
@@ -528,7 +543,7 @@ const PAGE_BTN =
                             </tr>
 
                             <tr v-if="!units.data.length">
-                                <td colspan="9" class="px-6 py-8 text-center tall:py-14">
+                                <td colspan="11" class="px-6 py-8 text-center tall:py-14">
                                     <span
                                         class="mx-auto mb-2.5 grid size-10 place-content-center rounded-xl bg-slate-100 text-slate-400 dark:bg-white/[0.05] dark:text-brand-gray"
                                     >

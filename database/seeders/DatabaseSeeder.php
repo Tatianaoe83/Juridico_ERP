@@ -24,7 +24,7 @@ class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
-        $this->call(RoleSeeder::class);
+        $this->call([RoleSeeder::class, BusinessUnitSeeder::class]);
 
         foreach (self::ACCOUNTS as [$email, $name, $role]) {
             $user = User::firstOrCreate(['email' => $email], ['name' => $name, 'password' => 'password']);
