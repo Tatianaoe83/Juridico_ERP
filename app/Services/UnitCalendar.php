@@ -96,9 +96,9 @@ class UnitCalendar
                 $actor,
                 $unit->{$payment['event']},
                 $this->event($unit, $payment['label'], $date),
-                // Sin invitados: con ellos Outlook manda un correo por evento,
-                // y entre vencimientos y avisos son más de veinte por unidad.
-                inviteShared: false,
+                // Con invitados, igual que las licencias: así Outlook manda la
+                // invitación de cada vencimiento. Son dos correos por unidad
+                // porque son dos fechas límite distintas.
                 notify: false,
             );
         } catch (Throwable $e) {
