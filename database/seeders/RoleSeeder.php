@@ -33,6 +33,18 @@ class RoleSeeder extends Seeder
         'events.create',
         'events.update',
         'events.delete',
+
+        // Licencias y permisos
+        'licencias.view',
+        'licencias.create',
+        'licencias.update',
+        'licencias.delete',
+
+        // Flotillas
+        'flotillas.view',
+        'flotillas.create',
+        'flotillas.update',
+        'flotillas.delete',
     ];
 
     /**

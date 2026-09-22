@@ -20,6 +20,8 @@ class PermissionCatalog
         'roles' => 'Roles',
         'calendar' => 'Calendario',
         'events' => 'Eventos',
+        'licencias' => 'Licencias y Permisos',
+        'flotillas' => 'Flotillas',
     ];
 
     private const LABELS = [
@@ -34,6 +36,14 @@ class PermissionCatalog
         'events.create' => 'Crear eventos',
         'events.update' => 'Editar eventos',
         'events.delete' => 'Eliminar eventos',
+        'licencias.view' => 'Ver licencias y permisos',
+        'licencias.create' => 'Crear licencias y permisos',
+        'licencias.update' => 'Editar licencias y permisos',
+        'licencias.delete' => 'Eliminar licencias y permisos',
+        'flotillas.view' => 'Ver flotillas',
+        'flotillas.create' => 'Crear unidades',
+        'flotillas.update' => 'Editar unidades',
+        'flotillas.delete' => 'Eliminar unidades',
     ];
 
     public static function label(string $name): string
