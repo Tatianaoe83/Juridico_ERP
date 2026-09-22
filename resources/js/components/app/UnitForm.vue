@@ -8,6 +8,7 @@ import {
     FileText,
     Hash,
     Loader2,
+    CalendarClock,
     MessageSquareText,
     Paperclip,
     RotateCcw,
@@ -19,7 +20,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import FormSelect from '@/components/app/FormSelect.vue';
-import { UNIT_STATUS, money } from '@/lib/units';
+import { UNIT_STATUS, money, paymentCountdown, periodLabel } from '@/lib/units';
 
 /**
  * El formulario de la unidad, el mismo para el alta y la edición: solo cambia
@@ -62,11 +63,31 @@ const form = useForm({
 
 /* ---------- Costo anual: el mismo cálculo que hace el servidor ---------- */
 
+
+
 const TAX_RATE = 0.16;
 
+// Los importes se capturan como se pagan, con IVA incluido: el impuesto se
+// desglosa del costo anual en vez de sumarse encima.
 const annualCost = computed(() => Number(form.first_payment_amount || 0) + Number(form.second_payment_amount || 0));
-const tax = computed(() => annualCost.value * TAX_RATE);
-const total = computed(() => annualCost.value + tax.value);
+const tax = computed(() => (annualCost.value * TAX_RATE) / (1 + TAX_RATE));
+const subtotal = computed(() => annualCost.value - tax.value);
+
+/* ---------- Cómo va cada semestre ---------- */
+
+// Salen de lo que hay en el formulario, no del registro guardado: al mover una
+// fecha el periodo y el aviso cambian en el momento.
+const firstPeriod = computed(() =>
+    periodLabel({ starts_on: form.first_payment_starts_on, ends_on: form.first_payment_ends_on }),
+);
+
+const secondPeriod = computed(() =>
+    periodLabel({ starts_on: form.second_payment_starts_on, ends_on: form.second_payment_ends_on }),
+);
+
+// El semestre vence cuando cierra, así que el aviso sale de la fecha «Hasta».
+const firstCountdown = computed(() => paymentCountdown(form.first_payment_ends_on));
+const secondCountdown = computed(() => paymentCountdown(form.second_payment_ends_on));
 
 /* ---------- Evidencias ---------- */
 
@@ -372,8 +393,25 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
 
             <div class="mt-3 grid gap-4 lg:grid-cols-2">
                 <!-- Mismos tres campos por semestre; solo cambia a cuál pertenecen -->
-                <div class="rounded-xl bg-slate-50/70 p-3 dark:bg-white/[0.03]">
-                    <p class="mb-2.5 text-[0.75rem] font-bold text-slate-700 dark:text-slate-200">Primer pago</p>
+                <div class="rounded-xl bg-slate-50/70 p-3 ring-1 ring-inset ring-slate-200/70 dark:bg-white/[0.03] dark:ring-white/[0.06]">
+                    <!-- Encabezado: qué semestre es, el periodo que llevas capturado y cuánto falta -->
+                    <div class="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span
+                            class="grid size-5 shrink-0 place-content-center rounded-md bg-brand/[0.08] text-[0.6rem] font-bold text-brand dark:bg-white/10 dark:text-white"
+                        >
+                            1
+                        </span>
+                        <p class="text-[0.75rem] font-bold text-slate-700 dark:text-slate-200">Primer pago</p>
+                        <span class="text-[0.7rem] text-slate-400 dark:text-brand-gray/70">{{ firstPeriod }}</span>
+                        <span
+                            v-if="firstCountdown"
+                            class="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.68rem] font-bold whitespace-nowrap ring-1 ring-inset"
+                            :class="firstCountdown.tone"
+                        >
+                            <CalendarClock class="size-3" />
+                            {{ firstCountdown.label }}
+                        </span>
+                    </div>
 
                     <div class="grid gap-3 sm:grid-cols-3">
                         <div>
@@ -413,8 +451,24 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                     </div>
                 </div>
 
-                <div class="rounded-xl bg-slate-50/70 p-3 dark:bg-white/[0.03]">
-                    <p class="mb-2.5 text-[0.75rem] font-bold text-slate-700 dark:text-slate-200">Segundo pago</p>
+                <div class="rounded-xl bg-slate-50/70 p-3 ring-1 ring-inset ring-slate-200/70 dark:bg-white/[0.03] dark:ring-white/[0.06]">
+                    <div class="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span
+                            class="grid size-5 shrink-0 place-content-center rounded-md bg-brand/[0.08] text-[0.6rem] font-bold text-brand dark:bg-white/10 dark:text-white"
+                        >
+                            2
+                        </span>
+                        <p class="text-[0.75rem] font-bold text-slate-700 dark:text-slate-200">Segundo pago</p>
+                        <span class="text-[0.7rem] text-slate-400 dark:text-brand-gray/70">{{ secondPeriod }}</span>
+                        <span
+                            v-if="secondCountdown"
+                            class="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.68rem] font-bold whitespace-nowrap ring-1 ring-inset"
+                            :class="secondCountdown.tone"
+                        >
+                            <CalendarClock class="size-3" />
+                            {{ secondCountdown.label }}
+                        </span>
+                    </div>
 
                     <div class="grid gap-3 sm:grid-cols-3">
                         <div>
@@ -455,19 +509,23 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                 </div>
             </div>
 
-            <!-- Solo informa: el servidor vuelve a calcular lo mismo al guardar -->
+            <!--
+                Solo informa: el servidor vuelve a calcular lo mismo al guardar. Los importes
+                ya traen IVA, así que el costo anual es la suma tal cual y el impuesto se
+                desglosa hacia adentro; subtotal más IVA da el costo anual.
+            -->
             <dl class="mt-3 grid gap-2 sm:grid-cols-3">
                 <div class="rounded-xl bg-slate-50/70 px-3 py-2 dark:bg-white/[0.03]">
-                    <dt class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">Costo anual</dt>
-                    <dd class="text-sm font-bold text-slate-800 tabular-nums dark:text-white">{{ money(annualCost) }}</dd>
+                    <dt class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">Subtotal</dt>
+                    <dd class="text-sm font-bold text-slate-800 tabular-nums dark:text-white">{{ money(subtotal) }}</dd>
                 </div>
                 <div class="rounded-xl bg-slate-50/70 px-3 py-2 dark:bg-white/[0.03]">
-                    <dt class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">IVA (16%)</dt>
+                    <dt class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">IVA incluido (16%)</dt>
                     <dd class="text-sm font-bold text-slate-800 tabular-nums dark:text-white">{{ money(tax) }}</dd>
                 </div>
                 <div class="rounded-xl bg-brand/[0.07] px-3 py-2 dark:bg-white/10">
-                    <dt class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-brand/70 dark:text-brand-gray/80">Total</dt>
-                    <dd class="text-sm font-bold text-brand tabular-nums dark:text-white">{{ money(total) }}</dd>
+                    <dt class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-brand/70 dark:text-brand-gray/80">Costo anual</dt>
+                    <dd class="text-sm font-bold text-brand tabular-nums dark:text-white">{{ money(annualCost) }}</dd>
                 </div>
             </dl>
         </section>

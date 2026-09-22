@@ -233,9 +233,10 @@ class FleetController extends Controller
                 'ends_on' => $unit->second_payment_ends_on?->toDateString(),
                 'amount' => (float) $unit->second_payment_amount,
             ],
+            // El costo anual ya trae el IVA: el desglose es informativo.
             'annual_cost' => $unit->annualCost(),
             'tax' => $unit->tax(),
-            'total' => $unit->total(),
+            'subtotal' => $unit->subtotal(),
             'next_payment' => $unit->nextPaymentDate()?->toDateString(),
             'usa_canada_endorsement' => $unit->usa_canada_endorsement,
             'status' => $unit->status,
@@ -273,11 +274,12 @@ class FleetController extends Controller
 
         return [
             'total' => Unit::query()->count(),
-            // Por vencer: cualquiera de los dos pagos cae dentro de la ventana.
+            // Por vencer: cualquiera de los dos semestres cierra dentro de la
+            // ventana. Cada pago se evalúa por su cuenta.
             'payments' => Unit::query()
                 ->where(fn ($query) => $query
-                    ->whereBetween('first_payment_starts_on', [$today, $limit])
-                    ->orWhereBetween('second_payment_starts_on', [$today, $limit]))
+                    ->whereBetween('first_payment_ends_on', [$today, $limit])
+                    ->orWhereBetween('second_payment_ends_on', [$today, $limit]))
                 ->count(),
             'maintenance' => Unit::query()->where('status', 'maintenance')->count(),
         ];

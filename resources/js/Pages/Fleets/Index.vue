@@ -6,7 +6,6 @@ import AppShell from '@/Layouts/AppShell.vue';
 import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
 import FilterSelect from '@/components/app/FilterSelect.vue';
 import { usePermissions } from '@/composables/usePermissions';
-import { daysLeft } from '@/lib/licenses';
 import { PAYMENT_WARNING_DAYS, UNIT_STATUS, money, periodLabel, unitStatus } from '@/lib/units';
 
 const props = defineProps({
@@ -175,31 +174,8 @@ onBeforeUnmount(() => {
 
 /* ---------- Presentación ---------- */
 
-/** «En 12 días», «Hoy», «—» cuando ya no hay pago por delante. */
-function paymentText(iso) {
-    if (!iso) return '—';
-
-    const days = daysLeft(iso);
-
-    if (days === 0) return 'Hoy';
-    if (days < 0) return '—';
-
-    return days === 1 ? 'En 1 día' : `En ${days} días`;
-}
-
-/** Ámbar cuando el pago entra en la ventana de aviso; si no, discreto. */
-function paymentTone(iso) {
-    return daysLeft(iso) <= PAYMENT_WARNING_DAYS
-        ? 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/25'
-        : 'bg-slate-50 text-slate-500 ring-slate-500/15 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10';
-}
-
-/** Si ese semestre es el pago que sigue: solo ese lleva la etiqueta. */
-function isNextPayment(unit, payment) {
-    return Boolean(payment?.starts_on) && payment.starts_on === unit.next_payment;
-}
-
 const statusOf = unitStatus;
+
 
 
 /* ---------- Resumen ---------- */
@@ -422,7 +398,6 @@ const PAGE_BTN =
                                 <th :class="TH">Unidad</th>
                                 <!-- Ninguna se esconde: si no caben, la tabla se desplaza. Las de la derecha miden lo que su contenido -->
                                 <th :class="TH">Número de serie</th>
-                                <th :class="TH">Unidad de negocio</th>
                                 <th :class="TH">Placa</th>
                                 <th :class="TH">Responsable</th>
                                 <th :class="[TH, 'w-px']">Pagos semestrales</th>
@@ -471,10 +446,6 @@ const PAGE_BTN =
                                     {{ unit.serial_number ?? '—' }}
                                 </td>
 
-                                <td :class="TD">
-                                    <span class="block max-w-[12rem] truncate text-slate-600 dark:text-slate-300" :title="unit.business_unit">{{ unit.business_unit ?? '—' }}</span>
-                                </td>
-
                                 <td :class="[TD, 'whitespace-nowrap text-slate-600 tabular-nums dark:text-slate-300']">
                                     {{ unit.plate ?? '—' }}
                                 </td>
@@ -495,19 +466,12 @@ const PAGE_BTN =
                                     >
                                         <span class="w-3 shrink-0 text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/70">{{ i + 1 }}°</span>
                                         {{ periodLabel(payment) }}
-                                        <span
-                                            v-if="isNextPayment(unit, payment)"
-                                            class="rounded px-1.5 py-0.5 text-[0.62rem] font-bold ring-1 ring-inset"
-                                            :class="paymentTone(payment.starts_on)"
-                                        >
-                                            {{ paymentText(payment.starts_on) }}
-                                        </span>
                                     </span>
                                 </td>
 
                                 <td :class="[TD, 'w-px whitespace-nowrap text-right tabular-nums']">
                                     <span class="block font-semibold text-slate-700 dark:text-slate-200">{{ money(unit.annual_cost) }}</span>
-                                    <span class="block text-[0.68rem] text-slate-400 dark:text-brand-gray/70">IVA {{ money(unit.tax) }}</span>
+                                    <span class="block text-[0.68rem] text-slate-400 dark:text-brand-gray/70">IVA incl. {{ money(unit.tax) }}</span>
                                 </td>
 
                                 <td :class="[TD, 'w-px']">
