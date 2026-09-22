@@ -104,6 +104,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/flotillas', [FleetController::class, 'store'])
         ->middleware('can:flotillas.create')
         ->name('fleets.store');
+    Route::get('/flotillas/{unit}/editar', [FleetController::class, 'edit'])
+        ->middleware('can:flotillas.update')
+        ->name('fleets.edit');
+    Route::patch('/flotillas/{unit}', [FleetController::class, 'update'])
+        ->middleware('can:flotillas.update')
+        ->name('fleets.update');
 
     // Administración de usuarios. La Policy afina por registro: quién puede
     // tocar a quién no lo resuelve un permiso suelto.

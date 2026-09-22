@@ -3,27 +3,28 @@ import { Head, Link } from '@inertiajs/vue3';
 import { ArrowLeft, Truck } from 'lucide-vue-next';
 import AppShell from '@/Layouts/AppShell.vue';
 import UnitForm from '@/components/app/UnitForm.vue';
+import { unitStatus } from '@/lib/units';
 
-defineProps({
-    /** Catálogo: [{ id, name }]. Puede venir vacío si nadie lo ha llenado. */
+const props = defineProps({
+    /** La unidad con sus valores tal como se capturan, más sus evidencias. */
+    unit: { type: Object, required: true },
     businessUnits: { type: Array, default: () => [] },
-    /** Valores del enum `status`, tal como los acepta el servidor. */
     statuses: { type: Array, default: () => [] },
 });
 
 const breadcrumbs = [
     { label: 'Inicio', href: '/calendario' },
     { label: 'Flotillas', href: '/flotillas' },
-    { label: 'Nueva unidad' },
+    { label: props.unit.policy },
 ];
 </script>
 
 <template>
-    <Head title="Nueva unidad" />
+    <Head :title="`Editar ${unit.policy}`" />
 
     <AppShell :breadcrumbs="breadcrumbs">
         <div class="flex flex-col gap-3 pb-6 tall:gap-4">
-            <!-- Encabezado -->
+            <!-- Encabezado: además del título, de qué unidad se trata -->
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="flex items-center gap-3">
                     <span
@@ -31,10 +32,18 @@ const breadcrumbs = [
                     >
                         <Truck class="size-4" />
                     </span>
-                    <div>
+                    <div class="min-w-0">
                         <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Flotillas</p>
-                        <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Nueva unidad</h1>
+                        <h1 class="truncate text-xl font-bold tracking-tight text-brand dark:text-white">
+                            {{ unit.brand }} {{ unit.model }}
+                        </h1>
                     </div>
+                    <span
+                        class="ml-1 inline-flex items-center rounded-md px-1.5 py-0.5 text-[0.7rem] font-bold whitespace-nowrap ring-1 ring-inset"
+                        :class="unitStatus(unit.status).tone"
+                    >
+                        {{ unitStatus(unit.status).label }}
+                    </span>
                 </div>
 
                 <Link
@@ -46,7 +55,7 @@ const breadcrumbs = [
                 </Link>
             </div>
 
-            <UnitForm :business-units="businessUnits" :statuses="statuses" />
+            <UnitForm :unit="unit" :business-units="businessUnits" :statuses="statuses" />
         </div>
     </AppShell>
 </template>

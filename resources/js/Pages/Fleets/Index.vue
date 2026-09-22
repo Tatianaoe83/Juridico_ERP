@@ -26,11 +26,9 @@ const { can } = usePermissions();
 
 /* ---------- Acciones: todavía sin funcionalidad ---------- */
 
-// El alta ya tiene su vista (/flotillas/crear). Detalle y edición se conectan
-// después; por ahora los botones fijan su lugar.
+// El alta y la edición tienen su propia vista. El detalle se conecta después;
+// por ahora el botón fija su lugar.
 function show() {}
-
-function edit() {}
 
 /* ---------- Eliminar ---------- */
 
@@ -406,17 +404,18 @@ const PAGE_BTN =
                     <table class="w-full text-[0.8rem]">
                         <thead class="sticky top-0 z-10 bg-slate-50 text-slate-500 dark:bg-brand-deep dark:text-brand-gray">
                             <tr>
+                                <!-- Póliza y certificado son el mismo dato del seguro: van juntos -->
                                 <th :class="TH">Póliza</th>
-                                <th :class="[TH, 'hidden @2xl:table-cell']">Certificado</th>
                                 <th :class="TH">Unidad</th>
-                                <th :class="[TH, 'hidden @3xl:table-cell']"># Económico</th>
-                                <th :class="[TH, 'hidden @4xl:table-cell']">Placa</th>
+                                <!-- Las de texto se ordenan por cuándo aparecen; las de la derecha miden lo que su contenido -->
+                                <th :class="[TH, 'hidden @2xl:table-cell']">Número de serie</th>
                                 <th :class="[TH, 'hidden @3xl:table-cell']">Unidad de negocio</th>
+                                <th :class="[TH, 'hidden @4xl:table-cell']">Placa</th>
                                 <th :class="[TH, 'hidden @5xl:table-cell']">Responsable</th>
-                                <th :class="[TH, 'hidden @lg:table-cell']">Pagos semestrales</th>
-                                <th :class="[TH, 'hidden @lg:table-cell text-right']">Costo anual</th>
-                                <th :class="[TH, 'hidden @2xl:table-cell']">Estado</th>
-                                <th :class="[TH, 'text-right']">Acciones</th>
+                                <th :class="[TH, 'hidden w-px @lg:table-cell']">Pagos semestrales</th>
+                                <th :class="[TH, 'hidden w-px text-right @lg:table-cell']">Costo anual</th>
+                                <th :class="[TH, 'hidden w-px @2xl:table-cell']">Estado</th>
+                                <th :class="[TH, 'w-px text-right']">Acciones</th>
                             </tr>
                         </thead>
 
@@ -429,13 +428,13 @@ const PAGE_BTN =
                             >
                                 <td :class="[TD, 'whitespace-nowrap']">
                                     <span class="block font-semibold text-slate-800 tabular-nums dark:text-white" :title="unit.policy">{{ unit.policy }}</span>
+                                    <span class="block text-[0.68rem] text-slate-400 dark:text-brand-gray/70">
+                                        {{ unit.certificate ? `Cert. ${unit.certificate}` : 'Sin certificado' }}
+                                    </span>
                                 </td>
 
-                                <td :class="[TD, 'hidden whitespace-nowrap text-slate-600 tabular-nums @2xl:table-cell dark:text-slate-300']">
-                                    {{ unit.certificate ?? '—' }}
-                                </td>
-
-                                <td :class="[TD, 'w-full max-w-0']">
+                                <!-- Sin truncar: el nombre de la unidad se lee completo -->
+                                <td :class="[TD, 'whitespace-nowrap']">
                                     <div class="flex items-center gap-2.5">
                                         <span
                                             class="grid size-7 shrink-0 place-content-center rounded-lg bg-slate-50 text-slate-500 ring-1 ring-inset ring-slate-500/15 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10"
@@ -443,33 +442,29 @@ const PAGE_BTN =
                                             <Truck class="size-3.5" />
                                         </span>
                                         <!-- La unidad se reconoce por marca y modelo, no por su póliza -->
-                                        <span class="min-w-0">
-                                            <span class="block truncate font-semibold text-slate-800 dark:text-white" :title="`${unit.brand} ${unit.model}`">
-                                                {{ unit.brand }} {{ unit.model }}
-                                            </span>
-                                            <span class="block truncate text-[0.7rem] text-slate-400 dark:text-brand-gray/80">
+                                        <span>
+                                            <span class="block font-semibold text-slate-800 dark:text-white">{{ unit.brand }} {{ unit.model }}</span>
+                                            <span class="block text-[0.7rem] text-slate-400 dark:text-brand-gray/80">
                                                 <!-- En cards angostos los datos de las columnas ocultas bajan aquí -->
-                                                <span class="@3xl:hidden">{{ unit.economic_number ?? 'Sin # económico' }}</span>
-                                                <span v-if="unit.plate" class="@4xl:hidden"> · {{ unit.plate }}</span>
-                                                <span class="@3xl:hidden"> · {{ unit.business_unit ?? 'Sin unidad de negocio' }}</span>
-                                                <span v-if="unit.certificate" class="@2xl:hidden"> · Cert. {{ unit.certificate }}</span>
+                                                <span v-if="unit.plate" class="@4xl:hidden">{{ unit.plate }} · </span>
+                                                <span class="@3xl:hidden">{{ unit.business_unit ?? 'Sin unidad de negocio' }}</span>
+                                                <span v-if="unit.serial_number" class="@2xl:hidden"> · {{ unit.serial_number }}</span>
                                                 <span class="@2xl:hidden"> · {{ statusOf(unit.status).label }}</span>
-                                                <span class="hidden @3xl:inline">{{ unit.serial_number ?? 'Sin número de serie' }}</span>
                                             </span>
                                         </span>
                                     </div>
                                 </td>
 
-                                <td :class="[TD, 'hidden whitespace-nowrap text-slate-600 tabular-nums @3xl:table-cell dark:text-slate-300']">
-                                    {{ unit.economic_number ?? '—' }}
-                                </td>
-
-                                <td :class="[TD, 'hidden whitespace-nowrap text-slate-600 tabular-nums @4xl:table-cell dark:text-slate-300']">
-                                    {{ unit.plate ?? '—' }}
+                                <td :class="[TD, 'hidden whitespace-nowrap text-slate-600 tabular-nums @2xl:table-cell dark:text-slate-300']">
+                                    {{ unit.serial_number ?? '—' }}
                                 </td>
 
                                 <td :class="[TD, 'hidden @3xl:table-cell']">
                                     <span class="block max-w-[12rem] truncate text-slate-600 dark:text-slate-300" :title="unit.business_unit">{{ unit.business_unit ?? '—' }}</span>
+                                </td>
+
+                                <td :class="[TD, 'hidden whitespace-nowrap text-slate-600 tabular-nums @4xl:table-cell dark:text-slate-300']">
+                                    {{ unit.plate ?? '—' }}
                                 </td>
 
                                 <td :class="[TD, 'hidden @5xl:table-cell']">
@@ -480,7 +475,7 @@ const PAGE_BTN =
                                     Los dos semestres, uno debajo del otro. Cuánto falta va como
                                     etiqueta en el que sigue, no en una tercera línea suelta.
                                 -->
-                                <td :class="[TD, 'hidden whitespace-nowrap @lg:table-cell']">
+                                <td :class="[TD, 'hidden w-px whitespace-nowrap @lg:table-cell']">
                                     <span
                                         v-for="(payment, i) in [unit.first_payment, unit.second_payment]"
                                         :key="i"
@@ -498,12 +493,12 @@ const PAGE_BTN =
                                     </span>
                                 </td>
 
-                                <td :class="[TD, 'hidden whitespace-nowrap text-right tabular-nums @lg:table-cell']">
+                                <td :class="[TD, 'hidden w-px whitespace-nowrap text-right tabular-nums @lg:table-cell']">
                                     <span class="block font-semibold text-slate-700 dark:text-slate-200">{{ money(unit.annual_cost) }}</span>
                                     <span class="block text-[0.68rem] text-slate-400 dark:text-brand-gray/70">IVA {{ money(unit.tax) }}</span>
                                 </td>
 
-                                <td :class="[TD, 'hidden @2xl:table-cell']">
+                                <td :class="[TD, 'hidden w-px @2xl:table-cell']">
                                     <span
                                         class="inline-flex items-center rounded-md px-1.5 py-0.5 text-[0.7rem] font-bold whitespace-nowrap ring-1 ring-inset"
                                         :class="statusOf(unit.status).tone"
@@ -512,22 +507,21 @@ const PAGE_BTN =
                                     </span>
                                 </td>
 
-                                <!-- Acciones aún sin funcionalidad -->
-                                <td :class="TD">
+                                <!-- Ver y editar ya funcionan; el detalle se conecta después -->
+                                <td :class="[TD, 'w-px']">
                                     <div class="flex items-center justify-end gap-0.5 @2xl:gap-1">
                                         <button type="button" :class="[ACTION, NEUTRAL]" :aria-label="`Ver ${unit.policy}`" title="Ver detalle" @click="show(unit)">
                                             <Eye class="size-4" />
                                         </button>
-                                        <button
+                                        <Link
                                             v-if="can('flotillas.update')"
-                                            type="button"
+                                            :href="`/flotillas/${unit.id}/editar`"
                                             :class="[ACTION, NEUTRAL]"
                                             :aria-label="`Editar ${unit.policy}`"
                                             title="Editar"
-                                            @click="edit(unit)"
                                         >
                                             <Pencil class="size-4" />
-                                        </button>
+                                        </Link>
                                         <button
                                             v-if="can('flotillas.delete')"
                                             type="button"
@@ -543,7 +537,7 @@ const PAGE_BTN =
                             </tr>
 
                             <tr v-if="!units.data.length">
-                                <td colspan="11" class="px-6 py-8 text-center tall:py-14">
+                                <td colspan="10" class="px-6 py-8 text-center tall:py-14">
                                     <span
                                         class="mx-auto mb-2.5 grid size-10 place-content-center rounded-xl bg-slate-100 text-slate-400 dark:bg-white/[0.05] dark:text-brand-gray"
                                     >
