@@ -8,6 +8,7 @@ use App\Http\Requests\Fleet\UpdateUnitRequest;
 use App\Models\BusinessUnit;
 use App\Models\Unit;
 use App\Models\UnitEvidence;
+use App\Services\UnitCalendar;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -23,6 +24,25 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class FleetController extends Controller
 {
     private const PER_PAGE = 10;
+
+    public function __construct(private readonly UnitCalendar $calendar) {}
+
+    /**
+     * Agendar es un extra: si Outlook no respondió o la cuenta no está
+     * vinculada, se dice en el mismo aviso en vez de fallar el guardado.
+     *
+     * Sin fechas de vencimiento no hay nada que agendar y no se dice nada.
+     */
+    private function calendarNote(bool $agendada, Unit $unit): string
+    {
+        if (! $unit->first_payment_ends_on && ! $unit->second_payment_ends_on) {
+            return '';
+        }
+
+        return $agendada
+            ? ' Los vencimientos quedaron en el calendario.'
+            : ' No se pudieron agendar los vencimientos: revisa la conexión con Outlook.';
+    }
 
     public function index(Request $request): Response
     {
@@ -114,7 +134,11 @@ class FleetController extends Controller
 
         $this->storeEvidences($request, $unit);
 
-        return to_route('fleets.index')->with('success', "Se registró la unidad {$unit->policy}.");
+        // El vencimiento de cada pago queda agendado sin capturarlo a mano.
+        $agendada = $this->calendar->sync($unit->load('businessUnit'), $request->user());
+
+        return to_route('fleets.index')
+            ->with('success', "Se registró la unidad {$unit->policy}.".$this->calendarNote($agendada, $unit));
     }
 
     /**
@@ -208,7 +232,11 @@ class FleetController extends Controller
         $this->forgetEvidences($request, $unit);
         $this->storeEvidences($request, $unit);
 
-        return to_route('fleets.index')->with('success', "Se actualizó la unidad {$unit->policy}.");
+        // Las fechas pudieron moverse: el evento sigue al registro.
+        $agendada = $this->calendar->sync($unit->load('businessUnit'), $request->user());
+
+        return to_route('fleets.index')
+            ->with('success', "Se actualizó la unidad {$unit->policy}.".$this->calendarNote($agendada, $unit));
     }
 
     /**

@@ -167,8 +167,17 @@ watch(events, closeDay);
  * `fresh` salta el caché: es lo que hace útil al botón Actualizar cuando el
  * cambio se hizo desde Outlook y la app no se enteró.
  */
+/**
+ * Cada carga lleva su número. Solo la última manda: pasando meses rápido, una
+ * petición vieja puede contestar después que la nueva, y sin esto pisaba los
+ * eventos del mes que ya se está viendo —se veían aparecer y desaparecer—.
+ */
+let lastLoad = 0;
+
 async function load(fresh = false) {
     if (!props.connection) return;
+
+    const token = ++lastLoad;
 
     loading.value = true;
     error.value = null;
@@ -181,11 +190,17 @@ async function load(fresh = false) {
                 ...(fresh ? { fresh: 1 } : {}),
             },
         });
+
+        if (token !== lastLoad) return;
+
         events.value = data.data;
     } catch (e) {
+        if (token !== lastLoad) return;
+
         error.value = e.response?.data?.message ?? 'No se pudieron cargar los eventos.';
     } finally {
-        loading.value = false;
+        // El spinner se apaga solo cuando la que llegó es la última pedida.
+        if (token === lastLoad) loading.value = false;
     }
 }
 
