@@ -7,12 +7,14 @@ use App\Http\Requests\Fleet\StoreUnitRequest;
 use App\Http\Requests\Fleet\UpdateUnitRequest;
 use App\Models\BusinessUnit;
 use App\Models\Unit;
+use App\Models\UnitEvidence;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Flotillas (Cumplimiento): las unidades con su póliza y sus dos pagos
@@ -113,6 +115,46 @@ class FleetController extends Controller
         $this->storeEvidences($request, $unit);
 
         return to_route('fleets.index')->with('success', "Se registró la unidad {$unit->policy}.");
+    }
+
+    /**
+     * GET /flotillas/{unit}
+     *
+     * El detalle: lo mismo que la tabla, pero completo y ya calculado, más las
+     * evidencias para descargarlas.
+     */
+    public function show(Unit $unit): Response
+    {
+        $unit->load(['businessUnit', 'creator']);
+
+        return Inertia::render('Fleets/Show', [
+            'unit' => [
+                ...$this->summary($unit),
+                'business_unit' => $unit->businessUnit?->name,
+                'evidences' => $unit->evidences()->with('uploader:id,name')->orderBy('id')->get()
+                    ->map(fn (UnitEvidence $evidence) => [
+                        'id' => $evidence->id,
+                        'name' => $evidence->name,
+                        'size' => $evidence->size,
+                        'uploaded_by' => $evidence->uploader?->name,
+                        'created_at' => $evidence->created_at?->toIso8601String(),
+                    ]),
+            ],
+        ]);
+    }
+
+    /**
+     * GET /flotillas/{unit}/evidencias/{evidence}
+     *
+     * Los archivos viven fuera de public: se sirven por aquí, con el nombre
+     * con el que se subieron y solo para quien puede ver flotillas.
+     */
+    public function evidence(Unit $unit, UnitEvidence $evidence): StreamedResponse
+    {
+        abort_unless($evidence->unit_id === $unit->id, 404);
+        abort_unless(Storage::disk('local')->exists($evidence->path), 404);
+
+        return Storage::disk('local')->download($evidence->path, $evidence->name);
     }
 
     /**

@@ -23,12 +23,6 @@ const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Flotill
 
 const { can } = usePermissions();
 
-/* ---------- Acciones: todavía sin funcionalidad ---------- */
-
-// El alta y la edición tienen su propia vista. El detalle se conecta después;
-// por ahora el botón fija su lugar.
-function show() {}
-
 /* ---------- Eliminar ---------- */
 
 // El modal es el mismo de toda la app; el borrado en sí va después.
@@ -483,12 +477,12 @@ const PAGE_BTN =
                                     </span>
                                 </td>
 
-                                <!-- Ver y editar ya funcionan; el detalle se conecta después -->
+                                <!-- Eliminar es lo único que falta conectar -->
                                 <td :class="[TD, 'w-px']">
                                     <div class="flex items-center justify-end gap-0.5 @2xl:gap-1">
-                                        <button type="button" :class="[ACTION, NEUTRAL]" :aria-label="`Ver ${unit.policy}`" title="Ver detalle" @click="show(unit)">
+                                        <Link :href="`/flotillas/${unit.id}`" :class="[ACTION, NEUTRAL]" :aria-label="`Ver ${unit.policy}`" title="Ver detalle">
                                             <Eye class="size-4" />
-                                        </button>
+                                        </Link>
                                         <Link
                                             v-if="can('flotillas.update')"
                                             :href="`/flotillas/${unit.id}/editar`"

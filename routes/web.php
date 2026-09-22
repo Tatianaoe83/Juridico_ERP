@@ -104,6 +104,13 @@ Route::middleware('auth')->group(function () {
     Route::post('/flotillas', [FleetController::class, 'store'])
         ->middleware('can:flotillas.create')
         ->name('fleets.store');
+    // Va después de /flotillas/crear: si no, «crear» entraría como {unit}.
+    Route::get('/flotillas/{unit}', [FleetController::class, 'show'])
+        ->middleware('can:flotillas.view')
+        ->name('fleets.show');
+    Route::get('/flotillas/{unit}/evidencias/{evidence}', [FleetController::class, 'evidence'])
+        ->middleware('can:flotillas.view')
+        ->name('fleets.evidence');
     Route::get('/flotillas/{unit}/editar', [FleetController::class, 'edit'])
         ->middleware('can:flotillas.update')
         ->name('fleets.edit');
