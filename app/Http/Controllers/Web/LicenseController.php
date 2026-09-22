@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\License;
+use App\Services\CalendarEvents;
 use App\Services\LicenseCalendar;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,7 +19,10 @@ class LicenseController extends Controller
 {
     private const PER_PAGE = 10;
 
-    public function __construct(private readonly LicenseCalendar $calendar) {}
+    public function __construct(
+        private readonly LicenseCalendar $calendar,
+        private readonly CalendarEvents $events,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -108,7 +112,7 @@ class LicenseController extends Controller
             ],
             // Quién recibe la invitación y el correo: con quién está compartido
             // el calendario. Se muestra de solo lectura en el modal del aviso.
-            'sharedWith' => $this->calendar->sharedWith($request->user()->calendarOwner()),
+            'sharedWith' => $this->events->sharedWith($request->user()),
         ]);
     }
 

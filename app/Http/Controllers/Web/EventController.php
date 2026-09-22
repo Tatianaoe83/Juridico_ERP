@@ -6,14 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Calendar\DeleteEventRequest;
 use App\Http\Requests\Calendar\StoreEventRequest;
 use App\Http\Requests\Calendar\UpdateEventRequest;
-use App\Models\User;
-use App\Notifications\CalendarEventNotification;
-use App\Services\Microsoft\CalendarOwner;
+use App\Services\CalendarEvents;
 use App\Services\Microsoft\MicrosoftGraph;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
 use Throwable;
@@ -22,13 +19,17 @@ use Throwable;
  * Alta, edición y baja de eventos en Outlook: en el buzón general (modo
  * aplicación) o en el calendario del propio usuario (delegado).
  * No hay copia local: Graph es la única fuente. Cada acción avisa por correo.
+ * La lógica vive en CalendarEvents para poder usarla desde otras partes.
  */
 class EventController extends Controller
 {
     /** Ventana de la lista de próximos eventos, en días. */
     private const UPCOMING_DAYS = 30;
 
-    public function __construct(private readonly MicrosoftGraph $graph) {}
+    public function __construct(
+        private readonly MicrosoftGraph $graph,
+        private readonly CalendarEvents $events,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -90,181 +91,40 @@ class EventController extends Controller
 
     public function store(StoreEventRequest $request): RedirectResponse
     {
-        $calendar = $request->user()->calendarOwner();
-
         try {
-            $event = $this->graph->createEvent(
-                $calendar,
-                $this->withSharedGuests($calendar, $request->event(), $request->boolean('invite_shared', true)),
-            );
+            $this->events->create($request->user(), $request->event(), $request->boolean('invite_shared', true));
         } catch (Throwable $e) {
             return $this->failed($e);
         }
-
-        $this->announce($request->user(), $calendar, CalendarEventNotification::CREATED, $event);
 
         return back()->with('success', 'Evento creado. Te llegó un correo de confirmación.');
     }
 
     public function update(UpdateEventRequest $request): RedirectResponse
     {
-        $calendar = $request->user()->calendarOwner();
-        $eventId = $request->string('event_id')->value();
-
         try {
-            // Se lee antes del PATCH para poder contar qué cambió: después ya
-            // no hay forma de saber cómo estaba.
-            $previous = $this->graph->findEvent($calendar, $eventId);
-            $event = $this->graph->updateEvent(
-                $calendar,
-                $eventId,
-                $this->withSharedGuests($calendar, $request->event(), $request->boolean('invite_shared', true)),
+            $this->events->update(
+                $request->user(),
+                $request->string('event_id')->value(),
+                $request->event(),
+                $request->boolean('invite_shared', true),
             );
         } catch (Throwable $e) {
             return $this->failed($e);
         }
-
-        $this->announce($request->user(), $calendar, CalendarEventNotification::UPDATED, $event, $previous);
 
         return back()->with('success', 'Evento actualizado. Te llegó un correo de confirmación.');
     }
 
     public function destroy(DeleteEventRequest $request): RedirectResponse
     {
-        $calendar = $request->user()->calendarOwner();
-        $eventId = $request->string('event_id')->value();
-
         try {
-            // Los datos se leen antes: una vez borrado Graph ya no los da.
-            $event = $this->graph->findEvent($calendar, $eventId);
-            $this->graph->deleteEvent($calendar, $eventId);
+            $this->events->delete($request->user(), $request->string('event_id')->value());
         } catch (Throwable $e) {
             return $this->failed($e);
         }
 
-        $this->announce($request->user(), $calendar, CalendarEventNotification::DELETED, $event);
-
         return back()->with('success', 'Evento eliminado. Te llegó un correo de confirmación.');
-    }
-
-    /**
-     * Manda el aviso a quien hizo el cambio y a quienes tienen acceso al
-     * calendario.
-     *
-     * La confirmación va al correo de su cuenta de Microsoft si la tiene, que
-     * es el que asocia con su agenda (puede no ser el de su cuenta local).
-     * Nunca al buzón general: en modo aplicación es el organizador de todo y
-     * se llenaría de avisos que nadie lee.
-     *
-     * @param  array<string, mixed>  $event
-     * @param  array<string, mixed>|null  $previous  Cómo estaba antes de editarlo.
-     */
-    private function announce(
-        User $actor,
-        CalendarOwner $calendar,
-        string $action,
-        array $event,
-        ?array $previous = null,
-    ): void {
-        $confirmation = mb_strtolower($actor->microsoftAccount?->email ?? $actor->email);
-        $recipients = [$confirmation, ...$this->sharedAudience($calendar, $event)];
-
-        foreach (array_unique($recipients) as $email) {
-            // Un fallo de correo no debe deshacer un cambio que Outlook ya
-            // aceptó, ni impedir que los demás destinatarios reciban el suyo.
-            try {
-                Notification::route('mail', $email)
-                    ->notify(new CalendarEventNotification($action, $event, $previous, $actor->name));
-            } catch (Throwable $e) {
-                report($e);
-            }
-        }
-
-        // El calendario cachea por rango; sin esto el cambio no se ve.
-        $calendar->bumpCalendarVersion();
-    }
-
-    /**
-     * Suma a los invitados del evento a quienes tienen acceso al calendario.
-     *
-     * Con eso Outlook les manda invitación, actualización y cancelación de
-     * forma nativa, y el evento les aparece en su agenda propia con RSVP.
-     *
-     * Va activo por defecto —incluso si la petición no trae el campo— porque
-     * los avisos nativos son ahora el canal principal. Se puede desmarcar por
-     * evento cuando sea informativo y no amerite pedir confirmación.
-     *
-     * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
-     */
-    private function withSharedGuests(CalendarOwner $calendar, array $data, bool $invite): array
-    {
-        if (! $invite) {
-            return $data;
-        }
-
-        try {
-            $shared = $this->graph->calendarPermissions($calendar);
-        } catch (Throwable $e) {
-            // Se crea el evento igual, solo que sin los compartidos.
-            report($e);
-
-            return $data;
-        }
-
-        $emails = collect($shared)
-            ->pluck('email')
-            ->filter()
-            ->map(fn (string $email) => mb_strtolower($email))
-            ->filter(fn (string $email) => (bool) filter_var($email, FILTER_VALIDATE_EMAIL))
-            // El organizador no puede figurar como invitado de su propio evento.
-            ->reject(fn (string $email) => $email === mb_strtolower($calendar->mailboxEmail()));
-
-        $data['attendees'] = collect($data['attendees'] ?? [])
-            ->merge($emails)
-            ->unique()
-            ->values()
-            ->all();
-
-        return $data;
-    }
-
-    /**
-     * A quién más avisar: los que tienen acceso al calendario, menos el dueño
-     * (ya va aparte) y menos los invitados del evento, que reciben la
-     * invitación nativa de Outlook y tendrían dos correos por lo mismo.
-     *
-     * @param  array<string, mixed>  $event
-     * @return array<int, string>
-     */
-    private function sharedAudience(CalendarOwner $calendar, array $event): array
-    {
-        try {
-            $shared = $this->graph->calendarPermissions($calendar);
-        } catch (Throwable $e) {
-            // Sin la lista se avisa solo al dueño: mejor eso que no avisar.
-            report($e);
-
-            return [];
-        }
-
-        $invited = collect($event['attendees'] ?? [])
-            ->pluck('email')
-            ->filter()
-            ->map(fn (string $email) => mb_strtolower($email))
-            ->all();
-
-        return collect($shared)
-            ->pluck('email')
-            ->filter()
-            ->map(fn (string $email) => mb_strtolower($email))
-            // Outlook mete entradas sin correo real, como el acceso público.
-            ->filter(fn (string $email) => (bool) filter_var($email, FILTER_VALIDATE_EMAIL))
-            ->reject(fn (string $email) => $email === mb_strtolower($calendar->mailboxEmail()))
-            ->reject(fn (string $email) => in_array($email, $invited, true))
-            ->unique()
-            ->values()
-            ->all();
     }
 
     private function failed(Throwable $e): RedirectResponse

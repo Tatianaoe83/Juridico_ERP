@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Services\CalendarEvents;
 use App\Services\Microsoft\MicrosoftGraph;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\RedirectResponse;
@@ -21,7 +22,10 @@ class CalendarShareController extends Controller
     /** Roles de Graph que tienen sentido para un calendario de eventos. */
     private const ROLES = ['freeBusyRead', 'limitedRead', 'read', 'write'];
 
-    public function __construct(private readonly MicrosoftGraph $graph) {}
+    public function __construct(
+        private readonly MicrosoftGraph $graph,
+        private readonly CalendarEvents $events,
+    ) {}
 
     public function store(Request $request): RedirectResponse
     {
@@ -41,6 +45,9 @@ class CalendarShareController extends Controller
         } catch (Throwable $e) {
             return $this->failed($e, $data['email']);
         }
+
+        // La lista de invitados se cachea: sin esto el nuevo no entraría.
+        $this->events->forgetSharedWith($request->user());
 
         return back()->with('success', "Calendario compartido con {$data['email']}.");
     }
@@ -62,6 +69,8 @@ class CalendarShareController extends Controller
         } catch (Throwable $e) {
             return $this->failed($e);
         }
+
+        $this->events->forgetSharedWith($request->user());
 
         return back()->with('success', 'Acceso revocado.');
     }

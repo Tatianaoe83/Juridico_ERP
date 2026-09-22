@@ -4,14 +4,13 @@ namespace App\Services;
 
 use App\Models\License;
 use App\Models\User;
-use App\Services\Microsoft\CalendarOwner;
-use App\Services\Microsoft\MicrosoftGraph;
-use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 /**
  * Refleja cada licencia en el calendario de Outlook: el día que vence queda
  * agendado sin que nadie lo capture a mano.
+ *
+ * Aquí solo se arma el evento; cómo se inserta lo resuelve CalendarEvents.
  *
  * Nada de esto puede tumbar el alta: si Graph falla o la cuenta no está
  * vinculada, la licencia se guarda igual y el evento sencillamente no se crea.
@@ -22,28 +21,19 @@ class LicenseCalendar
     /** Duración del evento cuando la vigencia trae hora. */
     private const DURATION_MINUTES = 60;
 
-    public function __construct(private readonly MicrosoftGraph $graph) {}
+    public function __construct(private readonly CalendarEvents $events) {}
 
-    /**
-     * Crea el evento o mueve el que ya existía. Sin vigencia no hay nada que
-     * agendar: si había evento, se quita.
-     */
+    /** Crea el evento o mueve el que ya existía. */
     public function sync(License $license, User $actor): bool
     {
-        $calendar = $actor->calendarOwner();
-
-        if (! $calendar?->canWriteCalendar()) {
+        if (! $this->events->available($actor)) {
             return false;
         }
 
         try {
-            $data = $this->event($license, $actor, $this->sharedWith($calendar));
-
-            // Si el evento se borró desde Outlook, el PATCH falla: se vuelve a
-            // crear en vez de dejar la licencia sin nada en el calendario.
-            $event = $license->calendar_event_id
-                ? $this->update($calendar, $license->calendar_event_id, $data)
-                : $this->graph->createEvent($calendar, $data);
+            // Sin correo propio: la invitación nativa de Outlook ya avisa a
+            // los compartidos.
+            $event = $this->events->sync($actor, $license->calendar_event_id, $this->event($license, $actor), notify: false);
         } catch (Throwable $e) {
             report($e);
 
@@ -58,14 +48,12 @@ class LicenseCalendar
     /** Quita el evento de Outlook, si lo hay. */
     public function forget(License $license, User $actor): bool
     {
-        $calendar = $actor->calendarOwner();
-
-        if (! $license->calendar_event_id || ! $calendar?->canWriteCalendar()) {
+        if (! $license->calendar_event_id || ! $this->events->available($actor)) {
             return false;
         }
 
         try {
-            $this->graph->deleteEvent($calendar, $license->calendar_event_id);
+            $this->events->delete($actor, $license->calendar_event_id, notify: false);
         } catch (Throwable $e) {
             report($e);
 
@@ -81,29 +69,16 @@ class LicenseCalendar
     }
 
     /**
-     * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
-     */
-    private function update(CalendarOwner $calendar, string $eventId, array $data): array
-    {
-        try {
-            return $this->graph->updateEvent($calendar, $eventId, $data);
-        } catch (Throwable $e) {
-            report($e);
-
-            return $this->graph->createEvent($calendar, $data);
-        }
-    }
-
-    /**
      * Lo que se ve en Outlook. El cuerpo repite empresa, autoridad y quién dio
      * de alta el registro: quien abre el evento no tiene por qué entrar al ERP
      * para saber de qué va.
      *
-     * @param  list<string>  $guests
+     * Los invitados no van aquí: CalendarEvents suma a quienes tienen el
+     * calendario compartido.
+     *
      * @return array<string, mixed>
      */
-    private function event(License $license, User $actor, array $guests): array
+    private function event(License $license, User $actor): array
     {
         $start = $license->expiresAt();
         $allDay = $license->isAllDay();
@@ -124,54 +99,8 @@ class LicenseCalendar
             'all_day' => $allDay,
             'start' => $start,
             'end' => $allDay ? $start->copy() : $start->copy()->addMinutes(self::DURATION_MINUTES),
-            'attendees' => $guests,
             // La alerta la lanza Outlook en cada buzón; el servidor no manda nada.
             'reminder_minutes' => $license->notification?->minutes_before,
         ];
-    }
-
-    /**
-     * A quién invita Outlook: los mismos con los que está compartido el
-     * calendario. No hay lista aparte que mantener.
-     *
-     * Con la invitación nadie tiene que aceptar un calendario compartido: el
-     * evento cae en la bandeja y en la agenda propia, con Aceptar y Rechazar.
-     *
-     * La lista la manda Outlook, así que se cachea un rato: se consulta al
-     * pintar la tabla de licencias y en cada guardado, y no cambia de un
-     * minuto a otro.
-     *
-     * @return list<string>
-     */
-    public function sharedWith(?CalendarOwner $calendar): array
-    {
-        if (! $calendar?->canWriteCalendar()) {
-            return [];
-        }
-
-        return Cache::remember(
-            'license-calendar-shared:'.mb_strtolower($calendar->mailboxEmail()),
-            now()->addMinutes(5),
-            function () use ($calendar) {
-                try {
-                    $shared = collect($this->graph->calendarPermissions($calendar))->pluck('email');
-                } catch (Throwable $e) {
-                    // Sin la lista se agenda igual, solo que sin invitados.
-                    report($e);
-
-                    return [];
-                }
-
-                return $shared
-                    ->filter()
-                    ->map(fn (string $email) => mb_strtolower(trim($email)))
-                    ->filter(fn (string $email) => (bool) filter_var($email, FILTER_VALIDATE_EMAIL))
-                    // El organizador no puede figurar como invitado de su propio evento.
-                    ->reject(fn (string $email) => $email === mb_strtolower($calendar->mailboxEmail()))
-                    ->unique()
-                    ->values()
-                    ->all();
-            },
-        );
     }
 }
