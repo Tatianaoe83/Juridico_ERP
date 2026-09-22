@@ -201,6 +201,7 @@ function isNextPayment(unit, payment) {
 
 const statusOf = unitStatus;
 
+
 /* ---------- Resumen ---------- */
 
 // Solo informan: son de toda la flotilla y no filtran la tabla.
@@ -277,11 +278,13 @@ const PAGE_BTN =
             </div>
 
             <!-- Resumen: de toda la flotilla, no cambia con los filtros de la tabla -->
-            <section aria-label="Resumen" class="mb-3 grid shrink-0 grid-cols-1 gap-2.5 tall:mb-4 sm:grid-cols-3 tall:gap-3">
+            <!-- En teléfono van de dos en dos y la tercera ocupa el ancho: tres apiladas comen toda la pantalla -->
+            <section aria-label="Resumen" class="mb-3 grid shrink-0 grid-cols-2 gap-2.5 tall:mb-4 sm:grid-cols-3 tall:gap-3">
                 <article
-                    v-for="card in cards"
+                    v-for="(card, i) in cards"
                     :key="card.key"
                     class="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-3.5 py-3 shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none"
+                    :class="i === cards.length - 1 && cards.length % 2 ? 'col-span-2 sm:col-span-1' : ''"
                 >
                     <span class="grid size-9 shrink-0 place-content-center rounded-xl ring-1 ring-inset" :class="card.tone">
                         <component :is="card.icon" class="size-4" />
@@ -297,10 +300,13 @@ const PAGE_BTN =
             <div
                 class="@container flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] md:min-h-0 md:flex-1 dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none"
             >
-                <!-- Barra: buscador y filtros en una sola fila; debajo, lo aplicado -->
+                <!--
+                    Barra: en teléfono el buscador arriba y los filtros de dos en dos; desde
+                    @xl todo cabe en una fila. Debajo, lo aplicado.
+                -->
                 <div class="flex shrink-0 flex-col gap-2 px-3 py-2.5 tall:py-3 @2xl:px-4 @6xl:px-6">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <label class="relative min-w-0 flex-1 @xl:max-w-xs">
+                    <div class="grid grid-cols-2 items-center gap-2 @xl:flex @xl:flex-wrap">
+                        <label class="relative col-span-2 min-w-0 @xl:max-w-xs @xl:flex-1">
                             <span class="sr-only">Buscar unidades</span>
                             <input
                                 v-model="search"
@@ -348,7 +354,7 @@ const PAGE_BTN =
                             width="@xl:w-56"
                         />
 
-                        <p class="ml-auto shrink-0 text-xs text-slate-500 dark:text-brand-gray">
+                        <p class="col-span-2 shrink-0 text-xs text-slate-500 @xl:col-span-1 @xl:ml-auto dark:text-brand-gray">
                             <span class="font-bold text-slate-800 dark:text-white">{{ range.total }}</span>
                             {{ range.total === 1 ? 'unidad' : 'unidades' }}
                         </p>
@@ -399,22 +405,29 @@ const PAGE_BTN =
                     </div>
                 </div>
 
-                <!-- Sin scroll horizontal: las columnas que no caben se esconden y su dato baja debajo de la póliza -->
-                <div ref="tableBox" class="overflow-hidden border-t border-slate-100 md:min-h-0 md:flex-1 md:overflow-y-auto dark:border-white/[0.06]">
-                    <table class="w-full text-[0.8rem]">
+                <!--
+                    Cuando el card se angosta, la tabla no se encoge: se desplaza de lado. El
+                    `min-w` es lo que mide con todas sus columnas, así nada se recorta ni se
+                    esconde y las acciones siempre se alcanzan.
+                -->
+                <div
+                    ref="tableBox"
+                    class="overflow-x-auto border-t border-slate-100 md:min-h-0 md:flex-1 md:overflow-y-auto dark:border-white/[0.06]"
+                >
+                    <table class="w-full min-w-[64rem] text-[0.8rem]">
                         <thead class="sticky top-0 z-10 bg-slate-50 text-slate-500 dark:bg-brand-deep dark:text-brand-gray">
                             <tr>
                                 <!-- Póliza y certificado son el mismo dato del seguro: van juntos -->
                                 <th :class="TH">Póliza</th>
                                 <th :class="TH">Unidad</th>
-                                <!-- Las de texto se ordenan por cuándo aparecen; las de la derecha miden lo que su contenido -->
-                                <th :class="[TH, 'hidden @2xl:table-cell']">Número de serie</th>
-                                <th :class="[TH, 'hidden @3xl:table-cell']">Unidad de negocio</th>
-                                <th :class="[TH, 'hidden @4xl:table-cell']">Placa</th>
-                                <th :class="[TH, 'hidden @5xl:table-cell']">Responsable</th>
-                                <th :class="[TH, 'hidden w-px @lg:table-cell']">Pagos semestrales</th>
-                                <th :class="[TH, 'hidden w-px text-right @lg:table-cell']">Costo anual</th>
-                                <th :class="[TH, 'hidden w-px @2xl:table-cell']">Estado</th>
+                                <!-- Ninguna se esconde: si no caben, la tabla se desplaza. Las de la derecha miden lo que su contenido -->
+                                <th :class="TH">Número de serie</th>
+                                <th :class="TH">Unidad de negocio</th>
+                                <th :class="TH">Placa</th>
+                                <th :class="TH">Responsable</th>
+                                <th :class="[TH, 'w-px']">Pagos semestrales</th>
+                                <th :class="[TH, 'w-px text-right']">Costo anual</th>
+                                <th :class="[TH, 'w-px']">Estado</th>
                                 <th :class="[TH, 'w-px text-right']">Acciones</th>
                             </tr>
                         </thead>
@@ -433,8 +446,8 @@ const PAGE_BTN =
                                     </span>
                                 </td>
 
-                                <!-- Sin truncar: el nombre de la unidad se lee completo -->
-                                <td :class="[TD, 'whitespace-nowrap']">
+                                <!-- La columna elástica: si falta lugar, es la que cede -->
+                                <td :class="[TD, 'w-full max-w-0']">
                                     <div class="flex items-center gap-2.5">
                                         <span
                                             class="grid size-7 shrink-0 place-content-center rounded-lg bg-slate-50 text-slate-500 ring-1 ring-inset ring-slate-500/15 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10"
@@ -442,32 +455,31 @@ const PAGE_BTN =
                                             <Truck class="size-3.5" />
                                         </span>
                                         <!-- La unidad se reconoce por marca y modelo, no por su póliza -->
-                                        <span>
-                                            <span class="block font-semibold text-slate-800 dark:text-white">{{ unit.brand }} {{ unit.model }}</span>
-                                            <span class="block text-[0.7rem] text-slate-400 dark:text-brand-gray/80">
-                                                <!-- En cards angostos los datos de las columnas ocultas bajan aquí -->
-                                                <span v-if="unit.plate" class="@4xl:hidden">{{ unit.plate }} · </span>
-                                                <span class="@3xl:hidden">{{ unit.business_unit ?? 'Sin unidad de negocio' }}</span>
-                                                <span v-if="unit.serial_number" class="@2xl:hidden"> · {{ unit.serial_number }}</span>
-                                                <span class="@2xl:hidden"> · {{ statusOf(unit.status).label }}</span>
+                                        <span class="min-w-0">
+                                            <span class="block truncate font-semibold text-slate-800 dark:text-white" :title="`${unit.brand} ${unit.model}`">
+                                                {{ unit.brand }} {{ unit.model }}
+                                            </span>
+                                            <!-- El # económico no tiene columna propia: vive aquí -->
+                                            <span class="block truncate text-[0.7rem] text-slate-400 dark:text-brand-gray/80">
+                                                {{ unit.economic_number ?? 'Sin # económico' }}
                                             </span>
                                         </span>
                                     </div>
                                 </td>
 
-                                <td :class="[TD, 'hidden whitespace-nowrap text-slate-600 tabular-nums @2xl:table-cell dark:text-slate-300']">
+                                <td :class="[TD, 'whitespace-nowrap text-slate-600 tabular-nums dark:text-slate-300']">
                                     {{ unit.serial_number ?? '—' }}
                                 </td>
 
-                                <td :class="[TD, 'hidden @3xl:table-cell']">
+                                <td :class="TD">
                                     <span class="block max-w-[12rem] truncate text-slate-600 dark:text-slate-300" :title="unit.business_unit">{{ unit.business_unit ?? '—' }}</span>
                                 </td>
 
-                                <td :class="[TD, 'hidden whitespace-nowrap text-slate-600 tabular-nums @4xl:table-cell dark:text-slate-300']">
+                                <td :class="[TD, 'whitespace-nowrap text-slate-600 tabular-nums dark:text-slate-300']">
                                     {{ unit.plate ?? '—' }}
                                 </td>
 
-                                <td :class="[TD, 'hidden @5xl:table-cell']">
+                                <td :class="TD">
                                     <span class="block max-w-[12rem] truncate text-slate-600 dark:text-slate-300" :title="unit.responsible">{{ unit.responsible ?? '—' }}</span>
                                 </td>
 
@@ -475,7 +487,7 @@ const PAGE_BTN =
                                     Los dos semestres, uno debajo del otro. Cuánto falta va como
                                     etiqueta en el que sigue, no en una tercera línea suelta.
                                 -->
-                                <td :class="[TD, 'hidden w-px whitespace-nowrap @lg:table-cell']">
+                                <td :class="[TD, 'w-px whitespace-nowrap']">
                                     <span
                                         v-for="(payment, i) in [unit.first_payment, unit.second_payment]"
                                         :key="i"
@@ -493,12 +505,12 @@ const PAGE_BTN =
                                     </span>
                                 </td>
 
-                                <td :class="[TD, 'hidden w-px whitespace-nowrap text-right tabular-nums @lg:table-cell']">
+                                <td :class="[TD, 'w-px whitespace-nowrap text-right tabular-nums']">
                                     <span class="block font-semibold text-slate-700 dark:text-slate-200">{{ money(unit.annual_cost) }}</span>
                                     <span class="block text-[0.68rem] text-slate-400 dark:text-brand-gray/70">IVA {{ money(unit.tax) }}</span>
                                 </td>
 
-                                <td :class="[TD, 'hidden w-px @2xl:table-cell']">
+                                <td :class="[TD, 'w-px']">
                                     <span
                                         class="inline-flex items-center rounded-md px-1.5 py-0.5 text-[0.7rem] font-bold whitespace-nowrap ring-1 ring-inset"
                                         :class="statusOf(unit.status).tone"
@@ -536,29 +548,27 @@ const PAGE_BTN =
                                 </td>
                             </tr>
 
-                            <tr v-if="!units.data.length">
-                                <td colspan="10" class="px-6 py-8 text-center tall:py-14">
-                                    <span
-                                        class="mx-auto mb-2.5 grid size-10 place-content-center rounded-xl bg-slate-100 text-slate-400 dark:bg-white/[0.05] dark:text-brand-gray"
-                                    >
-                                        <component :is="filtering ? Search : Truck" class="size-5" />
-                                    </span>
-                                    <p class="text-sm font-bold text-slate-800 dark:text-white">{{ filtering ? 'Sin resultados' : 'Sin unidades' }}</p>
-                                    <p class="mt-1 text-xs text-slate-500 dark:text-brand-gray">
-                                        {{ filtering ? 'Nada coincide con los filtros aplicados.' : 'Aún no hay unidades registradas.' }}
-                                    </p>
-                                    <button
-                                        v-if="filtering"
-                                        type="button"
-                                        class="mt-3 cursor-pointer text-xs font-semibold text-brand hover:underline dark:text-white"
-                                        @click="clearFilters"
-                                    >
-                                        Limpiar filtros
-                                    </button>
-                                </td>
-                            </tr>
                         </tbody>
                     </table>
+
+                    <!-- Estado vacío, el mismo para la tabla y para las tarjetas -->
+                    <div v-if="!units.data.length" class="px-6 py-8 text-center tall:py-14">
+                        <span class="mx-auto mb-2.5 grid size-10 place-content-center rounded-xl bg-slate-100 text-slate-400 dark:bg-white/[0.05] dark:text-brand-gray">
+                            <component :is="filtering ? Search : Truck" class="size-5" />
+                        </span>
+                        <p class="text-sm font-bold text-slate-800 dark:text-white">{{ filtering ? 'Sin resultados' : 'Sin unidades' }}</p>
+                        <p class="mt-1 text-xs text-slate-500 dark:text-brand-gray">
+                            {{ filtering ? 'Nada coincide con los filtros aplicados.' : 'Aún no hay unidades registradas.' }}
+                        </p>
+                        <button
+                            v-if="filtering"
+                            type="button"
+                            class="mt-3 cursor-pointer text-xs font-semibold text-brand hover:underline dark:text-white"
+                            @click="clearFilters"
+                        >
+                            Limpiar filtros
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Pie: rango y paginación -->
