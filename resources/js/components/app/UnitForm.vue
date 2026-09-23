@@ -73,6 +73,44 @@ const annualCost = computed(() => Number(form.first_payment_amount || 0) + Numbe
 const tax = computed(() => (annualCost.value * TAX_RATE) / (1 + TAX_RATE));
 const subtotal = computed(() => annualCost.value - tax.value);
 
+/* ---------- Fechas en cadena ---------- */
+
+/**
+ * «2026-09-23» + 6 meses = «2027-03-23»: mismo día, seis meses después. Si ese
+ * día no existe en el mes destino (31 de agosto → febrero) se queda en el último.
+ */
+function addMonths(value, months) {
+    const [year, month, day] = value.split('-').map(Number);
+    const target = new Date(Date.UTC(year, month - 1 + months, 1));
+    const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+    target.setUTCDate(Math.min(day, lastDay));
+
+    return target.toISOString().slice(0, 10);
+}
+
+// Cada fecha arrastra a las que le siguen: el primer semestre cierra seis meses
+// después de abrir, el segundo abre ese mismo día y cierra seis meses después.
+// Solo reaccionan a lo que elige el usuario, no a los valores cargados al editar.
+function onSecondStartChange() {
+    if (!form.second_payment_starts_on) return;
+
+    form.second_payment_ends_on = addMonths(form.second_payment_starts_on, 6);
+}
+
+function onFirstEndChange() {
+    if (!form.first_payment_ends_on) return;
+
+    form.second_payment_starts_on = form.first_payment_ends_on;
+    onSecondStartChange();
+}
+
+function onFirstStartChange() {
+    if (!form.first_payment_starts_on) return;
+
+    form.first_payment_ends_on = addMonths(form.first_payment_starts_on, 6);
+    onFirstEndChange();
+}
+
 /* ---------- Cómo va cada semestre ---------- */
 
 // Salen de lo que hay en el formulario, no del registro guardado: al mover una
@@ -217,13 +255,16 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                 </div>
 
                 <div>
-                    <label for="unit-business" :class="LABEL">Unidad de negocio</label>
+                    <label for="unit-business" :class="LABEL">
+                        Unidad de negocio
+                        <span class="font-normal text-red-500 dark:text-red-400">*</span>
+                    </label>
                     <FormSelect
                         id="unit-business"
                         v-model="form.business_unit_id"
                         :options="businessUnitOptions"
                         :icon="Building2"
-                        placeholder="Sin asignar"
+                        placeholder="Selecciona una unidad"
                         :invalid="Boolean(form.errors.business_unit_id)"
                     />
                     <p v-if="!businessUnits.length" class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">
@@ -415,9 +456,20 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
 
                     <div class="grid gap-3 sm:grid-cols-3">
                         <div>
-                            <label for="unit-p1-start" :class="LABEL">Desde</label>
+                            <label for="unit-p1-start" :class="LABEL">
+                                Desde
+                                <span class="font-normal text-red-500 dark:text-red-400">*</span>
+                            </label>
                             <div class="relative">
-                                <input id="unit-p1-start" v-model="form.first_payment_starts_on" type="date" :class="FIELD" />
+                                <input
+                                    id="unit-p1-start"
+                                    v-model="form.first_payment_starts_on"
+                                    type="date"
+                                    required
+                                    :aria-invalid="Boolean(form.errors.first_payment_starts_on)"
+                                    :class="FIELD"
+                                    @change="onFirstStartChange"
+                                />
                                 <CalendarDays :class="ICON" />
                             </div>
                             <p v-if="form.errors.first_payment_starts_on" :class="ERROR">{{ form.errors.first_payment_starts_on }}</p>
@@ -426,7 +478,7 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                         <div>
                             <label for="unit-p1-end" :class="LABEL">Hasta</label>
                             <div class="relative">
-                                <input id="unit-p1-end" v-model="form.first_payment_ends_on" type="date" :class="FIELD" />
+                                <input id="unit-p1-end" v-model="form.first_payment_ends_on" type="date" :class="FIELD" @change="onFirstEndChange" />
                                 <CalendarDays :class="ICON" />
                             </div>
                             <p v-if="form.errors.first_payment_ends_on" :class="ERROR">{{ form.errors.first_payment_ends_on }}</p>
@@ -474,7 +526,7 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                         <div>
                             <label for="unit-p2-start" :class="LABEL">Desde</label>
                             <div class="relative">
-                                <input id="unit-p2-start" v-model="form.second_payment_starts_on" type="date" :class="FIELD" />
+                                <input id="unit-p2-start" v-model="form.second_payment_starts_on" type="date" :class="FIELD" @change="onSecondStartChange" />
                                 <CalendarDays :class="ICON" />
                             </div>
                             <p v-if="form.errors.second_payment_starts_on" :class="ERROR">{{ form.errors.second_payment_starts_on }}</p>
