@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, KeyRound, Loader2, Save, ShieldPlus, Tag, TriangleAlert } from 'lucide-vue-next';
+import { ArrowLeft, KeyRound, Loader2, Save, ShieldCheck, ShieldPlus, Tag, TriangleAlert } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import { roleMeta } from '@/lib/users';
@@ -89,54 +89,39 @@ const CHECK =
 
     <AppShell :breadcrumbs="breadcrumbs">
         <form class="flex flex-col lg:h-full lg:min-h-0" novalidate @submit.prevent="submit">
-            <!-- Encabezado -->
-            <div class="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-4 tall:mb-6">
-                <div class="flex min-w-0 items-center gap-3.5">
-                    <Link
-                        :href="cancelHref"
-                        class="grid size-10 shrink-0 place-content-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-brand focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/15 dark:border-white/10 dark:bg-white/[0.03] dark:text-brand-gray dark:hover:text-white"
-                        aria-label="Volver"
+            <!-- Encabezado: mismo patrón que las demás vistas, con Volver a la derecha -->
+            <div class="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 tall:mb-4">
+                <div class="flex min-w-0 items-center gap-3">
+                    <span
+                        class="grid size-9 shrink-0 place-content-center rounded-xl bg-gradient-to-br from-brand-light to-brand text-white shadow-md shadow-brand/25 ring-1 ring-white/10"
                     >
-                        <ArrowLeft class="size-4" />
-                    </Link>
+                        <ShieldCheck class="size-4" />
+                    </span>
                     <div class="min-w-0">
-                        <p class="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">
-                            {{ editing ? 'Editar rol' : 'Roles' }}
-                        </p>
-                        <h1 class="truncate text-2xl font-bold tracking-tight text-brand tall:text-3xl dark:text-white">{{ title }}</h1>
+                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Roles</p>
+                        <h1 class="truncate text-xl font-bold tracking-tight text-brand dark:text-white">{{ title }}</h1>
                     </div>
                 </div>
 
-                <div class="flex items-center gap-2.5">
-                    <Link
-                        :href="cancelHref"
-                        class="inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-500/10 tall:h-11 dark:border-white/10 dark:bg-transparent dark:text-brand-gray dark:hover:bg-white/[0.06] dark:hover:text-white"
-                    >
-                        Cancelar
-                    </Link>
-                    <button
-                        type="submit"
-                        class="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl bg-brand px-5 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-xl hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px disabled:pointer-events-none disabled:opacity-60 tall:h-11 dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
-                        :disabled="form.processing"
-                    >
-                        <Loader2 v-if="form.processing" class="size-4 animate-spin" />
-                        <Save v-else-if="editing" class="size-4" />
-                        <ShieldPlus v-else class="size-4" />
-                        {{ editing ? 'Guardar cambios' : 'Crear rol' }}
-                    </button>
-                </div>
+                <Link
+                    :href="cancelHref"
+                    class="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[0.8rem] font-semibold text-slate-700 transition-colors duration-150 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-500/10 dark:border-white/10 dark:bg-transparent dark:text-brand-gray dark:hover:bg-white/[0.06] dark:hover:text-white"
+                >
+                    <ArrowLeft class="size-4" />
+                    Volver
+                </Link>
             </div>
 
-            <div class="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[19rem_minmax(0,1fr)] tall:gap-5">
+            <div class="grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[19rem_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] tall:gap-4">
                 <!-- Datos del rol -->
-                <aside class="flex flex-col gap-4 lg:min-h-0 tall:gap-5">
-                    <section :class="[CARD, 'p-5']">
-                        <h2 class="flex items-center gap-2 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-brand-gray/80">
+                <aside class="flex flex-col gap-3 lg:min-h-0 lg:overflow-y-auto tall:gap-4">
+                    <section :class="[CARD, 'p-4 tall:p-5']">
+                        <h2 class="flex items-center gap-2 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">
                             <Tag class="size-3.5" />
                             Datos del rol
                         </h2>
 
-                        <label for="role-name" class="mt-4 mb-1.5 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">
+                        <label for="role-name" class="mt-3 mb-1.5 block text-[0.75rem] font-semibold text-slate-700 dark:text-slate-200">
                             Nombre
                         </label>
                         <div class="relative">
@@ -149,20 +134,20 @@ const CHECK =
                                 autocomplete="off"
                                 placeholder="ej. abogado_senior"
                                 :aria-invalid="Boolean(form.errors.name)"
-                                class="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 font-mono text-sm text-slate-900 outline-none transition-[border-color,background-color,box-shadow] duration-150 placeholder:font-sans placeholder:text-slate-400 hover:border-slate-300 focus:border-brand/60 focus:bg-white focus:ring-4 focus:ring-brand/10 aria-invalid:border-red-400 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:focus:border-brand-gray/60 dark:focus:ring-white/10"
+                                class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50/70 px-3 font-mono text-[0.8rem] text-slate-900 outline-none transition-[border-color,background-color,box-shadow] duration-150 placeholder:font-sans placeholder:text-slate-400 hover:border-slate-300 focus:border-brand/60 focus:bg-white focus:ring-4 focus:ring-brand/10 aria-invalid:border-red-400 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:focus:border-brand-gray/60 dark:focus:ring-white/10"
                             />
                         </div>
-                        <p v-if="form.errors.name" class="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">{{ form.errors.name }}</p>
+                        <p v-if="form.errors.name" class="mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400">{{ form.errors.name }}</p>
                     </section>
 
                     <!-- Resumen de la selección -->
-                    <section :class="[CARD, 'p-5']">
-                        <h2 class="flex items-center gap-2 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-brand-gray/80">
+                    <section :class="[CARD, 'p-4 tall:p-5']">
+                        <h2 class="flex items-center gap-2 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">
                             <KeyRound class="size-3.5" />
                             Resumen
                         </h2>
                         <p class="mt-3 flex items-baseline gap-1.5">
-                            <span class="text-3xl font-bold text-brand tabular-nums dark:text-white">{{ form.permissions.length }}</span>
+                            <span class="text-2xl font-bold text-brand tabular-nums dark:text-white">{{ form.permissions.length }}</span>
                             <span class="text-sm text-slate-500 dark:text-brand-gray">de {{ all.length }} permisos</span>
                         </p>
                         <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/[0.08]">
@@ -189,9 +174,9 @@ const CHECK =
 
                 <!-- Permisos: solo los existentes, en casillas -->
                 <section :class="[CARD, '@container flex flex-col overflow-hidden lg:min-h-0']">
-                    <div class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-white/[0.06]">
+                    <div class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 tall:px-5 tall:py-4 dark:border-white/[0.06]">
                         <div>
-                            <h2 class="text-base font-bold text-brand dark:text-white">Permisos</h2>
+                            <h2 class="text-sm font-bold text-brand dark:text-white">Permisos</h2>
                             <p class="text-xs text-slate-500 dark:text-brand-gray">Marca lo que puede hacer quien tenga este rol.</p>
                         </div>
                         <div class="flex gap-1.5">
@@ -265,6 +250,26 @@ const CHECK =
                         </fieldset>
                     </div>
                 </section>
+            </div>
+
+            <!-- Acciones: al final del formulario, no flotando -->
+            <div class="mt-3 flex shrink-0 flex-col-reverse gap-2 tall:mt-4 sm:flex-row sm:justify-end">
+                <Link
+                    :href="cancelHref"
+                    class="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-[0.8rem] font-semibold text-slate-700 transition-colors duration-150 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-500/10 dark:border-white/10 dark:bg-transparent dark:text-brand-gray dark:hover:bg-white/[0.06] dark:hover:text-white"
+                >
+                    Cancelar
+                </Link>
+                <button
+                    type="submit"
+                    class="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px disabled:pointer-events-none disabled:opacity-60 dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
+                    :disabled="form.processing"
+                >
+                    <Loader2 v-if="form.processing" class="size-4 animate-spin" />
+                    <Save v-else-if="editing" class="size-4" />
+                    <ShieldPlus v-else class="size-4" />
+                    {{ editing ? 'Guardar cambios' : 'Crear rol' }}
+                </button>
             </div>
         </form>
     </AppShell>

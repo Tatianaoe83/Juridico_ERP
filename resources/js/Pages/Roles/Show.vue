@@ -1,10 +1,9 @@
 <script setup>
-import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowLeft, Check, Infinity as InfinityIcon, KeyRound, Minus, Pencil, Trash2, Users } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { Head, Link } from '@inertiajs/vue3';
+import { ArrowLeft, Check, Infinity as InfinityIcon, KeyRound, Minus, Users } from 'lucide-vue-next';
+import { computed } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
-import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
-import { roleMeta, roleTone, userInitials } from '@/lib/users';
+import { roleMeta, userInitials } from '@/lib/users';
 
 const props = defineProps({
     /** { id, name, users_count, permissions_count, unrestricted, can, permissions, users } */
@@ -36,21 +35,11 @@ const joined = computed(() =>
         : '—',
 );
 
-/* ---------- Eliminar ---------- */
-
-const deleteOpen = ref(false);
-const deleting = ref(false);
-
-function destroy() {
-    deleting.value = true;
-    router.delete(`/roles/${props.role.id}`, { onFinish: () => (deleting.value = false) });
-}
-
 const CARD =
     'rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] ' +
     'dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none';
 
-const LABEL = 'flex items-center gap-2 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-brand-gray/80';
+const LABEL = 'flex items-center gap-2 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80';
 </script>
 
 <template>
@@ -58,53 +47,33 @@ const LABEL = 'flex items-center gap-2 text-[0.68rem] font-bold uppercase tracki
 
     <AppShell :breadcrumbs="breadcrumbs">
         <div class="flex flex-col lg:h-full lg:min-h-0">
-            <!-- Encabezado -->
-            <div class="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-4 tall:mb-6">
-                <div class="flex min-w-0 items-center gap-3.5">
-                    <Link
-                        href="/roles"
-                        class="grid size-10 shrink-0 place-content-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-brand focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/15 dark:border-white/10 dark:bg-white/[0.03] dark:text-brand-gray dark:hover:text-white"
-                        aria-label="Volver a roles"
+            <!-- Encabezado: mismo patrón que las demás vistas, con Volver a la derecha -->
+            <div class="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 tall:mb-4">
+                <div class="flex min-w-0 items-center gap-3">
+                    <span
+                        class="grid size-9 shrink-0 place-content-center rounded-xl bg-gradient-to-br from-brand-light to-brand text-white shadow-md shadow-brand/25 ring-1 ring-white/10"
                     >
-                        <ArrowLeft class="size-4" />
-                    </Link>
-                    <span class="grid size-11 shrink-0 place-content-center rounded-xl ring-1 ring-inset tall:size-12" :class="roleTone(role.name)">
-                        <component :is="meta.icon" class="size-5" />
+                        <component :is="meta.icon" class="size-4" />
                     </span>
                     <div class="min-w-0">
-                        <p class="flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">
-                            <code class="font-mono normal-case tracking-normal">{{ role.name }}</code>
-                        </p>
-                        <h1 class="truncate text-2xl font-bold tracking-tight text-brand tall:text-3xl dark:text-white">{{ meta.label }}</h1>
+                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Roles</p>
+                        <h1 class="truncate text-xl font-bold tracking-tight text-brand dark:text-white">{{ meta.label }}</h1>
                     </div>
                 </div>
 
-                <div class="flex items-center gap-2.5">
-                    <button
-                        v-if="role.can.delete"
-                        type="button"
-                        class="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/15 disabled:opacity-50 tall:h-11 dark:border-white/10 dark:bg-transparent dark:text-brand-gray dark:hover:border-red-400/30 dark:hover:bg-red-500/10 dark:hover:text-red-300"
-                        :disabled="deleting"
-                        @click="deleteOpen = true"
-                    >
-                        <Trash2 class="size-4" />
-                        Eliminar
-                    </button>
-                    <Link
-                        v-if="role.can.update"
-                        :href="`/roles/${role.id}/editar`"
-                        class="inline-flex h-10 items-center gap-2 rounded-xl bg-brand px-5 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-xl hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px tall:h-11 dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
-                    >
-                        <Pencil class="size-4" />
-                        Editar permisos
-                    </Link>
-                </div>
+                <Link
+                    href="/roles"
+                    class="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[0.8rem] font-semibold text-slate-700 transition-colors duration-150 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-500/10 dark:border-white/10 dark:bg-transparent dark:text-brand-gray dark:hover:bg-white/[0.06] dark:hover:text-white"
+                >
+                    <ArrowLeft class="size-4" />
+                    Volver
+                </Link>
             </div>
 
-            <div class="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[19rem_minmax(0,1fr)] tall:gap-5">
+            <div class="grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[19rem_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] tall:gap-4">
                 <!-- Ficha del rol -->
-                <aside class="flex flex-col gap-4 lg:min-h-0 tall:gap-5">
-                    <section :class="[CARD, 'p-5']">
+                <aside class="flex flex-col gap-3 lg:min-h-0 tall:gap-4">
+                    <section :class="[CARD, 'p-4 tall:p-5']">
                         <dl class="grid grid-cols-2 gap-3">
                             <div class="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 dark:border-white/[0.08] dark:bg-white/[0.03]">
                                 <dt :class="LABEL"><Users class="size-3.5" /> Usuarios</dt>
@@ -126,7 +95,7 @@ const LABEL = 'flex items-center gap-2 text-[0.68rem] font-bold uppercase tracki
 
                     <!-- A quién afecta: una muestra de quienes lo tienen -->
                     <section :class="[CARD, 'flex flex-col overflow-hidden lg:min-h-0 lg:flex-1']">
-                        <h2 :class="[LABEL, 'shrink-0 px-5 pt-5 pb-3']">
+                        <h2 :class="[LABEL, 'shrink-0 px-4 pt-4 pb-3 tall:px-5 tall:pt-5']">
                             <Users class="size-3.5" />
                             Personas con este rol
                         </h2>
@@ -152,9 +121,9 @@ const LABEL = 'flex items-center gap-2 text-[0.68rem] font-bold uppercase tracki
 
                 <!-- Permisos del rol, por área -->
                 <section :class="[CARD, '@container flex flex-col overflow-hidden lg:min-h-0']">
-                    <div class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-white/[0.06]">
+                    <div class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 tall:px-5 tall:py-4 dark:border-white/[0.06]">
                         <div>
-                            <h2 class="text-base font-bold text-brand dark:text-white">Permisos asignados</h2>
+                            <h2 class="text-sm font-bold text-brand dark:text-white">Permisos asignados</h2>
                             <p class="text-xs text-slate-500 dark:text-brand-gray">Lo que puede hacer quien tenga este rol.</p>
                         </div>
                     </div>
@@ -218,11 +187,5 @@ const LABEL = 'flex items-center gap-2 text-[0.68rem] font-bold uppercase tracki
                 </section>
             </div>
         </div>
-
-        <ConfirmDeleteDialog
-            v-model:open="deleteOpen"
-            :text="`¿Seguro que quieres eliminar el rol «${meta.label}»? Se pierden sus permisos asignados.`"
-            @confirm="destroy"
-        />
     </AppShell>
 </template>
