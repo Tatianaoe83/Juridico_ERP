@@ -84,7 +84,7 @@ class LicenseCalendar
         $allDay = $license->isAllDay();
 
         $lines = array_filter([
-            $license->company ? "Empresa: {$license->company}" : null,
+            $license->businessUnit ? "Empresa: {$license->businessUnit->name}" : null,
             $license->authority ? "Autoridad: {$license->authority}" : null,
             'Registrado por: '.($license->creator?->name ?? $actor->name),
             'Alta: '.$license->created_at?->format('d/m/Y H:i'),

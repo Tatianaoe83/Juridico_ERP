@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\BusinessUnit;
 use App\Models\License;
 use App\Services\CalendarEvents;
 use App\Services\LicenseCalendar;
@@ -31,10 +32,11 @@ class LicenseController extends Controller
         // Un estado que no existe se ignora en vez de dejar la tabla vacía.
         $status = in_array($request->query('status'), License::STATUSES, true) ? $request->query('status') : null;
 
-        // Empresa y autoridad se eligen de lo que ya está capturado, así que se
-        // comparan completas; un valor que nadie tiene deja la tabla vacía y
-        // eso es lo correcto: es lo que el filtro dice.
-        $company = trim((string) $request->query('company', '')) ?: null;
+        // La empresa es una unidad de negocio: se filtra por su id.
+        $company = (int) $request->query('company') ?: null;
+
+        // La autoridad se elige de lo ya capturado, así que se compara completa;
+        // un valor que nadie tiene deja la tabla vacía y eso es lo correcto.
         $authority = trim((string) $request->query('authority', '')) ?: null;
 
         // Año y mes van por separado: así se puede pedir todo 2027, todos los
@@ -42,13 +44,13 @@ class LicenseController extends Controller
         $year = preg_match('/^\d{4}$/', (string) $request->query('year', '')) ? (int) $request->query('year') : null;
         $month = preg_match('/^(0?[1-9]|1[0-2])$/', (string) $request->query('month', '')) ? (int) $request->query('month') : null;
 
-        $licenses = License::with(['notification', 'creator'])
+        $licenses = License::with(['notification', 'creator', 'businessUnit'])
             ->when($search !== '', fn ($query) => $query->where(fn ($q) => $q
                 ->where('name', 'like', "%{$search}%")
-                ->orWhere('company', 'like', "%{$search}%")
+                ->orWhereHas('businessUnit', fn ($q2) => $q2->where('name', 'like', "%{$search}%"))
                 ->orWhere('authority', 'like', "%{$search}%")))
             ->when($status, fn ($query) => $query->where('status', $status))
-            ->when($company, fn ($query) => $query->where('company', $company))
+            ->when($company, fn ($query) => $query->where('business_unit_id', $company))
             ->when($authority, fn ($query) => $query->where('authority', $authority))
             ->when($year, fn ($query) => $query->whereYear('valid_until', $year))
             ->when($month, fn ($query) => $query->whereMonth('valid_until', $month))
@@ -70,7 +72,8 @@ class LicenseController extends Controller
                 'data' => $licenses->getCollection()->map(fn (License $license) => [
                     'id' => $license->id,
                     'name' => $license->name,
-                    'company' => $license->company,
+                    'business_unit_id' => $license->business_unit_id,
+                    'company' => $license->businessUnit?->name,
                     'authority' => $license->authority,
                     'valid_until' => $license->valid_until?->toDateString(),
                     'valid_time' => $license->valid_time ? substr($license->valid_time, 0, 5) : null,
@@ -98,18 +101,24 @@ class LicenseController extends Controller
             'filters' => [
                 'search' => $search,
                 'status' => $status,
-                'company' => $company,
+                'company' => $company ? (string) $company : null,
                 'authority' => $authority,
                 'year' => $year ? (string) $year : null,
                 'month' => $month ? str_pad((string) $month, 2, '0', STR_PAD_LEFT) : null,
             ],
-            // Las opciones salen de lo capturado: nadie mantiene catálogos y
-            // nunca se ofrece un filtro que no devuelva nada.
+            // Las opciones salen de lo capturado: nunca se ofrece un filtro que
+            // no devuelva nada. Las empresas, solo las que ya tienen licencias.
             'options' => [
-                'companies' => $this->distinct('company'),
+                'companies' => BusinessUnit::whereHas('licenses')
+                    ->orderBy('name')
+                    ->get(['id', 'name'])
+                    ->map(fn (BusinessUnit $unit) => ['value' => (string) $unit->id, 'label' => $unit->name])
+                    ->all(),
                 'authorities' => $this->distinct('authority'),
                 'years' => $this->years(),
             ],
+            // La empresa se elige del catálogo de unidades de negocio.
+            'businessUnits' => BusinessUnit::orderBy('name')->get(['id', 'name']),
             // Quién recibe la invitación y el correo: con quién está compartido
             // el calendario. Se muestra de solo lectura en el modal del aviso.
             'sharedWith' => $this->events->sharedWith($request->user()),
@@ -157,7 +166,7 @@ class LicenseController extends Controller
             'created_by' => $request->user()->id,
         ]);
 
-        $agendada = $this->calendar->sync($license->load('creator'), $request->user());
+        $agendada = $this->calendar->sync($license->load('creator', 'businessUnit'), $request->user());
 
         return to_route('licenses.index')
             ->with('success', "Se registró {$license->name}.".$this->calendarNote($agendada));
@@ -174,7 +183,7 @@ class LicenseController extends Controller
         $vencido = $this->dropStaleReminder($license);
 
         // La vigencia pudo moverse (o borrarse): el evento sigue al registro.
-        $agendada = $this->calendar->sync($license->load('creator', 'notification'), $request->user());
+        $agendada = $this->calendar->sync($license->load('creator', 'notification', 'businessUnit'), $request->user());
 
         return to_route('licenses.index')
             ->with('success', "Se actualizó {$license->name}.".$vencido.$this->calendarNote($agendada));
@@ -231,16 +240,25 @@ class LicenseController extends Controller
      */
     private function validated(Request $request): array
     {
+        // La autoridad se guarda siempre en mayúsculas, llegue como llegue.
+        if (is_string($request->input('authority'))) {
+            $request->merge(['authority' => mb_strtoupper($request->input('authority'))]);
+        }
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'company' => ['nullable', 'string', 'max:255'],
-            'authority' => ['nullable', 'string', 'max:255'],
+            // La empresa es una unidad de negocio del catálogo.
+            'business_unit_id' => ['required', 'integer', 'exists:business_units,id'],
+            'authority' => ['required', 'string', 'max:255'],
             'valid_until' => ['required', 'date'],
             // La hora solo tiene sentido con fecha: sin vigencia no hay qué agendar.
             'valid_time' => ['nullable', 'date_format:H:i,H:i:s'],
             'comments' => ['nullable', 'string'],
         ], [
             'name.required' => 'Escribe el nombre o trámite.',
+            'business_unit_id.required' => 'Elige la empresa.',
+            'business_unit_id.exists' => 'Elige una unidad de negocio del catálogo.',
+            'authority.required' => 'Escribe la autoridad.',
             'valid_until.required' => 'Pon la fecha de vencimiento.',
             'valid_until.date' => 'La vigencia no es una fecha válida.',
             'valid_time.date_format' => 'La hora no es válida.',

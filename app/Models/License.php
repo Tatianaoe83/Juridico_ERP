@@ -76,6 +76,12 @@ class License extends Model
         ];
     }
 
+    /** La empresa: una unidad de negocio del catálogo. */
+    public function businessUnit(): BelongsTo
+    {
+        return $this->belongsTo(BusinessUnit::class);
+    }
+
     /** Quién dio de alta el registro. */
     public function creator(): BelongsTo
     {

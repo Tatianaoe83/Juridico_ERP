@@ -1,14 +1,28 @@
 <script setup>
 import { useForm } from '@inertiajs/vue3';
 import { Building2, CalendarDays, Clock, FileBadge, FilePen, FilePlus2, Landmark, Loader2, MessageSquareText, Save } from 'lucide-vue-next';
-import { computed, watch } from 'vue';
+import { computed, nextTick, watch } from 'vue';
 import AppModal from '@/components/app/AppModal.vue';
+import FormSelect from '@/components/app/FormSelect.vue';
 
 const props = defineProps({
     open: { type: Boolean, default: false },
     /** null = alta · fila de la tabla = edición. */
     license: { type: Object, default: null },
+    /** Catálogo de unidades de negocio, [{ id, name }]: de ahí se elige la empresa. */
+    businessUnits: { type: Array, default: () => [] },
 });
+
+const companyOptions = computed(() => props.businessUnits.map(({ id, name }) => ({ value: id, label: name })));
+
+/** La autoridad va siempre en mayúsculas; el cursor se queda donde estaba. */
+function upperAuthority(event) {
+    const input = event.target;
+    const { selectionStart, selectionEnd } = input;
+
+    form.authority = input.value.toUpperCase();
+    nextTick(() => input.setSelectionRange(selectionStart, selectionEnd));
+}
 
 const emit = defineEmits(['update:open']);
 
@@ -17,7 +31,7 @@ const editing = computed(() => props.license !== null);
 // Sin estatus: el servidor lo calcula con la vigencia.
 const form = useForm({
     name: '',
-    company: '',
+    business_unit_id: '',
     authority: '',
     valid_until: '',
     valid_time: '',
@@ -32,8 +46,8 @@ watch(
 
         form.defaults({
             name: props.license?.name ?? '',
-            company: props.license?.company ?? '',
-            authority: props.license?.authority ?? '',
+            business_unit_id: props.license?.business_unit_id ?? '',
+            authority: (props.license?.authority ?? '').toUpperCase(),
             valid_until: props.license?.valid_until ?? '',
             valid_time: props.license?.valid_time ?? '',
             comments: props.license?.comments ?? '',
@@ -88,7 +102,10 @@ const ERROR = 'mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400';
     >
         <form id="license-form" class="grid gap-4 px-6 pt-1 pb-6 short:pb-4 sm:grid-cols-2 sm:px-7" novalidate @submit.prevent="submit">
             <div class="sm:col-span-2">
-                <label for="license-name" :class="LABEL">Nombre / trámite</label>
+                <label for="license-name" :class="LABEL">
+                    Nombre / trámite
+                    <span class="font-normal text-red-500 dark:text-red-400">*</span>
+                </label>
                 <div class="relative">
                     <input
                         id="license-name"
@@ -107,33 +124,40 @@ const ERROR = 'mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400';
             </div>
 
             <div>
-                <label for="license-company" :class="LABEL">Empresa</label>
-                <div class="relative">
-                    <input
-                        id="license-company"
-                        v-model="form.company"
-                        type="text"
-                        autocomplete="organization"
-                        placeholder="Ej. PROSER Grupo Constructor"
-                        :class="FIELD"
-                        :aria-invalid="Boolean(form.errors.company)"
-                    />
-                    <Building2 :class="ICON" />
-                </div>
-                <p v-if="form.errors.company" :class="ERROR">{{ form.errors.company }}</p>
+                <label for="license-company" :class="LABEL">
+                    Empresa
+                    <span class="font-normal text-red-500 dark:text-red-400">*</span>
+                </label>
+                <FormSelect
+                    id="license-company"
+                    v-model="form.business_unit_id"
+                    :options="companyOptions"
+                    :icon="Building2"
+                    placeholder="Selecciona una empresa"
+                    :invalid="Boolean(form.errors.business_unit_id)"
+                />
+                <p v-if="!businessUnits.length" class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">
+                    Todavía no hay unidades de negocio en el catálogo.
+                </p>
+                <p v-if="form.errors.business_unit_id" :class="ERROR">{{ form.errors.business_unit_id }}</p>
             </div>
 
             <div>
-                <label for="license-authority" :class="LABEL">Autoridad</label>
+                <label for="license-authority" :class="LABEL">
+                    Autoridad
+                    <span class="font-normal text-red-500 dark:text-red-400">*</span>
+                </label>
                 <div class="relative">
                     <input
                         id="license-authority"
-                        v-model="form.authority"
+                        :value="form.authority"
                         type="text"
+                        required
                         autocomplete="off"
                         placeholder="Ej. SEMARNAT"
                         :class="FIELD"
                         :aria-invalid="Boolean(form.errors.authority)"
+                        @input="upperAuthority"
                     />
                     <Landmark :class="ICON" />
                 </div>

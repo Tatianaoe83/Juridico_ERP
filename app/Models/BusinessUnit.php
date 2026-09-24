@@ -18,4 +18,10 @@ class BusinessUnit extends Model
     {
         return $this->hasMany(Unit::class);
     }
+
+    /** Licencias y permisos de esta unidad de negocio. */
+    public function licenses(): HasMany
+    {
+        return $this->hasMany(License::class);
+    }
 }

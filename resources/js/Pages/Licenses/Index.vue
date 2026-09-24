@@ -18,8 +18,10 @@ const props = defineProps({
     stats: { type: Object, required: true },
     /** { search, status, company, authority, year, month } — lo que ya viene aplicado. */
     filters: { type: Object, default: () => ({}) },
-    /** { companies: [], authorities: [], years: [] } — sale de lo capturado. */
+    /** { companies: [{ value: id, label }], authorities: [], years: [] } — sale de lo capturado. */
     options: { type: Object, default: () => ({ companies: [], authorities: [], years: [] }) },
+    /** Catálogo de unidades de negocio, [{ id, name }]: de ahí se elige la empresa. */
+    businessUnits: { type: Array, default: () => [] },
     /** Correos con acceso al calendario: a ellos les llega el aviso. */
     sharedWith: { type: Array, default: () => [] },
 });
@@ -138,7 +140,11 @@ function clearFilters() {
 const activeFilters = computed(() =>
     [
         { key: 'status', label: statusOptions.find((o) => o.value === status.value)?.label, clear: () => (status.value = '') },
-        { key: 'company', label: company.value, clear: () => (company.value = '') },
+        {
+            key: 'company',
+            label: props.options.companies.find((o) => o.value === company.value)?.label,
+            clear: () => (company.value = ''),
+        },
         { key: 'authority', label: authority.value, clear: () => (authority.value = '') },
         { key: 'year', label: year.value, clear: () => (year.value = '') },
         { key: 'month', label: monthOptions.find((o) => o.value === month.value)?.label, clear: () => (month.value = '') },
@@ -152,7 +158,8 @@ const statusOptions = Object.entries(LICENSE_STATUS).map(([value, meta]) => ({ v
 
 const toOptions = (values) => values.map((value) => ({ value, label: value }));
 
-const companyOptions = computed(() => toOptions(props.options.companies));
+// Las empresas ya vienen como { value: id, label: nombre }: se filtra por id.
+const companyOptions = computed(() => props.options.companies);
 const authorityOptions = computed(() => toOptions(props.options.authorities));
 const yearOptions = computed(() => toOptions(props.options.years));
 
@@ -686,7 +693,7 @@ const PAGE_BTN =
             </div>
         </div>
 
-        <LicenseFormDialog v-model:open="formOpen" :license="editing" />
+        <LicenseFormDialog v-model:open="formOpen" :license="editing" :business-units="businessUnits" />
 
         <LicenseShowDialog v-model:open="showOpen" :license="viewing" />
 
