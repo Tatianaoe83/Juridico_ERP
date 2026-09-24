@@ -19,13 +19,23 @@ class StoreUnitRequest extends FormRequest
     }
 
     /**
+     * Marca, modelo, placa y responsable se guardan siempre en mayúsculas.
+     * El formulario ya los manda así; esto cubre cualquier otra entrada.
+     */
+    protected function prepareForValidation(): void
+    {
+        $this->merge(collect(Unit::UPPERCASE)
+            ->filter(fn (string $field) => is_string($this->input($field)))
+            ->mapWithKeys(fn (string $field) => [$field => mb_strtoupper($this->input($field))])
+            ->all());
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function rules(): array
     {
         return [
-            'policy' => ['required', 'string', 'max:255', 'unique:units,policy'],
-            'certificate' => ['nullable', 'string', 'max:255'],
             'business_unit_id' => ['required', 'integer', 'exists:business_units,id'],
             'brand' => ['required', 'string', 'max:255'],
             'model' => ['required', 'string', 'max:255'],
@@ -33,16 +43,6 @@ class StoreUnitRequest extends FormRequest
             'plate' => ['nullable', 'string', 'max:50', 'unique:units,plate'],
             'economic_number' => ['nullable', 'string', 'max:50'],
             'responsible' => ['nullable', 'string', 'max:255'],
-
-            // El inicio del primer pago es obligatorio: de él se calculan las
-            // demás fechas. Si se captura un rango tiene que cerrar: el fin
-            // nunca antes del inicio.
-            'first_payment_starts_on' => ['required', 'date'],
-            'first_payment_ends_on' => ['nullable', 'date', 'after_or_equal:first_payment_starts_on'],
-            'first_payment_amount' => ['nullable', 'numeric', 'min:0', 'max:9999999999'],
-            'second_payment_starts_on' => ['nullable', 'date'],
-            'second_payment_ends_on' => ['nullable', 'date', 'after_or_equal:second_payment_starts_on'],
-            'second_payment_amount' => ['nullable', 'numeric', 'min:0', 'max:9999999999'],
 
             'usa_canada_endorsement' => ['boolean'],
             'status' => ['required', Rule::in(Unit::STATUSES)],
@@ -61,8 +61,6 @@ class StoreUnitRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'policy' => 'póliza',
-            'certificate' => 'certificado',
             'business_unit_id' => 'unidad de negocio',
             'brand' => 'marca',
             'model' => 'modelo',
@@ -70,12 +68,6 @@ class StoreUnitRequest extends FormRequest
             'plate' => 'placa',
             'economic_number' => 'número económico',
             'responsible' => 'responsable',
-            'first_payment_starts_on' => 'inicio del primer pago',
-            'first_payment_ends_on' => 'fin del primer pago',
-            'first_payment_amount' => 'importe del primer pago',
-            'second_payment_starts_on' => 'inicio del segundo pago',
-            'second_payment_ends_on' => 'fin del segundo pago',
-            'second_payment_amount' => 'importe del segundo pago',
             'status' => 'estado',
             'comments' => 'comentarios',
             'evidences' => 'evidencias',
@@ -89,7 +81,6 @@ class StoreUnitRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'policy.unique' => 'Ya hay una unidad con esa póliza.',
             'serial_number.unique' => 'Ya hay una unidad con ese número de serie.',
             'plate.unique' => 'Ya hay una unidad con esa placa.',
             'evidences.*.mimes' => 'Solo se aceptan PDF, imágenes y documentos de Office.',

@@ -3,46 +3,37 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Fleet\PayUnitPolicyRequest;
 use App\Http\Requests\Fleet\StoreUnitRequest;
 use App\Http\Requests\Fleet\UpdateUnitRequest;
 use App\Models\BusinessUnit;
 use App\Models\Unit;
 use App\Models\UnitEvidence;
+use App\Models\UnitPolicy;
 use App\Services\UnitCalendar;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Flotillas (Cumplimiento): las unidades con su póliza y sus dos pagos
- * semestrales. Por ahora solo el listado; el alta y la edición van después.
+ * Flotillas (Cumplimiento): las unidades. Aquí solo se da de alta y se edita
+ * el vehículo; sus pólizas se asignan aparte y la tabla solo las resume.
  */
 class FleetController extends Controller
 {
     private const PER_PAGE = 10;
 
-    public function __construct(private readonly UnitCalendar $calendar) {}
-
     /**
-     * Agendar es un extra: si Outlook no respondió o la cuenta no está
-     * vinculada, se dice en el mismo aviso en vez de fallar el guardado.
-     *
-     * Sin fechas de vencimiento no hay nada que agendar y no se dice nada.
+     * Flotillas ya no agenda nada en Outlook. El calendario solo se usa al
+     * eliminar, para limpiar los eventos que hayan quedado de antes.
      */
-    private function calendarNote(bool $agendada, Unit $unit): string
-    {
-        if (! $unit->first_payment_ends_on && ! $unit->second_payment_ends_on) {
-            return '';
-        }
-
-        return $agendada
-            ? ' Los vencimientos quedaron en el calendario.'
-            : ' No se pudieron agendar los vencimientos: revisa la conexión con Outlook.';
-    }
+    public function __construct(private readonly UnitCalendar $calendar) {}
 
     public function index(Request $request): Response
     {
@@ -57,9 +48,10 @@ class FleetController extends Controller
         // La unidad de negocio viene del catálogo: se filtra por su id.
         $businessUnit = (int) $request->query('business_unit') ?: null;
 
-        $units = Unit::with(['creator', 'businessUnit'])
+        $units = Unit::with('currentPolicy')
             ->when($search !== '', fn ($query) => $query->where(fn ($q) => $q
-                ->where('policy', 'like', "%{$search}%")
+                // En todos los periodos: una póliza vieja también lleva a su unidad.
+                ->whereHas('policies', fn ($q2) => $q2->where('policy', 'like', "%{$search}%"))
                 ->orWhere('brand', 'like', "%{$search}%")
                 ->orWhere('model', 'like', "%{$search}%")
                 ->orWhereHas('businessUnit', fn ($q2) => $q2->where('name', 'like', "%{$search}%"))
@@ -70,7 +62,7 @@ class FleetController extends Controller
             ->when($brand, fn ($query) => $query->where('brand', $brand))
             ->when($businessUnit, fn ($query) => $query->where('business_unit_id', $businessUnit))
             ->orderBy('economic_number')
-            ->orderBy('policy')
+            ->orderBy('id')
             ->paginate(self::PER_PAGE)
             ->withQueryString();
 
@@ -108,8 +100,8 @@ class FleetController extends Controller
     /**
      * GET /flotillas/crear
      *
-     * El alta va en su propia vista y no en un modal: son más de quince
-     * campos, dos rangos de pago y archivos.
+     * El alta va en su propia vista y no en un modal: son una decena de
+     * campos y archivos.
      */
     public function create(): Response
     {
@@ -119,50 +111,52 @@ class FleetController extends Controller
         ]);
     }
 
-    /** POST /flotillas */
+    /** POST /flotillas: la unidad nace sin póliza, queda por asignar. */
     public function store(StoreUnitRequest $request): RedirectResponse
     {
-        $data = $request->validated();
+        $unit = DB::transaction(function () use ($request) {
+            $unit = Unit::create([
+                ...Arr::except($request->validated(), ['evidences']),
+                'created_by' => $request->user()->id,
+            ]);
 
-        // Los archivos no son columnas: se guardan aparte, ya con la unidad creada.
-        unset($data['evidences']);
+            $this->storeDocuments($request, $unit);
 
-        $unit = Unit::create([
-            ...$data,
-            'created_by' => $request->user()->id,
-        ]);
+            return $unit;
+        });
 
-        $this->storeEvidences($request, $unit);
-
-        // El vencimiento de cada pago queda agendado sin capturarlo a mano.
-        $agendada = $this->calendar->sync($unit->load('businessUnit'), $request->user());
-
-        return to_route('fleets.index')
-            ->with('success', "Se registró la unidad {$unit->policy}.".$this->calendarNote($agendada, $unit));
+        return to_route('fleets.index')->with('success', "Se registró la unidad {$unit->brand} {$unit->model}.");
     }
 
     /**
      * GET /flotillas/{unit}
      *
-     * El detalle: lo mismo que la tabla, pero completo y ya calculado, más las
-     * evidencias para descargarlas.
+     * El detalle del vehículo y sus documentos oficiales. Los pagos de la
+     * póliza no van aquí: son del apartado de pólizas.
      */
     public function show(Unit $unit): Response
     {
-        $unit->load(['businessUnit', 'creator']);
+        $unit->load(['businessUnit', 'currentPolicy']);
+
+        $documents = $unit->evidences()
+            ->where('type', UnitEvidence::OFFICIAL_DOCUMENT)
+            ->with('uploader:id,name')
+            ->orderBy('id')
+            ->get();
 
         return Inertia::render('Fleets/Show', [
             'unit' => [
                 ...$this->summary($unit),
                 'business_unit' => $unit->businessUnit?->name,
-                'evidences' => $unit->evidences()->with('uploader:id,name')->orderBy('id')->get()
-                    ->map(fn (UnitEvidence $evidence) => [
-                        'id' => $evidence->id,
-                        'name' => $evidence->name,
-                        'size' => $evidence->size,
-                        'uploaded_by' => $evidence->uploader?->name,
-                        'created_at' => $evidence->created_at?->toIso8601String(),
-                    ]),
+                'usa_canada_endorsement' => $unit->usa_canada_endorsement,
+                'comments' => $unit->comments,
+                'documents' => $documents->map(fn (UnitEvidence $evidence) => [
+                    'id' => $evidence->id,
+                    'name' => $evidence->name,
+                    'size' => $evidence->size,
+                    'uploaded_by' => $evidence->uploader?->name,
+                    'created_at' => $evidence->created_at?->toIso8601String(),
+                ]),
             ],
         ]);
     }
@@ -184,16 +178,14 @@ class FleetController extends Controller
     /**
      * GET /flotillas/{unit}/editar
      *
-     * Trae la unidad con sus valores tal como se capturan —fechas en Y-m-d e
-     * importes en número— para que el formulario los cargue sin traducir nada.
+     * Solo el vehículo, con los valores tal como se capturan. La póliza no
+     * se ve ni se edita aquí.
      */
     public function edit(Unit $unit): Response
     {
         return Inertia::render('Fleets/Edit', [
             'unit' => [
                 'id' => $unit->id,
-                'policy' => $unit->policy,
-                'certificate' => $unit->certificate,
                 'business_unit_id' => $unit->business_unit_id,
                 'brand' => $unit->brand,
                 'model' => $unit->model,
@@ -201,49 +193,85 @@ class FleetController extends Controller
                 'plate' => $unit->plate,
                 'economic_number' => $unit->economic_number,
                 'responsible' => $unit->responsible,
-                'first_payment_starts_on' => $unit->first_payment_starts_on?->toDateString(),
-                'first_payment_ends_on' => $unit->first_payment_ends_on?->toDateString(),
-                'first_payment_amount' => $unit->first_payment_amount,
-                'second_payment_starts_on' => $unit->second_payment_starts_on?->toDateString(),
-                'second_payment_ends_on' => $unit->second_payment_ends_on?->toDateString(),
-                'second_payment_amount' => $unit->second_payment_amount,
                 'usa_canada_endorsement' => $unit->usa_canada_endorsement,
                 'status' => $unit->status,
                 'comments' => $unit->comments,
-                // Para poder quitarlas desde el formulario; el archivo en sí
-                // no se manda, solo con qué nombre y peso se subió.
-                'evidences' => $unit->evidences()->orderBy('id')->get(['id', 'name', 'size']),
+                // Sus documentos oficiales, para poder quitarlos. Los
+                // comprobantes de pago no se tocan desde aquí.
+                'evidences' => $unit->evidences()
+                    ->where('type', UnitEvidence::OFFICIAL_DOCUMENT)
+                    ->orderBy('id')
+                    ->get(['id', 'name', 'size']),
             ],
             'businessUnits' => BusinessUnit::orderBy('name')->get(['id', 'name']),
             'statuses' => Unit::STATUSES,
         ]);
     }
 
-    /** PATCH /flotillas/{unit} */
+    /** PATCH /flotillas/{unit}: solo el vehículo; su póliza no se toca. */
     public function update(UpdateUnitRequest $request, Unit $unit): RedirectResponse
     {
-        $data = $request->validated();
+        DB::transaction(function () use ($request, $unit) {
+            $unit->update(Arr::except($request->validated(), ['evidences', 'remove_evidences']));
 
-        // Los archivos no son columnas: se manejan aparte.
-        unset($data['evidences'], $data['remove_evidences']);
+            $this->forgetEvidences($request, $unit);
+            $this->storeDocuments($request, $unit);
+        });
 
-        $unit->update($data);
+        return to_route('fleets.index')->with('success', "Se actualizó la unidad {$unit->brand} {$unit->model}.");
+    }
 
-        $this->forgetEvidences($request, $unit);
-        $this->storeEvidences($request, $unit);
+    /**
+     * POST /flotillas/{unit}/periodos/{policy}/pagos/{payment}
+     *
+     * Marca el semestre como pagado con su comprobante. No es un abono: vale
+     * el importe del periodo. El segundo pago además renueva: se crea el
+     * periodo siguiente con la póliza nueva.
+     */
+    public function pay(PayUnitPolicyRequest $request, Unit $unit, UnitPolicy $policy, string $payment): RedirectResponse
+    {
+        $renewal = DB::transaction(function () use ($request, $unit, $policy, $payment) {
+            $this->storeEvidence($request, $unit, $request->file('receipt'), UnitEvidence::PAYMENT_RECEIPT, $policy, $payment);
 
-        // Las fechas pudieron moverse: el evento sigue al registro.
-        $agendada = $this->calendar->sync($unit->load('businessUnit'), $request->user());
+            $policy->update(["{$payment}_payment_paid_at" => $request->validated('paid_at')]);
 
-        return to_route('fleets.index')
-            ->with('success', "Se actualizó la unidad {$unit->policy}.".$this->calendarNote($agendada, $unit));
+            if ($payment !== 'second') {
+                return null;
+            }
+
+            // El periodo nuevo arranca cuando cierra el anterior, con dos
+            // semestres de seis meses exactos. Si el día no existe en el mes
+            // (31 de agosto → febrero) se queda en el último.
+            $firstStart = $policy->second_payment_ends_on->copy();
+            $firstEnd = $firstStart->copy()->addMonthsNoOverflow(UnitPolicy::SEMESTER_MONTHS);
+            $secondEnd = $firstEnd->copy()->addMonthsNoOverflow(UnitPolicy::SEMESTER_MONTHS);
+
+            return $unit->policies()->create([
+                'policy' => $request->validated('new_policy'),
+                'certificate' => $request->validated('new_certificate'),
+                'first_payment_starts_on' => $firstStart,
+                'first_payment_ends_on' => $firstEnd,
+                'first_payment_amount' => $request->validated('new_first_payment_amount'),
+                'second_payment_starts_on' => $firstEnd,
+                'second_payment_ends_on' => $secondEnd,
+                'second_payment_amount' => $request->validated('new_second_payment_amount'),
+                'renewed_from_id' => $policy->id,
+                'created_by' => $request->user()->id,
+            ]);
+        });
+
+        $label = $payment === 'first' ? 'primer' : 'segundo';
+
+        if (! $renewal) {
+            return back()->with('success', "Se registró el {$label} pago de la póliza {$policy->policy}.");
+        }
+
+        return back()->with('success', "Se registró el {$label} pago y la unidad se renovó con la póliza {$renewal->policy}.");
     }
 
     /** DELETE /flotillas/{unit} */
     public function destroy(Request $request, Unit $unit): RedirectResponse
     {
-        $policy = $unit->policy;
-
         // Primero Outlook: después del delete ya no hay de dónde sacar los ids.
         $this->calendar->forget($unit, $request->user());
 
@@ -252,17 +280,17 @@ class FleetController extends Controller
             Storage::disk('local')->delete($evidence->path);
         }
 
-        // Evidencias y avisos se van en cascada con la unidad.
+        // Periodos, evidencias y avisos se van en cascada con la unidad.
         $unit->delete();
 
-        return to_route('fleets.index')->with('success', "Se eliminó la unidad {$policy}.");
+        return to_route('fleets.index')->with('success', "Se eliminó la unidad {$unit->brand} {$unit->model}.");
     }
 
     /**
-     * Borra las evidencias que se quitaron en el formulario: primero el
+     * Borra los documentos que se quitaron en el formulario: primero el
      * archivo del disco y luego el registro, para no dejar basura colgando.
      *
-     * El FormRequest ya comprobó que cada id es de esta unidad.
+     * El FormRequest ya comprobó que cada id es un documento de esta unidad.
      */
     private function forgetEvidences(UpdateUnitRequest $request, Unit $unit): void
     {
@@ -274,64 +302,64 @@ class FleetController extends Controller
         }
     }
 
-    /**
-     * Guarda los archivos en disco y deja en la base su ruta y el nombre con
-     * el que los subieron, que es el que se va a descargar.
-     */
-    private function storeEvidences(StoreUnitRequest|UpdateUnitRequest $request, Unit $unit): void
+    /** Los documentos oficiales que llegan en el formulario: son de la unidad, sin periodo. */
+    private function storeDocuments(StoreUnitRequest|UpdateUnitRequest $request, Unit $unit): void
     {
         foreach ($request->file('evidences', []) as $file) {
-            /** @var UploadedFile $file */
-            $unit->evidences()->create([
-                'path' => Storage::disk('local')->putFile("units/{$unit->id}", $file),
-                'name' => $file->getClientOriginalName(),
-                'mime_type' => $file->getClientMimeType(),
-                'size' => $file->getSize(),
-                'uploaded_by' => $request->user()->id,
-            ]);
+            $this->storeEvidence($request, $unit, $file, UnitEvidence::OFFICIAL_DOCUMENT);
         }
     }
 
     /**
-     * Lo que necesita la tabla y el modal de detalle, ya calculado: el costo
-     * anual y el IVA salen de los dos pagos, no de una columna.
+     * Guarda el archivo en disco y deja en la base su ruta y el nombre con
+     * el que lo subieron, que es el que se va a descargar. Los comprobantes
+     * llevan además su periodo y de cuál de los dos pagos son.
+     */
+    private function storeEvidence(Request $request, Unit $unit, UploadedFile $file, string $type, ?UnitPolicy $policy = null, ?string $payment = null): void
+    {
+        $unit->evidences()->create([
+            'unit_policy_id' => $policy?->id,
+            'type' => $type,
+            'payment' => $payment,
+            'path' => Storage::disk('local')->putFile("units/{$unit->id}", $file),
+            'name' => $file->getClientOriginalName(),
+            'mime_type' => $file->getClientMimeType(),
+            'size' => $file->getSize(),
+            'uploaded_by' => $request->user()->id,
+        ]);
+    }
+
+    /**
+     * Lo que necesita la tabla, ya calculado. La unidad pone el vehículo; la
+     * póliza vigente, la fecha límite del semestre más reciente y la del año
+     * (la del segundo pago), cada una con cómo va: pagada, pendiente o
+     * vencida. Sin póliza todo eso sale en null: queda por asignar.
      *
      * @return array<string, mixed>
      */
     private function summary(Unit $unit): array
     {
+        $policy = $unit->currentPolicy;
+        $semester = $policy?->currentSemester();
+
         return [
             'id' => $unit->id,
-            'policy' => $unit->policy,
-            'certificate' => $unit->certificate,
-            'business_unit' => $unit->businessUnit?->name,
-            'business_unit_id' => $unit->business_unit_id,
             'brand' => $unit->brand,
             'model' => $unit->model,
             'serial_number' => $unit->serial_number,
             'plate' => $unit->plate,
             'economic_number' => $unit->economic_number,
             'responsible' => $unit->responsible,
-            'first_payment' => [
-                'starts_on' => $unit->first_payment_starts_on?->toDateString(),
-                'ends_on' => $unit->first_payment_ends_on?->toDateString(),
-                'amount' => (float) $unit->first_payment_amount,
-            ],
-            'second_payment' => [
-                'starts_on' => $unit->second_payment_starts_on?->toDateString(),
-                'ends_on' => $unit->second_payment_ends_on?->toDateString(),
-                'amount' => (float) $unit->second_payment_amount,
-            ],
-            // El costo anual ya trae el IVA: el desglose es informativo.
-            'annual_cost' => $unit->annualCost(),
-            'tax' => $unit->tax(),
-            'subtotal' => $unit->subtotal(),
-            'next_payment' => $unit->nextPaymentDate()?->toDateString(),
-            'usa_canada_endorsement' => $unit->usa_canada_endorsement,
             'status' => $unit->status,
-            'comments' => $unit->comments,
-            'created_by' => $unit->creator?->name,
-            'created_at' => $unit->created_at?->toIso8601String(),
+            'policy' => $policy?->policy,
+            'semester' => $policy ? [
+                'ends_on' => $policy->{"{$semester}_payment_ends_on"}?->toDateString(),
+                'status' => $policy->paymentStatus($semester),
+            ] : null,
+            'annual' => $policy ? [
+                'ends_on' => $policy->second_payment_ends_on?->toDateString(),
+                'status' => $policy->annualStatus(),
+            ] : null,
         ];
     }
 
@@ -363,12 +391,12 @@ class FleetController extends Controller
 
         return [
             'total' => Unit::query()->count(),
-            // Por vencer: cualquiera de los dos semestres cierra dentro de la
-            // ventana. Cada pago se evalúa por su cuenta.
+            // Por vencer: algún semestre sin pagar del periodo vigente cierra
+            // dentro de la ventana. Cada pago se evalúa por su cuenta.
             'payments' => Unit::query()
-                ->where(fn ($query) => $query
-                    ->whereBetween('first_payment_ends_on', [$today, $limit])
-                    ->orWhereBetween('second_payment_ends_on', [$today, $limit]))
+                ->whereHas('currentPolicy', fn ($query) => $query->where(fn ($q) => $q
+                    ->where(fn ($q2) => $q2->whereNull('first_payment_paid_at')->whereBetween('first_payment_ends_on', [$today, $limit]))
+                    ->orWhere(fn ($q2) => $q2->whereNull('second_payment_paid_at')->whereBetween('second_payment_ends_on', [$today, $limit]))))
                 ->count(),
             'maintenance' => Unit::query()->where('status', 'maintenance')->count(),
         ];

@@ -31,8 +31,44 @@ export const UNIT_STATUS = {
 
 const NEUTRAL_TONE = 'bg-slate-50 text-slate-600 ring-slate-500/15 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10';
 
+/** Cómo va un pago. Igual que UnitPolicy::paymentStatus() y annualStatus(). */
+export const PAYMENT_STATUS = {
+    paid: {
+        label: 'Al día',
+        tone: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/25',
+    },
+    pending: {
+        label: 'Pendiente',
+        tone: 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/25',
+    },
+    overdue: {
+        label: 'Vencido',
+        tone: 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-400/10 dark:text-red-300 dark:ring-red-400/25',
+    },
+};
+
+/** Sin póliza no hay pagos que mostrar: la unidad queda por asignar. */
+export const UNASSIGNED = 'Por asignar';
+
 /** Días antes del pago en que la unidad se marca por vencer. Igual que Unit::WARNING_DAYS. */
 export const PAYMENT_WARNING_DAYS = 30;
+
+/** Duración de cada semestre, en meses. Igual que UnitPolicy::SEMESTER_MONTHS. */
+export const SEMESTER_MONTHS = 6;
+
+/**
+ * «2026-09-23» + 6 meses = «2027-03-23»: mismo día, meses después. Si ese día
+ * no existe en el mes destino (31 de agosto → febrero) se queda en el último,
+ * igual que addMonthsNoOverflow en el servidor.
+ */
+export function addMonths(value, months) {
+    const [year, month, day] = value.split('-').map(Number);
+    const target = new Date(Date.UTC(year, month - 1 + months, 1));
+    const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+    target.setUTCDate(Math.min(day, lastDay));
+
+    return target.toISOString().slice(0, 10);
+}
 
 /** Un valor que no está en el mapa sale tal cual, en gris. */
 export function unitStatus(value) {
@@ -99,6 +135,30 @@ export function paymentCountdown(iso) {
             days <= PAYMENT_WARNING_DAYS
                 ? 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/25'
                 : 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/25',
+    };
+}
+
+/**
+ * Qué pagos del periodo vigente se pueden registrar, con el motivo si no hay
+ * ninguno. Son las mismas reglas que valida el servidor: sin periodo no hay
+ * qué pagar, cada pago se registra una vez y el segundo necesita su fecha
+ * límite porque de ahí arranca la renovación.
+ *
+ * @returns {{ payable: Array<'first'|'second'>, reason: string|null }}
+ */
+export function payablePayments(unit) {
+    if (!unit?.policy_id) return { payable: [], reason: 'La unidad no tiene periodo vigente' };
+
+    const payable = [];
+
+    if (!unit.first_payment?.paid_at) payable.push('first');
+    if (!unit.second_payment?.paid_at && unit.second_payment?.ends_on) payable.push('second');
+
+    if (payable.length) return { payable, reason: null };
+
+    return {
+        payable,
+        reason: unit.second_payment?.paid_at ? 'Los dos pagos ya están registrados' : 'Falta la fecha límite del segundo pago',
     };
 }
 

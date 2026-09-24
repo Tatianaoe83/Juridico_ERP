@@ -6,10 +6,10 @@ import AppShell from '@/Layouts/AppShell.vue';
 import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
 import FilterSelect from '@/components/app/FilterSelect.vue';
 import { usePermissions } from '@/composables/usePermissions';
-import { PAYMENT_WARNING_DAYS, UNIT_STATUS, money, periodLabel, unitStatus } from '@/lib/units';
+import { PAYMENT_STATUS, PAYMENT_WARNING_DAYS, UNASSIGNED, UNIT_STATUS, shortDate, unitStatus } from '@/lib/units';
 
 const props = defineProps({
-    /** { data: [{ id, policy, brand, model, plate, ... }], meta } */
+    /** { data: [{ id, brand, model, status, semester, annual, ... }], meta } */
     units: { type: Object, required: true },
     /** { total, payments, maintenance } — de toda la flotilla, sin filtros. */
     stats: { type: Object, required: true },
@@ -182,7 +182,8 @@ onBeforeUnmount(() => {
 
 const statusOf = unitStatus;
 
-
+/** «Nissan NP300»: así se nombra la unidad en avisos y etiquetas. */
+const unitName = (unit) => `${unit.brand} ${unit.model}`;
 
 /* ---------- Resumen ---------- */
 
@@ -396,19 +397,17 @@ const PAGE_BTN =
                     ref="tableBox"
                     class="overflow-x-auto border-t border-slate-100 md:min-h-0 md:flex-1 md:overflow-y-auto dark:border-white/[0.06]"
                 >
-                    <table class="w-full min-w-[64rem] text-[0.8rem]">
+                    <table class="w-full min-w-[56rem] text-[0.8rem]">
                         <thead class="sticky top-0 z-10 bg-slate-50 text-slate-500 dark:bg-brand-deep dark:text-brand-gray">
                             <tr>
-                                <!-- Póliza y certificado son el mismo dato del seguro: van juntos -->
-                                <th :class="TH">Póliza</th>
-                                <th :class="TH">Unidad</th>
-                                <!-- Ninguna se esconde: si no caben, la tabla se desplaza. Las de la derecha miden lo que su contenido -->
-                                <th :class="TH">Número de serie</th>
-                                <th :class="TH">Placa</th>
+                                <th :class="TH">Marca</th>
+                                <th :class="TH">Modelo</th>
+                                <th :class="[TH, 'w-px']">Placas</th>
                                 <th :class="TH">Responsable</th>
-                                <th :class="[TH, 'w-px']">Pagos semestrales</th>
-                                <th :class="[TH, 'w-px text-right']">Costo anual</th>
                                 <th :class="[TH, 'w-px']">Estado</th>
+                                <!-- Estas dos salen de la póliza vigente, no de la unidad -->
+                                <th :class="[TH, 'w-px']">Pago semestral</th>
+                                <th :class="[TH, 'w-px']">Pago anual</th>
                                 <th :class="[TH, 'w-px text-right']">Acciones</th>
                             </tr>
                         </thead>
@@ -422,63 +421,27 @@ const PAGE_BTN =
                                 :style="rowHeight ? { height: `${rowHeight}px` } : null"
                             >
                                 <td :class="[TD, 'whitespace-nowrap']">
-                                    <span class="block font-semibold text-slate-800 tabular-nums dark:text-white" :title="unit.policy">{{ unit.policy }}</span>
-                                    <span class="block text-[0.68rem] text-slate-400 dark:text-brand-gray/70">
-                                        {{ unit.certificate ? `Cert. ${unit.certificate}` : 'Sin certificado' }}
-                                    </span>
-                                </td>
-
-                                <!-- La columna elástica: si falta lugar, es la que cede -->
-                                <td :class="[TD, 'w-full max-w-0']">
                                     <div class="flex items-center gap-2.5">
                                         <span
                                             class="grid size-7 shrink-0 place-content-center rounded-lg bg-slate-50 text-slate-500 ring-1 ring-inset ring-slate-500/15 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10"
                                         >
                                             <Truck class="size-3.5" />
                                         </span>
-                                        <!-- La unidad se reconoce por marca y modelo, no por su póliza -->
-                                        <span class="min-w-0">
-                                            <span class="block truncate font-semibold text-slate-800 dark:text-white" :title="`${unit.brand} ${unit.model}`">
-                                                {{ unit.brand }} {{ unit.model }}
-                                            </span>
-                                            <!-- El # económico no tiene columna propia: vive aquí -->
-                                            <span class="block truncate text-[0.7rem] text-slate-400 dark:text-brand-gray/80">
-                                                {{ unit.economic_number ?? 'Sin # económico' }}
-                                            </span>
-                                        </span>
+                                        <span class="font-semibold text-slate-800 dark:text-white">{{ unit.brand }}</span>
                                     </div>
                                 </td>
 
-                                <td :class="[TD, 'whitespace-nowrap text-slate-600 tabular-nums dark:text-slate-300']">
-                                    {{ unit.serial_number ?? '—' }}
+                                <!-- La columna elástica: si falta lugar, es la que cede -->
+                                <td :class="[TD, 'w-full max-w-0']">
+                                    <span class="block truncate text-slate-700 dark:text-slate-200" :title="unit.model">{{ unit.model }}</span>
                                 </td>
 
-                                <td :class="[TD, 'whitespace-nowrap text-slate-600 tabular-nums dark:text-slate-300']">
+                                <td :class="[TD, 'w-px whitespace-nowrap text-slate-600 tabular-nums dark:text-slate-300']">
                                     {{ unit.plate ?? '—' }}
                                 </td>
 
                                 <td :class="TD">
                                     <span class="block max-w-[12rem] truncate text-slate-600 dark:text-slate-300" :title="unit.responsible">{{ unit.responsible ?? '—' }}</span>
-                                </td>
-
-                                <!--
-                                    Los dos semestres, uno debajo del otro. Cuánto falta va como
-                                    etiqueta en el que sigue, no en una tercera línea suelta.
-                                -->
-                                <td :class="[TD, 'w-px whitespace-nowrap']">
-                                    <span
-                                        v-for="(payment, i) in [unit.first_payment, unit.second_payment]"
-                                        :key="i"
-                                        class="flex items-center gap-1.5 text-[0.72rem] leading-5 text-slate-600 dark:text-slate-300"
-                                    >
-                                        <span class="w-3 shrink-0 text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/70">{{ i + 1 }}°</span>
-                                        {{ periodLabel(payment) }}
-                                    </span>
-                                </td>
-
-                                <td :class="[TD, 'w-px whitespace-nowrap text-right tabular-nums']">
-                                    <span class="block font-semibold text-slate-700 dark:text-slate-200">{{ money(unit.annual_cost) }}</span>
-                                    <span class="block text-[0.68rem] text-slate-400 dark:text-brand-gray/70">IVA incl. {{ money(unit.tax) }}</span>
                                 </td>
 
                                 <td :class="[TD, 'w-px']">
@@ -490,18 +453,34 @@ const PAGE_BTN =
                                     </span>
                                 </td>
 
-                                <!-- Eliminar es lo único que falta conectar -->
+                                <!--
+                                    Semestral: la fecha límite del semestre más reciente. Anual: la del
+                                    segundo pago, que cierra el año. Arriba la fecha y abajo cómo va:
+                                    al día, pendiente o vencido. Sin póliza quedan por asignar.
+                                -->
+                                <td v-for="payment in [unit.semester, unit.annual]" :key="payment === unit.annual ? 'annual' : 'semester'" :class="[TD, 'w-px whitespace-nowrap']">
+                                    <span v-if="!payment" class="text-[0.72rem] font-medium text-slate-400 italic dark:text-brand-gray/70">{{ UNASSIGNED }}</span>
+                                    <div v-else class="flex flex-col items-start gap-0.5">
+                                        <span class="text-[0.75rem] font-semibold text-slate-700 tabular-nums dark:text-slate-200">{{ shortDate(payment.ends_on) ?? 'Sin fecha' }}</span>
+                                        <span
+                                            class="inline-flex items-center rounded-md px-1.5 py-px text-[0.65rem] font-bold ring-1 ring-inset"
+                                            :class="PAYMENT_STATUS[payment.status].tone"
+                                        >
+                                            {{ PAYMENT_STATUS[payment.status].label }}
+                                        </span>
+                                    </div>
+                                </td>
+
                                 <td :class="[TD, 'w-px']">
                                     <div class="flex items-center justify-end gap-0.5 @2xl:gap-1">
-
-                                        <Link :href="`/flotillas/${unit.id}`" :class="[ACTION, NEUTRAL]" :aria-label="`Ver ${unit.policy}`" title="Ver detalle">
+                                        <Link :href="`/flotillas/${unit.id}`" :class="[ACTION, NEUTRAL]" :aria-label="`Ver ${unitName(unit)}`" title="Ver detalle">
                                             <Eye class="size-4" />
                                         </Link>
                                         <Link
                                             v-if="can('flotillas.update')"
                                             :href="`/flotillas/${unit.id}/editar`"
                                             :class="[ACTION, NEUTRAL]"
-                                            :aria-label="`Editar ${unit.policy}`"
+                                            :aria-label="`Editar ${unitName(unit)}`"
                                             title="Editar"
                                         >
                                             <Pencil class="size-4" />
@@ -510,7 +489,7 @@ const PAGE_BTN =
                                             v-if="can('flotillas.delete')"
                                             type="button"
                                             :class="[ACTION, 'text-slate-500 hover:bg-red-50 hover:text-red-600 focus-visible:ring-red-500/25 dark:text-brand-gray dark:hover:bg-red-500/10 dark:hover:text-red-300']"
-                                            :aria-label="`Eliminar ${unit.policy}`"
+                                            :aria-label="`Eliminar ${unitName(unit)}`"
                                             title="Eliminar"
                                             :disabled="deleting === unit.id"
                                             @click="askDelete(unit)"
@@ -601,7 +580,7 @@ const PAGE_BTN =
 
         <ConfirmDeleteDialog
             v-model:open="deleteOpen"
-            :text="`¿Seguro que quieres eliminar la unidad «${toDelete?.policy ?? ''}»? También se van sus evidencias y sus eventos del calendario.`"
+            :text="`¿Seguro que quieres eliminar la unidad «${toDelete ? unitName(toDelete) : ''}»? También se van sus pólizas, evidencias y eventos del calendario.`"
             @confirm="destroy"
         />
     </AppShell>

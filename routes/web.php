@@ -111,6 +111,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/flotillas/{unit}/evidencias/{evidence}', [FleetController::class, 'evidence'])
         ->middleware('can:flotillas.view')
         ->name('fleets.evidence');
+    // Registrar un pago semestral con su comprobante; el segundo renueva. El
+    // periodo se busca dentro de la unidad: uno ajeno da 404.
+    Route::post('/flotillas/{unit}/periodos/{policy}/pagos/{payment}', [FleetController::class, 'pay'])
+        ->middleware('can:flotillas.update')
+        ->whereIn('payment', ['first', 'second'])
+        ->scopeBindings()
+        ->name('fleets.pay');
     Route::delete('/flotillas/{unit}', [FleetController::class, 'destroy'])
         ->middleware('can:flotillas.delete')
         ->name('fleets.destroy');

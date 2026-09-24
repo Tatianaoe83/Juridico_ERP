@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Fleet;
 
 use App\Models\Unit;
+use App\Models\UnitEvidence;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -18,10 +19,18 @@ class UpdateUnitRequest extends FormRequest
         return $this->user()?->can('flotillas.update') ?? false;
     }
 
+    /** Igual que en el alta: esos campos se guardan siempre en mayúsculas. */
+    protected function prepareForValidation(): void
+    {
+        $this->merge(collect(Unit::UPPERCASE)
+            ->filter(fn (string $field) => is_string($this->input($field)))
+            ->mapWithKeys(fn (string $field) => [$field => mb_strtoupper($this->input($field))])
+            ->all());
+    }
+
     /**
-     * Las mismas reglas del alta; lo único que cambia es que la póliza, el
-     * número de serie y la placa se comparan contra las demás unidades, no
-     * contra esta.
+     * Las mismas reglas del alta; lo único que cambia es que el número de
+     * serie y la placa se comparan contra las demás unidades, no contra esta.
      *
      * @return array<string, mixed>
      */
@@ -31,8 +40,6 @@ class UpdateUnitRequest extends FormRequest
         $unit = $this->route('unit');
 
         return [
-            'policy' => ['required', 'string', 'max:255', Rule::unique('units', 'policy')->ignore($unit)],
-            'certificate' => ['nullable', 'string', 'max:255'],
             'business_unit_id' => ['required', 'integer', 'exists:business_units,id'],
             'brand' => ['required', 'string', 'max:255'],
             'model' => ['required', 'string', 'max:255'],
@@ -41,13 +48,6 @@ class UpdateUnitRequest extends FormRequest
             'economic_number' => ['nullable', 'string', 'max:50'],
             'responsible' => ['nullable', 'string', 'max:255'],
 
-            'first_payment_starts_on' => ['required', 'date'],
-            'first_payment_ends_on' => ['nullable', 'date', 'after_or_equal:first_payment_starts_on'],
-            'first_payment_amount' => ['nullable', 'numeric', 'min:0', 'max:9999999999'],
-            'second_payment_starts_on' => ['nullable', 'date'],
-            'second_payment_ends_on' => ['nullable', 'date', 'after_or_equal:second_payment_starts_on'],
-            'second_payment_amount' => ['nullable', 'numeric', 'min:0', 'max:9999999999'],
-
             'usa_canada_endorsement' => ['boolean'],
             'status' => ['required', Rule::in(Unit::STATUSES)],
             'comments' => ['nullable', 'string', 'max:5000'],
@@ -55,12 +55,15 @@ class UpdateUnitRequest extends FormRequest
             'evidences' => ['nullable', 'array', 'max:10'],
             'evidences.*' => ['file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,webp,doc,docx,xls,xlsx'],
 
-            // Solo se pueden quitar evidencias de esta unidad: el id de otra
-            // no pasa la regla y no se borra nada ajeno.
+            // Solo se pueden quitar documentos de esta unidad: el id de otra no
+            // pasa la regla y no se borra nada ajeno. Los comprobantes de pago
+            // tampoco: son la prueba de que se pagó.
             'remove_evidences' => ['nullable', 'array'],
             'remove_evidences.*' => [
                 'integer',
-                Rule::exists('unit_evidences', 'id')->where('unit_id', $unit->id),
+                Rule::exists('unit_evidences', 'id')
+                    ->where('unit_id', $unit->id)
+                    ->where('type', UnitEvidence::OFFICIAL_DOCUMENT),
             ],
         ];
     }
@@ -71,8 +74,6 @@ class UpdateUnitRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'policy' => 'póliza',
-            'certificate' => 'certificado',
             'business_unit_id' => 'unidad de negocio',
             'brand' => 'marca',
             'model' => 'modelo',
@@ -80,12 +81,6 @@ class UpdateUnitRequest extends FormRequest
             'plate' => 'placa',
             'economic_number' => 'número económico',
             'responsible' => 'responsable',
-            'first_payment_starts_on' => 'inicio del primer pago',
-            'first_payment_ends_on' => 'fin del primer pago',
-            'first_payment_amount' => 'importe del primer pago',
-            'second_payment_starts_on' => 'inicio del segundo pago',
-            'second_payment_ends_on' => 'fin del segundo pago',
-            'second_payment_amount' => 'importe del segundo pago',
             'status' => 'estado',
             'comments' => 'comentarios',
             'evidences' => 'evidencias',
@@ -99,7 +94,6 @@ class UpdateUnitRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'policy.unique' => 'Ya hay otra unidad con esa póliza.',
             'serial_number.unique' => 'Ya hay otra unidad con ese número de serie.',
             'plate.unique' => 'Ya hay otra unidad con esa placa.',
             'evidences.*.mimes' => 'Solo se aceptan PDF, imágenes y documentos de Office.',

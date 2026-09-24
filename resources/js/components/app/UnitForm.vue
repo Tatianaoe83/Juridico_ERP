@@ -1,26 +1,9 @@
 <script setup>
 import { Link, useForm } from '@inertiajs/vue3';
-import {
-    BadgeCheck,
-    Building2,
-    CalendarDays,
-    CircleDollarSign,
-    FileText,
-    Hash,
-    Loader2,
-    CalendarClock,
-    MessageSquareText,
-    Paperclip,
-    RotateCcw,
-    Save,
-    ScanLine,
-    Truck,
-    User,
-    X,
-} from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { Building2, FileText, Hash, Loader2, MessageSquareText, Paperclip, RotateCcw, Save, ScanLine, Truck, User, X } from 'lucide-vue-next';
+import { computed, nextTick, ref } from 'vue';
 import FormSelect from '@/components/app/FormSelect.vue';
-import { UNIT_STATUS, money, paymentCountdown, periodLabel } from '@/lib/units';
+import { UNIT_STATUS } from '@/lib/units';
 
 /**
  * El formulario de la unidad, el mismo para el alta y la edición: solo cambia
@@ -38,21 +21,13 @@ const props = defineProps({
 const editing = computed(() => props.unit !== null);
 
 const form = useForm({
-    policy: props.unit?.policy ?? '',
-    certificate: props.unit?.certificate ?? '',
     business_unit_id: props.unit?.business_unit_id ?? '',
-    brand: props.unit?.brand ?? '',
-    model: props.unit?.model ?? '',
+    brand: (props.unit?.brand ?? '').toUpperCase(),
+    model: (props.unit?.model ?? '').toUpperCase(),
     serial_number: props.unit?.serial_number ?? '',
-    plate: props.unit?.plate ?? '',
+    plate: (props.unit?.plate ?? '').toUpperCase(),
     economic_number: props.unit?.economic_number ?? '',
-    responsible: props.unit?.responsible ?? '',
-    first_payment_starts_on: props.unit?.first_payment_starts_on ?? '',
-    first_payment_ends_on: props.unit?.first_payment_ends_on ?? '',
-    first_payment_amount: props.unit?.first_payment_amount ?? '',
-    second_payment_starts_on: props.unit?.second_payment_starts_on ?? '',
-    second_payment_ends_on: props.unit?.second_payment_ends_on ?? '',
-    second_payment_amount: props.unit?.second_payment_amount ?? '',
+    responsible: (props.unit?.responsible ?? '').toUpperCase(),
     usa_canada_endorsement: props.unit?.usa_canada_endorsement ?? false,
     status: props.unit?.status ?? 'active',
     comments: props.unit?.comments ?? '',
@@ -61,71 +36,20 @@ const form = useForm({
     remove_evidences: [],
 });
 
-/* ---------- Costo anual: el mismo cálculo que hace el servidor ---------- */
-
-
-
-const TAX_RATE = 0.16;
-
-// Los importes se capturan como se pagan, con IVA incluido: el impuesto se
-// desglosa del costo anual en vez de sumarse encima.
-const annualCost = computed(() => Number(form.first_payment_amount || 0) + Number(form.second_payment_amount || 0));
-const tax = computed(() => (annualCost.value * TAX_RATE) / (1 + TAX_RATE));
-const subtotal = computed(() => annualCost.value - tax.value);
-
-/* ---------- Fechas en cadena ---------- */
+/* ---------- Mayúsculas ---------- */
 
 /**
- * «2026-09-23» + 6 meses = «2027-03-23»: mismo día, seis meses después. Si ese
- * día no existe en el mes destino (31 de agosto → febrero) se queda en el último.
+ * Marca, modelo, placa y responsable van siempre en mayúsculas, tenga o no
+ * activo el bloq mayús: se convierten mientras escribe. El cursor se deja
+ * donde estaba para que corregir a media palabra no lo mande al final.
  */
-function addMonths(value, months) {
-    const [year, month, day] = value.split('-').map(Number);
-    const target = new Date(Date.UTC(year, month - 1 + months, 1));
-    const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
-    target.setUTCDate(Math.min(day, lastDay));
+function toUpper(field, event) {
+    const input = event.target;
+    const { selectionStart, selectionEnd } = input;
 
-    return target.toISOString().slice(0, 10);
+    form[field] = input.value.toUpperCase();
+    nextTick(() => input.setSelectionRange(selectionStart, selectionEnd));
 }
-
-// Cada fecha arrastra a las que le siguen: el primer semestre cierra seis meses
-// después de abrir, el segundo abre ese mismo día y cierra seis meses después.
-// Solo reaccionan a lo que elige el usuario, no a los valores cargados al editar.
-function onSecondStartChange() {
-    if (!form.second_payment_starts_on) return;
-
-    form.second_payment_ends_on = addMonths(form.second_payment_starts_on, 6);
-}
-
-function onFirstEndChange() {
-    if (!form.first_payment_ends_on) return;
-
-    form.second_payment_starts_on = form.first_payment_ends_on;
-    onSecondStartChange();
-}
-
-function onFirstStartChange() {
-    if (!form.first_payment_starts_on) return;
-
-    form.first_payment_ends_on = addMonths(form.first_payment_starts_on, 6);
-    onFirstEndChange();
-}
-
-/* ---------- Cómo va cada semestre ---------- */
-
-// Salen de lo que hay en el formulario, no del registro guardado: al mover una
-// fecha el periodo y el aviso cambian en el momento.
-const firstPeriod = computed(() =>
-    periodLabel({ starts_on: form.first_payment_starts_on, ends_on: form.first_payment_ends_on }),
-);
-
-const secondPeriod = computed(() =>
-    periodLabel({ starts_on: form.second_payment_starts_on, ends_on: form.second_payment_ends_on }),
-);
-
-// El semestre vence cuando cierra, así que el aviso sale de la fecha «Hasta».
-const firstCountdown = computed(() => paymentCountdown(form.first_payment_ends_on));
-const secondCountdown = computed(() => paymentCountdown(form.second_payment_ends_on));
 
 /* ---------- Evidencias ---------- */
 
@@ -191,7 +115,8 @@ const FIELD =
     'hover:border-slate-300 focus:border-brand/50 focus:bg-white focus:ring-4 focus:ring-brand/10 ' +
     'aria-invalid:border-red-400 aria-invalid:focus:ring-red-500/10 ' +
     'dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/30 dark:hover:border-white/20 ' +
-    'dark:focus:border-brand-gray/50 dark:focus:bg-white/[0.06] dark:focus:ring-white/10 dark:[color-scheme:dark]';
+    'dark:focus:border-brand-gray/50 dark:focus:bg-white/[0.06] dark:focus:ring-white/10 dark:[color-scheme:dark] ' +
+    'disabled:cursor-not-allowed disabled:opacity-60';
 
 const ICON =
     'pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-slate-400 transition-colors ' +
@@ -210,71 +135,6 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
 
 <template>
     <form id="unit-form" class="flex flex-col gap-3 tall:gap-4" novalidate @submit.prevent="submit">
-        <!-- Identificación -->
-        <section :class="CARD">
-            <p :class="SECTION_TITLE">Identificación</p>
-
-            <div class="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <div>
-                    <label for="unit-policy" :class="LABEL">
-                        Póliza
-                        <span class="font-normal text-red-500 dark:text-red-400">*</span>
-                    </label>
-                    <div class="relative">
-                        <input
-                            id="unit-policy"
-                            v-model="form.policy"
-                            type="text"
-                            required
-                            autofocus
-                            autocomplete="off"
-                            placeholder="Ej. POL-2026-0148"
-                            :class="FIELD"
-                            :aria-invalid="Boolean(form.errors.policy)"
-                        />
-                        <BadgeCheck :class="ICON" />
-                    </div>
-                    <p v-if="form.errors.policy" :class="ERROR">{{ form.errors.policy }}</p>
-                </div>
-
-                <div>
-                    <label for="unit-certificate" :class="LABEL">Certificado</label>
-                    <div class="relative">
-                        <input
-                            id="unit-certificate"
-                            v-model="form.certificate"
-                            type="text"
-                            autocomplete="off"
-                            placeholder="Ej. CERT-99812"
-                            :class="FIELD"
-                            :aria-invalid="Boolean(form.errors.certificate)"
-                        />
-                        <FileText :class="ICON" />
-                    </div>
-                    <p v-if="form.errors.certificate" :class="ERROR">{{ form.errors.certificate }}</p>
-                </div>
-
-                <div>
-                    <label for="unit-business" :class="LABEL">
-                        Unidad de negocio
-                        <span class="font-normal text-red-500 dark:text-red-400">*</span>
-                    </label>
-                    <FormSelect
-                        id="unit-business"
-                        v-model="form.business_unit_id"
-                        :options="businessUnitOptions"
-                        :icon="Building2"
-                        placeholder="Selecciona una unidad"
-                        :invalid="Boolean(form.errors.business_unit_id)"
-                    />
-                    <p v-if="!businessUnits.length" class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">
-                        Todavía no hay unidades de negocio en el catálogo.
-                    </p>
-                    <p v-if="form.errors.business_unit_id" :class="ERROR">{{ form.errors.business_unit_id }}</p>
-                </div>
-            </div>
-        </section>
-
         <!-- Vehículo -->
         <section :class="CARD">
             <p :class="SECTION_TITLE">Vehículo</p>
@@ -288,9 +148,11 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                     <div class="relative">
                         <input
                             id="unit-brand"
-                            v-model="form.brand"
+                            :value="form.brand"
+                            @input="toUpper('brand', $event)"
                             type="text"
                             required
+                            autofocus
                             autocomplete="off"
                             placeholder="Ej. Nissan"
                             :class="FIELD"
@@ -309,7 +171,8 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                     <div class="relative">
                         <input
                             id="unit-model"
-                            v-model="form.model"
+                            :value="form.model"
+                            @input="toUpper('model', $event)"
                             type="text"
                             required
                             autocomplete="off"
@@ -344,7 +207,8 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                     <div class="relative">
                         <input
                             id="unit-plate"
-                            v-model="form.plate"
+                            :value="form.plate"
+                            @input="toUpper('plate', $event)"
                             type="text"
                             autocomplete="off"
                             placeholder="Ej. ABC-12-34"
@@ -378,7 +242,8 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                     <div class="relative">
                         <input
                             id="unit-responsible"
-                            v-model="form.responsible"
+                            :value="form.responsible"
+                            @input="toUpper('responsible', $event)"
                             type="text"
                             autocomplete="off"
                             placeholder="Ej. Juan Pérez"
@@ -405,8 +270,27 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                     <p v-if="form.errors.status" :class="ERROR">{{ form.errors.status }}</p>
                 </div>
 
+                <div>
+                    <label for="unit-business" :class="LABEL">
+                        Unidad de negocio
+                        <span class="font-normal text-red-500 dark:text-red-400">*</span>
+                    </label>
+                    <FormSelect
+                        id="unit-business"
+                        v-model="form.business_unit_id"
+                        :options="businessUnitOptions"
+                        :icon="Building2"
+                        placeholder="Selecciona una unidad"
+                        :invalid="Boolean(form.errors.business_unit_id)"
+                    />
+                    <p v-if="!businessUnits.length" class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">
+                        Todavía no hay unidades de negocio en el catálogo.
+                    </p>
+                    <p v-if="form.errors.business_unit_id" :class="ERROR">{{ form.errors.business_unit_id }}</p>
+                </div>
+
                 <!-- Endoso: sí o no, sin folio aparte -->
-                <div class="sm:col-span-2 lg:col-span-2">
+                <div>
                     <span :class="LABEL">Endoso</span>
                     <label
                         class="flex h-9 cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50/70 px-3 text-[0.8rem] text-slate-700 transition-colors duration-150 hover:border-slate-300 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:border-white/20"
@@ -423,172 +307,16 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
             </div>
         </section>
 
-        <!-- Pagos semestrales -->
-        <section :class="CARD">
-            <div class="flex flex-wrap items-baseline justify-between gap-2">
-                <p :class="SECTION_TITLE">Pagos semestrales</p>
-                <p class="text-[0.7rem] text-slate-400 dark:text-brand-gray/70">
-                    El periodo es libre: puede ir de enero a junio o de diciembre a mayo del año siguiente.
-                </p>
-            </div>
-
-            <div class="mt-3 grid gap-4 lg:grid-cols-2">
-                <!-- Mismos tres campos por semestre; solo cambia a cuál pertenecen -->
-                <div class="rounded-xl bg-slate-50/70 p-3 ring-1 ring-inset ring-slate-200/70 dark:bg-white/[0.03] dark:ring-white/[0.06]">
-                    <!-- Encabezado: qué semestre es, el periodo que llevas capturado y cuánto falta -->
-                    <div class="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span
-                            class="grid size-5 shrink-0 place-content-center rounded-md bg-brand/[0.08] text-[0.6rem] font-bold text-brand dark:bg-white/10 dark:text-white"
-                        >
-                            1
-                        </span>
-                        <p class="text-[0.75rem] font-bold text-slate-700 dark:text-slate-200">Primer pago</p>
-                        <span class="text-[0.7rem] text-slate-400 dark:text-brand-gray/70">{{ firstPeriod }}</span>
-                        <span
-                            v-if="firstCountdown"
-                            class="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.68rem] font-bold whitespace-nowrap ring-1 ring-inset"
-                            :class="firstCountdown.tone"
-                        >
-                            <CalendarClock class="size-3" />
-                            {{ firstCountdown.label }}
-                        </span>
-                    </div>
-
-                    <div class="grid gap-3 sm:grid-cols-3">
-                        <div>
-                            <label for="unit-p1-start" :class="LABEL">
-                                Desde
-                                <span class="font-normal text-red-500 dark:text-red-400">*</span>
-                            </label>
-                            <div class="relative">
-                                <input
-                                    id="unit-p1-start"
-                                    v-model="form.first_payment_starts_on"
-                                    type="date"
-                                    required
-                                    :aria-invalid="Boolean(form.errors.first_payment_starts_on)"
-                                    :class="FIELD"
-                                    @change="onFirstStartChange"
-                                />
-                                <CalendarDays :class="ICON" />
-                            </div>
-                            <p v-if="form.errors.first_payment_starts_on" :class="ERROR">{{ form.errors.first_payment_starts_on }}</p>
-                        </div>
-
-                        <div>
-                            <label for="unit-p1-end" :class="LABEL">Hasta</label>
-                            <div class="relative">
-                                <input id="unit-p1-end" v-model="form.first_payment_ends_on" type="date" :class="FIELD" @change="onFirstEndChange" />
-                                <CalendarDays :class="ICON" />
-                            </div>
-                            <p v-if="form.errors.first_payment_ends_on" :class="ERROR">{{ form.errors.first_payment_ends_on }}</p>
-                        </div>
-
-                        <div>
-                            <label for="unit-p1-amount" :class="LABEL">Importe</label>
-                            <div class="relative">
-                                <input
-                                    id="unit-p1-amount"
-                                    v-model="form.first_payment_amount"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    placeholder="0.00"
-                                    :class="[FIELD, 'tabular-nums']"
-                                />
-                                <CircleDollarSign :class="ICON" />
-                            </div>
-                            <p v-if="form.errors.first_payment_amount" :class="ERROR">{{ form.errors.first_payment_amount }}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="rounded-xl bg-slate-50/70 p-3 ring-1 ring-inset ring-slate-200/70 dark:bg-white/[0.03] dark:ring-white/[0.06]">
-                    <div class="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span
-                            class="grid size-5 shrink-0 place-content-center rounded-md bg-brand/[0.08] text-[0.6rem] font-bold text-brand dark:bg-white/10 dark:text-white"
-                        >
-                            2
-                        </span>
-                        <p class="text-[0.75rem] font-bold text-slate-700 dark:text-slate-200">Segundo pago</p>
-                        <span class="text-[0.7rem] text-slate-400 dark:text-brand-gray/70">{{ secondPeriod }}</span>
-                        <span
-                            v-if="secondCountdown"
-                            class="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.68rem] font-bold whitespace-nowrap ring-1 ring-inset"
-                            :class="secondCountdown.tone"
-                        >
-                            <CalendarClock class="size-3" />
-                            {{ secondCountdown.label }}
-                        </span>
-                    </div>
-
-                    <div class="grid gap-3 sm:grid-cols-3">
-                        <div>
-                            <label for="unit-p2-start" :class="LABEL">Desde</label>
-                            <div class="relative">
-                                <input id="unit-p2-start" v-model="form.second_payment_starts_on" type="date" :class="FIELD" @change="onSecondStartChange" />
-                                <CalendarDays :class="ICON" />
-                            </div>
-                            <p v-if="form.errors.second_payment_starts_on" :class="ERROR">{{ form.errors.second_payment_starts_on }}</p>
-                        </div>
-
-                        <div>
-                            <label for="unit-p2-end" :class="LABEL">Hasta</label>
-                            <div class="relative">
-                                <input id="unit-p2-end" v-model="form.second_payment_ends_on" type="date" :class="FIELD" />
-                                <CalendarDays :class="ICON" />
-                            </div>
-                            <p v-if="form.errors.second_payment_ends_on" :class="ERROR">{{ form.errors.second_payment_ends_on }}</p>
-                        </div>
-
-                        <div>
-                            <label for="unit-p2-amount" :class="LABEL">Importe</label>
-                            <div class="relative">
-                                <input
-                                    id="unit-p2-amount"
-                                    v-model="form.second_payment_amount"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    placeholder="0.00"
-                                    :class="[FIELD, 'tabular-nums']"
-                                />
-                                <CircleDollarSign :class="ICON" />
-                            </div>
-                            <p v-if="form.errors.second_payment_amount" :class="ERROR">{{ form.errors.second_payment_amount }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!--
-                Solo informa: el servidor vuelve a calcular lo mismo al guardar. Los importes
-                ya traen IVA, así que el costo anual es la suma tal cual y el impuesto se
-                desglosa hacia adentro; subtotal más IVA da el costo anual.
-            -->
-            <dl class="mt-3 grid gap-2 sm:grid-cols-3">
-                <div class="rounded-xl bg-slate-50/70 px-3 py-2 dark:bg-white/[0.03]">
-                    <dt class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">Subtotal</dt>
-                    <dd class="text-sm font-bold text-slate-800 tabular-nums dark:text-white">{{ money(subtotal) }}</dd>
-                </div>
-                <div class="rounded-xl bg-slate-50/70 px-3 py-2 dark:bg-white/[0.03]">
-                    <dt class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">IVA incluido (16%)</dt>
-                    <dd class="text-sm font-bold text-slate-800 tabular-nums dark:text-white">{{ money(tax) }}</dd>
-                </div>
-                <div class="rounded-xl bg-brand/[0.07] px-3 py-2 dark:bg-white/10">
-                    <dt class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-brand/70 dark:text-brand-gray/80">Costo anual</dt>
-                    <dd class="text-sm font-bold text-brand tabular-nums dark:text-white">{{ money(annualCost) }}</dd>
-                </div>
-            </dl>
-        </section>
-
         <!-- Evidencias y comentarios -->
         <section :class="CARD">
-            <p :class="SECTION_TITLE">Evidencias y comentarios</p>
+            <p :class="SECTION_TITLE">Documentos y comentarios</p>
 
             <div class="mt-3 grid gap-4 lg:grid-cols-2">
                 <div>
-                    <span :class="LABEL">Evidencias</span>
+                    <span :class="LABEL">Documentos oficiales</span>
+                    <p class="-mt-1 mb-2 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">
+                        Tarjeta de circulación, factura…
+                    </p>
 
                     <!-- Las que ya están guardadas: se marcan para quitar y se puede deshacer -->
                     <ul v-if="unit?.evidences?.length" class="mb-2 flex flex-col gap-1.5">
@@ -635,7 +363,7 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                         <span class="text-[0.78rem] font-semibold text-slate-700 dark:text-slate-200">Elegir archivos</span>
                         <span class="text-[0.7rem] text-slate-400 dark:text-brand-gray/70">
                             PDF, imágenes u Office · hasta 10 archivos de 10 MB
-                            <template v-if="editing"> · se suman a las que ya tiene</template>
+                            <template v-if="editing"> · se suman a los que ya tiene</template>
                         </span>
                     </button>
 

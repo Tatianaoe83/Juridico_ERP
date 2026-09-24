@@ -1,82 +1,45 @@
 <script setup>
-import { Head, Link, router } from '@inertiajs/vue3';
-import {
-    ArrowLeft,
-    BadgeCheck,
-    Building2,
-    CalendarClock,
-    Download,
-    FileText,
-    Hash,
-    MessageSquareText,
-    Paperclip,
-    Pencil,
-    ScanLine,
-    Trash2,
-    Truck,
-    User,
-} from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { Head, Link } from '@inertiajs/vue3';
+import { ArrowLeft, BadgeCheck, Building2, CircleDot, Download, FileText, Hash, MessageSquareText, Paperclip, ScanLine, Truck, User } from 'lucide-vue-next';
+import { computed } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
-import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
-import { usePermissions } from '@/composables/usePermissions';
-import { money, paymentCountdown, periodLabel, unitStatus } from '@/lib/units';
+import { unitStatus } from '@/lib/units';
 
 const props = defineProps({
-    /** La unidad ya calculada: importes, periodos y evidencias. */
+    /** El vehículo, el número de su póliza vigente y sus documentos oficiales. */
     unit: { type: Object, required: true },
 });
 
 const breadcrumbs = [
     { label: 'Inicio', href: '/calendario' },
     { label: 'Flotillas', href: '/flotillas' },
-    { label: props.unit.policy },
+    { label: `${props.unit.brand} ${props.unit.model}` },
 ];
-
-const { can } = usePermissions();
 
 const status = computed(() => unitStatus(props.unit.status));
 
-/* ---------- Eliminar ---------- */
-
-const deleteOpen = ref(false);
-const deleting = ref(false);
-
-function destroy() {
-    deleting.value = true;
-
-    // Al terminar manda a la tabla: este detalle ya no existe.
-    router.delete(`/flotillas/${props.unit.id}`, { onFinish: () => (deleting.value = false) });
-}
-
-/** Los datos sueltos, en fichas: cada uno con su icono y su etiqueta. */
+/** Los datos sueltos, en fichas y en el mismo orden que el formulario. */
 const details = computed(() => [
-    { label: 'Póliza', value: props.unit.policy, icon: BadgeCheck },
-    { label: 'Certificado', value: props.unit.certificate, icon: FileText },
-    { label: 'Unidad de negocio', value: props.unit.business_unit, icon: Building2 },
+    { label: 'Marca', value: props.unit.brand, icon: Truck },
+    { label: 'Modelo', value: props.unit.model, icon: Truck },
     { label: 'Número de serie', value: props.unit.serial_number, icon: ScanLine },
     { label: 'Placa', value: props.unit.plate, icon: Hash },
     { label: '# Económico', value: props.unit.economic_number, icon: Hash },
     { label: 'Responsable', value: props.unit.responsible, icon: User },
+    { label: 'Estado', value: status.value.label, icon: CircleDot },
+    { label: 'Unidad de negocio', value: props.unit.business_unit, icon: Building2 },
     {
-        label: 'Endoso',
-        value: props.unit.usa_canada_endorsement ? 'Cobertura USA / Canadá' : 'Sin endoso',
+        // El endoso es sí o no: si la unidad tiene cobertura en USA / Canadá.
+        label: 'Endoso · Cobertura USA / Canadá',
+        value: props.unit.usa_canada_endorsement ? 'Sí' : 'No',
         icon: BadgeCheck,
     },
 ]);
 
-/** Los dos semestres, con su periodo, su importe y cómo van. */
-const payments = computed(() =>
-    [
-        { number: 1, payment: props.unit.first_payment },
-        { number: 2, payment: props.unit.second_payment },
-    ].map(({ number, payment }) => ({
-        number,
-        period: periodLabel(payment),
-        amount: payment?.amount ?? 0,
-        countdown: paymentCountdown(payment?.ends_on),
-    })),
-);
+/** El enlace de descarga de un archivo de la unidad. */
+function fileUrl(file) {
+    return `/flotillas/${props.unit.id}/evidencias/${file.id}`;
+}
 
 /** «1.4 MB», «812 KB». */
 function fileSize(bytes) {
@@ -102,11 +65,11 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
 </script>
 
 <template>
-    <Head :title="`Unidad ${unit.policy}`" />
+    <Head :title="`Unidad ${unit.brand} ${unit.model}`" />
 
     <AppShell :breadcrumbs="breadcrumbs">
         <div class="flex flex-col gap-3 pb-6 tall:gap-4">
-            <!-- Encabezado: qué unidad es, cómo está y qué se puede hacer con ella -->
+            <!-- Encabezado: qué unidad es y cómo está -->
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="flex min-w-0 items-center gap-3">
                     <span
@@ -134,24 +97,6 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                         <ArrowLeft class="size-4" />
                         Volver
                     </Link>
-                    <button
-                        v-if="can('flotillas.delete')"
-                        type="button"
-                        class="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[0.8rem] font-semibold text-slate-700 transition-colors duration-150 hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/15 disabled:pointer-events-none disabled:opacity-60 dark:border-white/10 dark:bg-transparent dark:text-brand-gray dark:hover:border-red-400/30 dark:hover:bg-red-500/10 dark:hover:text-red-300"
-                        :disabled="deleting"
-                        @click="deleteOpen = true"
-                    >
-                        <Trash2 class="size-4" />
-                        Eliminar
-                    </button>
-                    <Link
-                        v-if="can('flotillas.update')"
-                        :href="`/flotillas/${unit.id}/editar`"
-                        class="inline-flex h-9 items-center gap-2 rounded-xl bg-brand px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
-                    >
-                        <Pencil class="size-4" />
-                        Editar
-                    </Link>
                 </div>
             </div>
 
@@ -159,7 +104,7 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
             <section :class="CARD">
                 <p :class="SECTION_TITLE">Datos de la unidad</p>
 
-                <dl class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <dl class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <div v-for="detail in details" :key="detail.label" class="flex items-start gap-2.5">
                         <span
                             class="mt-0.5 grid size-7 shrink-0 place-content-center rounded-lg bg-slate-50 text-slate-400 ring-1 ring-inset ring-slate-500/10 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10"
@@ -176,65 +121,14 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                 </dl>
             </section>
 
-            <!-- Pagos semestrales: el periodo, lo que cuesta y cuánto falta -->
-            <section :class="CARD">
-                <p :class="SECTION_TITLE">Pagos semestrales</p>
-
-                <div class="mt-3 grid gap-3 lg:grid-cols-2">
-                    <div
-                        v-for="item in payments"
-                        :key="item.number"
-                        class="rounded-xl bg-slate-50/70 p-3 ring-1 ring-inset ring-slate-200/70 dark:bg-white/[0.03] dark:ring-white/[0.06]"
-                    >
-                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <span
-                                class="grid size-5 shrink-0 place-content-center rounded-md bg-brand/[0.08] text-[0.6rem] font-bold text-brand dark:bg-white/10 dark:text-white"
-                            >
-                                {{ item.number }}
-                            </span>
-                            <p class="text-[0.75rem] font-bold text-slate-700 dark:text-slate-200">
-                                {{ item.number === 1 ? 'Primer pago' : 'Segundo pago' }}
-                            </p>
-                            <span
-                                v-if="item.countdown"
-                                class="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.68rem] font-bold whitespace-nowrap ring-1 ring-inset"
-                                :class="item.countdown.tone"
-                            >
-                                <CalendarClock class="size-3" />
-                                {{ item.countdown.label }}
-                            </span>
-                        </div>
-
-                        <p class="mt-2 text-[0.75rem] text-slate-500 dark:text-brand-gray">{{ item.period }}</p>
-                        <p class="text-lg font-bold text-slate-800 tabular-nums dark:text-white">{{ money(item.amount) }}</p>
-                    </div>
-                </div>
-
-                <!-- Los importes se capturan con IVA: aquí solo se desglosa -->
-                <dl class="mt-3 grid gap-2 sm:grid-cols-3">
-                    <div class="rounded-xl bg-slate-50/70 px-3 py-2 dark:bg-white/[0.03]">
-                        <dt class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">Subtotal</dt>
-                        <dd class="text-sm font-bold text-slate-800 tabular-nums dark:text-white">{{ money(unit.subtotal) }}</dd>
-                    </div>
-                    <div class="rounded-xl bg-slate-50/70 px-3 py-2 dark:bg-white/[0.03]">
-                        <dt class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">IVA incluido (16%)</dt>
-                        <dd class="text-sm font-bold text-slate-800 tabular-nums dark:text-white">{{ money(unit.tax) }}</dd>
-                    </div>
-                    <div class="rounded-xl bg-brand/[0.07] px-3 py-2 dark:bg-white/10">
-                        <dt class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-brand/70 dark:text-brand-gray/80">Costo anual</dt>
-                        <dd class="text-sm font-bold text-brand tabular-nums dark:text-white">{{ money(unit.annual_cost) }}</dd>
-                    </div>
-                </dl>
-            </section>
-
             <div class="grid gap-3 tall:gap-4 lg:grid-cols-2">
-                <!-- Evidencias: se descargan con el nombre con el que se subieron -->
+                <!-- Documentos de la unidad: se descargan con el nombre con el que se subieron -->
                 <section :class="CARD">
-                    <p :class="SECTION_TITLE">Evidencias</p>
+                    <p :class="SECTION_TITLE">Documentos oficiales</p>
 
-                    <ul v-if="unit.evidences.length" class="mt-3 flex flex-col gap-1.5">
+                    <ul v-if="unit.documents.length" class="mt-3 flex flex-col gap-1.5">
                         <li
-                            v-for="evidence in unit.evidences"
+                            v-for="evidence in unit.documents"
                             :key="evidence.id"
                             class="flex items-center gap-2.5 rounded-lg bg-slate-50 px-2.5 py-2 text-[0.78rem] dark:bg-white/[0.04]"
                         >
@@ -244,10 +138,11 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                                 <span class="block text-[0.68rem] text-slate-400 dark:text-brand-gray/70">
                                     {{ fileSize(evidence.size) }}
                                     <template v-if="evidence.uploaded_by"> · {{ evidence.uploaded_by }}</template>
+                                    · {{ dateTime(evidence.created_at) }}
                                 </span>
                             </span>
                             <a
-                                :href="`/flotillas/${unit.id}/evidencias/${evidence.id}`"
+                                :href="fileUrl(evidence)"
                                 class="grid size-7 shrink-0 place-content-center rounded-lg text-slate-500 transition-colors duration-150 hover:bg-brand/[0.07] hover:text-brand focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25 dark:text-brand-gray dark:hover:bg-white/10 dark:hover:text-white"
                                 :aria-label="`Descargar ${evidence.name}`"
                                 title="Descargar"
@@ -259,11 +154,11 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
 
                     <p v-else class="mt-3 flex items-center gap-2 text-[0.78rem] text-slate-400 dark:text-brand-gray/70">
                         <Paperclip class="size-4" />
-                        Sin evidencias cargadas.
+                        Sin documentos cargados.
                     </p>
                 </section>
 
-                <!-- Comentarios y de dónde salió el registro -->
+                <!-- Comentarios -->
                 <section :class="CARD">
                     <p :class="SECTION_TITLE">Comentarios / financiamiento</p>
 
@@ -274,25 +169,8 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                         <MessageSquareText class="size-4" />
                         Sin comentarios.
                     </p>
-
-                    <dl class="mt-4 grid gap-2 border-t border-slate-100 pt-3 text-[0.72rem] sm:grid-cols-2 dark:border-white/[0.06]">
-                        <div>
-                            <dt class="text-[0.6rem] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-brand-gray/70">Registrado por</dt>
-                            <dd class="text-slate-700 dark:text-slate-200">{{ unit.created_by ?? '—' }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-[0.6rem] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-brand-gray/70">Alta</dt>
-                            <dd class="text-slate-700 dark:text-slate-200">{{ dateTime(unit.created_at) }}</dd>
-                        </div>
-                    </dl>
                 </section>
             </div>
         </div>
-
-        <ConfirmDeleteDialog
-            v-model:open="deleteOpen"
-            :text="`¿Seguro que quieres eliminar la unidad «${unit.policy}»? También se van sus evidencias y sus eventos del calendario.`"
-            @confirm="destroy"
-        />
     </AppShell>
 </template>

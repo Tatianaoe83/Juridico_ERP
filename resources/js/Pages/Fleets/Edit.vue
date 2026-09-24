@@ -15,12 +15,12 @@ const props = defineProps({
 const breadcrumbs = [
     { label: 'Inicio', href: '/calendario' },
     { label: 'Flotillas', href: '/flotillas' },
-    { label: props.unit.policy },
+    { label: `${props.unit.brand} ${props.unit.model}` },
 ];
 </script>
 
 <template>
-    <Head :title="`Editar ${unit.policy}`" />
+    <Head :title="`Editar ${unit.brand} ${unit.model}`" />
 
     <AppShell :breadcrumbs="breadcrumbs">
         <div class="flex flex-col gap-3 pb-6 tall:gap-4">
