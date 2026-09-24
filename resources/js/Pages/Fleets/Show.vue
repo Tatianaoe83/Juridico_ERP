@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
-import { ArrowLeft, BadgeCheck, Building2, CircleDot, Download, FileText, Hash, MessageSquareText, Paperclip, ScanLine, Truck, User } from 'lucide-vue-next';
+import { ArrowLeft, Building2, CircleDot, Download, FileText, Hash, MessageSquareText, Paperclip, ScanLine, Truck, User } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import { unitStatus } from '@/lib/units';
@@ -28,12 +28,6 @@ const details = computed(() => [
     { label: 'Responsable', value: props.unit.responsible, icon: User },
     { label: 'Estado', value: status.value.label, icon: CircleDot },
     { label: 'Unidad de negocio', value: props.unit.business_unit, icon: Building2 },
-    {
-        // El endoso es sí o no: si la unidad tiene cobertura en USA / Canadá.
-        label: 'Endoso · Cobertura USA / Canadá',
-        value: props.unit.usa_canada_endorsement ? 'Sí' : 'No',
-        icon: BadgeCheck,
-    },
 ]);
 
 /** El enlace de descarga de un archivo de la unidad. */

@@ -39,7 +39,6 @@ return new class extends Migration
 
             // El costo anual y el IVA no se guardan: son la suma de los dos
             // pagos y su 16%. Guardarlos abriría la puerta a que no cuadren.
-            $table->boolean('usa_canada_endorsement')->default(false);
             $table->enum('status', ['active', 'maintenance', 'inactive'])->default('active')->index();
             $table->text('comments')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();

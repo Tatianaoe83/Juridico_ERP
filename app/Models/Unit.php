@@ -32,13 +32,6 @@ class Unit extends Model
         return $next !== null && $next->lte(today()->addDays(self::WARNING_DAYS));
     }
 
-    protected function casts(): array
-    {
-        return [
-            'usa_canada_endorsement' => 'boolean',
-        ];
-    }
-
     /** Todos sus periodos de póliza, el más reciente primero. */
     public function policies(): HasMany
     {

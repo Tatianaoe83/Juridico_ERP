@@ -28,7 +28,6 @@ const form = useForm({
     plate: (props.unit?.plate ?? '').toUpperCase(),
     economic_number: props.unit?.economic_number ?? '',
     responsible: (props.unit?.responsible ?? '').toUpperCase(),
-    usa_canada_endorsement: props.unit?.usa_canada_endorsement ?? false,
     status: props.unit?.status ?? 'active',
     comments: props.unit?.comments ?? '',
     evidences: [],
@@ -98,10 +97,9 @@ const businessUnitOptions = computed(() => props.businessUnits.map(({ id, name }
 
 function submit() {
     // Vacío viaja como null para que la base guarde «sin dato» y no una cadena
-    // vacía; el booleano va como 1/0, que es lo que entiende multipart.
+    // vacía.
     form.transform((data) => ({
         ...Object.fromEntries(Object.entries(data).map(([key, value]) => [key, value === '' ? null : value])),
-        usa_canada_endorsement: data.usa_canada_endorsement ? 1 : 0,
         evidences: data.evidences,
         remove_evidences: data.remove_evidences,
         // Con archivos la petición va como POST; el método real viaja aquí.
@@ -287,22 +285,6 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                         Todavía no hay unidades de negocio en el catálogo.
                     </p>
                     <p v-if="form.errors.business_unit_id" :class="ERROR">{{ form.errors.business_unit_id }}</p>
-                </div>
-
-                <!-- Endoso: sí o no, sin folio aparte -->
-                <div>
-                    <span :class="LABEL">Endoso</span>
-                    <label
-                        class="flex h-9 cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50/70 px-3 text-[0.8rem] text-slate-700 transition-colors duration-150 hover:border-slate-300 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:border-white/20"
-                    >
-                        <input
-                            v-model="form.usa_canada_endorsement"
-                            type="checkbox"
-                            class="size-4 cursor-pointer rounded border-slate-300 text-brand focus:ring-brand/25 dark:border-white/20 dark:bg-white/10"
-                        />
-                        Cobertura USA / Canadá
-                    </label>
-                    <p v-if="form.errors.usa_canada_endorsement" :class="ERROR">{{ form.errors.usa_canada_endorsement }}</p>
                 </div>
             </div>
         </section>

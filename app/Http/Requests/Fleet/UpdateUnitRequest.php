@@ -48,7 +48,6 @@ class UpdateUnitRequest extends FormRequest
             'economic_number' => ['nullable', 'string', 'max:50'],
             'responsible' => ['nullable', 'string', 'max:255'],
 
-            'usa_canada_endorsement' => ['boolean'],
             'status' => ['required', Rule::in(Unit::STATUSES)],
             'comments' => ['nullable', 'string', 'max:5000'],
 

@@ -148,7 +148,6 @@ class FleetController extends Controller
             'unit' => [
                 ...$this->summary($unit),
                 'business_unit' => $unit->businessUnit?->name,
-                'usa_canada_endorsement' => $unit->usa_canada_endorsement,
                 'comments' => $unit->comments,
                 'documents' => $documents->map(fn (UnitEvidence $evidence) => [
                     'id' => $evidence->id,
@@ -193,7 +192,6 @@ class FleetController extends Controller
                 'plate' => $unit->plate,
                 'economic_number' => $unit->economic_number,
                 'responsible' => $unit->responsible,
-                'usa_canada_endorsement' => $unit->usa_canada_endorsement,
                 'status' => $unit->status,
                 'comments' => $unit->comments,
                 // Sus documentos oficiales, para poder quitarlos. Los
