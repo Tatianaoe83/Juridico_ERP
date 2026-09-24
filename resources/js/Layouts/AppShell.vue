@@ -5,6 +5,7 @@ import {
     CalendarDays,
     ChevronRight,
     FileBadge,
+    FileCheck,
     KeyRound,
     Moon,
     PanelLeftClose,
@@ -81,6 +82,7 @@ const nav = computed(() =>
             items: [
                 { href: '/licencias', label: 'Licencias y Permisos', icon: FileBadge, permission: 'licencias.view' },
                 { href: '/flotillas', label: 'Flotillas', icon: Truck, permission: 'flotillas.view' },
+                { href: '/polizas', label: 'Pólizas y Fianzas', icon: FileCheck, permission: 'polizas.view' },
             ],
         },
         {

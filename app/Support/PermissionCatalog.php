@@ -22,6 +22,7 @@ class PermissionCatalog
         'events' => 'Eventos',
         'licencias' => 'Licencias y Permisos',
         'flotillas' => 'Flotillas',
+        'polizas' => 'Pólizas y Fianzas',
     ];
 
     private const LABELS = [
@@ -44,6 +45,7 @@ class PermissionCatalog
         'flotillas.create' => 'Crear unidades',
         'flotillas.update' => 'Editar unidades',
         'flotillas.delete' => 'Eliminar unidades',
+        'polizas.view' => 'Ver pólizas y fianzas',
     ];
 
     public static function label(string $name): string

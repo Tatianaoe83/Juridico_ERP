@@ -127,6 +127,10 @@ Route::middleware('auth')->group(function () {
     Route::patch('/flotillas/{unit}', [FleetController::class, 'update'])
         ->middleware('can:flotillas.update')
         ->name('fleets.update');
+    // Pólizas y fianzas: por ahora solo la página, sin datos.
+    Route::inertia('/polizas', 'Policies/Index')
+        ->middleware('can:polizas.view')
+        ->name('policies.index');
 
     // Administración de usuarios. La Policy afina por registro: quién puede
     // tocar a quién no lo resuelve un permiso suelto.
