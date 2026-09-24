@@ -182,11 +182,17 @@ class LicenseController extends Controller
         // un evento con una alerta muerta.
         $vencido = $this->dropStaleReminder($license);
 
-        // La vigencia pudo moverse (o borrarse): el evento sigue al registro.
-        $agendada = $this->calendar->sync($license->load('creator', 'notification', 'businessUnit'), $request->user());
+        // Outlook solo se toca si se movió la vigencia o la hora: actualizar el
+        // evento le vuelve a llegar el aviso a los compartidos, y con el mismo
+        // día no hay nada nuevo que avisar. Si aún no tiene evento, se crea.
+        $moved = $license->wasChanged(['valid_until', 'valid_time']) || ! $license->calendar_event_id;
+
+        $note = $moved
+            ? $this->calendarNote($this->calendar->sync($license->load('creator', 'notification', 'businessUnit'), $request->user()))
+            : '';
 
         return to_route('licenses.index')
-            ->with('success', "Se actualizó {$license->name}.".$vencido.$this->calendarNote($agendada));
+            ->with('success', "Se actualizó {$license->name}.".$vencido.$note);
     }
 
     /** DELETE /licencias/{license} */
@@ -266,7 +272,9 @@ class LicenseController extends Controller
 
         return [
             ...$data,
-            'valid_time' => $data['valid_time'] ?? null,
+            // Con segundos, como la guarda la base: «10:00» contra «10:00:00»
+            // contaría como cambio de hora y reenviaría el evento.
+            'valid_time' => isset($data['valid_time']) ? Carbon::parse($data['valid_time'])->format('H:i:s') : null,
             'status' => License::statusFor(Carbon::parse($data['valid_until'])),
         ];
     }
