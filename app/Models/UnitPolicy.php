@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\CoverageStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -80,6 +81,41 @@ class UnitPolicy extends Model
     }
 
     /**
+     * Cómo va la vigencia del periodo: corre del inicio del primer semestre al
+     * cierre del segundo, salvo que se haya pedido cancelarla o ya esté
+     * cancelada. Es el estado de la tabla de pólizas y fianzas.
+     */
+    public function coverageStatus(): string
+    {
+        return CoverageStatus::of($this->second_payment_ends_on, $this->cancelled_on, $this->cancellation_requested_on);
+    }
+
+    /**
+     * El primer semestre sin pagar y su fecha límite de pago (`*_due_on`), que
+     * pone la aseguradora y no es el cierre del semestre. 'overdue' si ya pasó,
+     * 'pending' si aún está a tiempo o no tiene fecha. Null con los dos pagados o cancelada.
+     *
+     * @return array{payment: string, due_on: ?Carbon, status: string}|null
+     */
+    public function nextDue(): ?array
+    {
+        $payment = collect(self::PAYMENTS)->first(fn (string $payment) => ! $this->isPaid($payment));
+
+        // Cancelada ya no se paga lo que faltaba.
+        if (! $payment || $this->coverageStatus() === CoverageStatus::CANCELLED) {
+            return null;
+        }
+
+        $dueOn = $this->{"{$payment}_payment_due_on"};
+
+        return [
+            'payment' => $payment,
+            'due_on' => $dueOn,
+            'status' => $dueOn && $dueOn->lt(today()) ? 'overdue' : 'pending',
+        ];
+    }
+
+    /**
      * El semestre más reciente: el segundo en cuanto arranca, antes el primero.
      * Es el que se muestra en la tabla de flotillas.
      */
@@ -122,10 +158,15 @@ class UnitPolicy extends Model
         return [
             'first_payment_starts_on' => 'date',
             'first_payment_ends_on' => 'date',
+            'first_payment_due_on' => 'date',
             'first_payment_paid_at' => 'date',
             'second_payment_starts_on' => 'date',
             'second_payment_ends_on' => 'date',
+            'second_payment_due_on' => 'date',
             'second_payment_paid_at' => 'date',
+            'endorsement' => 'boolean',
+            'cancellation_requested_on' => 'date',
+            'cancelled_on' => 'date',
             'first_payment_amount' => 'decimal:2',
             'second_payment_amount' => 'decimal:2',
         ];

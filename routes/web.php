@@ -9,6 +9,7 @@ use App\Http\Controllers\Web\FleetController;
 use App\Http\Controllers\Web\LicenseController;
 use App\Http\Controllers\Web\LicenseNotificationController;
 use App\Http\Controllers\Web\PermissionController;
+use App\Http\Controllers\Web\PolicyController;
 use App\Http\Controllers\Web\RoleController;
 use App\Http\Controllers\Web\UserController;
 use Illuminate\Support\Facades\Auth;
@@ -127,8 +128,8 @@ Route::middleware('auth')->group(function () {
     Route::patch('/flotillas/{unit}', [FleetController::class, 'update'])
         ->middleware('can:flotillas.update')
         ->name('fleets.update');
-    // Pólizas y fianzas: por ahora solo la página, sin datos.
-    Route::inertia('/polizas', 'Policies/Index')
+    // Pólizas y fianzas: por ahora solo la tabla.
+    Route::get('/polizas', [PolicyController::class, 'index'])
         ->middleware('can:polizas.view')
         ->name('policies.index');
 
