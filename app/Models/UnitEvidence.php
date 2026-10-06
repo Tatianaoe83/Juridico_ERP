@@ -18,6 +18,9 @@ class UnitEvidence extends Model
 
     public const PAYMENT_RECEIPT = 'payment_receipt';
 
+    /** La factura de una cuota: va ligada a su periodo y a cuál de los dos pagos. */
+    public const INVOICE = 'invoice';
+
     /** Extensiones que se aceptan como documento oficial: PDF, Word, Excel, imagen y XML. */
     public const DOCUMENT_TYPES = 'pdf,doc,docx,xls,xlsx,jpg,jpeg,png,webp,xml';
 

@@ -156,6 +156,9 @@ const cards = computed(() => [
 
 const PAYMENT_LABEL = { first: '1 de 2', second: '2 de 2' };
 
+/** Cada tipo tiene su propio detalle. */
+const showUrl = (row) => (row.type === 'bond' ? `/polizas/fianzas/${row.id}` : `/polizas/${row.id}`);
+
 /** Inicio y fin de la vigencia; con una sola fecha, esa. */
 function validity(row) {
     const from = shortDate(row.valid_from);
@@ -385,9 +388,9 @@ const PAGE_BTN =
                                 <!-- Acciones: todavía sin funcionalidad -->
                                 <td :class="TD">
                                     <div class="flex items-center justify-end gap-0.5 @2xl:gap-1">
-                                        <button type="button" :class="[ACTION, NEUTRAL]" :aria-label="`Ver ${row.number}`" title="Ver detalle">
+                                        <Link :href="showUrl(row)" :class="[ACTION, NEUTRAL]" :aria-label="`Ver ${row.number}`" title="Ver detalle">
                                             <Eye class="size-4" />
-                                        </button>
+                                        </Link>
                                         <button type="button" :class="[ACTION, NEUTRAL]" :aria-label="`Editar ${row.number}`" title="Editar">
                                             <Pencil class="size-4" />
                                         </button>
