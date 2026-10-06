@@ -6,7 +6,7 @@ import AppShell from '@/Layouts/AppShell.vue';
 import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
 import FilterSelect from '@/components/app/FilterSelect.vue';
 import { usePermissions } from '@/composables/usePermissions';
-import { PAYMENT_STATUS, PAYMENT_WARNING_DAYS, UNASSIGNED, UNIT_STATUS, shortDate, unitStatus } from '@/lib/units';
+import { PAYMENT_STATUS, PAYMENT_WARNING_DAYS, UNASSIGNED, UNIT_STATUS, UNIT_TYPES, shortDate, unitStatus } from '@/lib/units';
 
 const props = defineProps({
     /** { data: [{ id, brand, model, status, semester, annual, ... }], meta } */
@@ -397,9 +397,10 @@ const PAGE_BTN =
                     ref="tableBox"
                     class="overflow-x-auto border-t border-slate-100 md:min-h-0 md:flex-1 md:overflow-y-auto dark:border-white/[0.06]"
                 >
-                    <table class="w-full min-w-[56rem] text-[0.8rem]">
+                    <table class="w-full min-w-[62rem] text-[0.8rem]">
                         <thead class="sticky top-0 z-10 bg-slate-50 text-slate-500 dark:bg-brand-deep dark:text-brand-gray">
                             <tr>
+                                <th :class="[TH, 'w-px']">Tipo</th>
                                 <th :class="TH">Marca</th>
                                 <th :class="TH">Modelo</th>
                                 <th :class="[TH, 'w-px']">Placas</th>
@@ -420,15 +421,20 @@ const PAGE_BTN =
                                 :class="deleting === unit.id && 'pointer-events-none opacity-40'"
                                 :style="rowHeight ? { height: `${rowHeight}px` } : null"
                             >
-                                <td :class="[TD, 'whitespace-nowrap']">
-                                    <div class="flex items-center gap-2.5">
+                                <!-- Tipo: vehículo o maquinaria -->
+                                <td :class="[TD, 'w-px whitespace-nowrap']">
+                                    <div class="flex items-center gap-2">
                                         <span
                                             class="grid size-7 shrink-0 place-content-center rounded-lg bg-slate-50 text-slate-500 ring-1 ring-inset ring-slate-500/15 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10"
                                         >
-                                            <Truck class="size-3.5" />
+                                            <component :is="UNIT_TYPES[unit.type]?.icon ?? Truck" class="size-3.5" />
                                         </span>
-                                        <span class="font-semibold text-slate-800 dark:text-white">{{ unit.brand }}</span>
+                                        <span class="text-slate-600 dark:text-slate-300">{{ UNIT_TYPES[unit.type]?.label ?? '—' }}</span>
                                     </div>
+                                </td>
+
+                                <td :class="[TD, 'whitespace-nowrap']">
+                                    <span class="font-semibold text-slate-800 dark:text-white">{{ unit.brand }}</span>
                                 </td>
 
                                 <!-- La columna elástica: si falta lugar, es la que cede -->

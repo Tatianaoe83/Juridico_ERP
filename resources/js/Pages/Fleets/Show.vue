@@ -3,7 +3,7 @@ import { Head, Link } from '@inertiajs/vue3';
 import { ArrowLeft, Building2, CircleDot, Download, FileText, Hash, MessageSquareText, Paperclip, ScanLine, Truck, User } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
-import { unitStatus } from '@/lib/units';
+import { UNIT_TYPES, unitStatus } from '@/lib/units';
 
 const props = defineProps({
     /** El vehículo, el número de su póliza vigente y sus documentos oficiales. */
@@ -20,6 +20,7 @@ const status = computed(() => unitStatus(props.unit.status));
 
 /** Los datos sueltos, en fichas y en el mismo orden que el formulario. */
 const details = computed(() => [
+    { label: 'Tipo', value: UNIT_TYPES[props.unit.type]?.label ?? props.unit.type, icon: UNIT_TYPES[props.unit.type]?.icon ?? Truck },
     { label: 'Marca', value: props.unit.brand, icon: Truck },
     { label: 'Modelo', value: props.unit.model, icon: Truck },
     { label: 'Número de serie', value: props.unit.serial_number, icon: ScanLine },

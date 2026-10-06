@@ -3,13 +3,11 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Fleet\PayUnitPolicyRequest;
 use App\Http\Requests\Fleet\StoreUnitRequest;
 use App\Http\Requests\Fleet\UpdateUnitRequest;
 use App\Models\BusinessUnit;
 use App\Models\Unit;
 use App\Models\UnitEvidence;
-use App\Models\UnitPolicy;
 use App\Services\UnitCalendar;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -108,6 +106,7 @@ class FleetController extends Controller
         return Inertia::render('Fleets/Create', [
             'businessUnits' => BusinessUnit::orderBy('name')->get(['id', 'name']),
             'statuses' => Unit::STATUSES,
+            'types' => Unit::TYPES,
         ]);
     }
 
@@ -186,6 +185,7 @@ class FleetController extends Controller
             'unit' => [
                 'id' => $unit->id,
                 'business_unit_id' => $unit->business_unit_id,
+                'type' => $unit->type,
                 'brand' => $unit->brand,
                 'model' => $unit->model,
                 'serial_number' => $unit->serial_number,
@@ -203,6 +203,7 @@ class FleetController extends Controller
             ],
             'businessUnits' => BusinessUnit::orderBy('name')->get(['id', 'name']),
             'statuses' => Unit::STATUSES,
+            'types' => Unit::TYPES,
         ]);
     }
 
@@ -217,54 +218,6 @@ class FleetController extends Controller
         });
 
         return to_route('fleets.index')->with('success', "Se actualizó la unidad {$unit->brand} {$unit->model}.");
-    }
-
-    /**
-     * POST /flotillas/{unit}/periodos/{policy}/pagos/{payment}
-     *
-     * Marca el semestre como pagado con su comprobante. No es un abono: vale
-     * el importe del periodo. El segundo pago además renueva: se crea el
-     * periodo siguiente con la póliza nueva.
-     */
-    public function pay(PayUnitPolicyRequest $request, Unit $unit, UnitPolicy $policy, string $payment): RedirectResponse
-    {
-        $renewal = DB::transaction(function () use ($request, $unit, $policy, $payment) {
-            $this->storeEvidence($request, $unit, $request->file('receipt'), UnitEvidence::PAYMENT_RECEIPT, $policy, $payment);
-
-            $policy->update(["{$payment}_payment_paid_at" => $request->validated('paid_at')]);
-
-            if ($payment !== 'second') {
-                return null;
-            }
-
-            // El periodo nuevo arranca cuando cierra el anterior, con dos
-            // semestres de seis meses exactos. Si el día no existe en el mes
-            // (31 de agosto → febrero) se queda en el último.
-            $firstStart = $policy->second_payment_ends_on->copy();
-            $firstEnd = $firstStart->copy()->addMonthsNoOverflow(UnitPolicy::SEMESTER_MONTHS);
-            $secondEnd = $firstEnd->copy()->addMonthsNoOverflow(UnitPolicy::SEMESTER_MONTHS);
-
-            return $unit->policies()->create([
-                'policy' => $request->validated('new_policy'),
-                'certificate' => $request->validated('new_certificate'),
-                'first_payment_starts_on' => $firstStart,
-                'first_payment_ends_on' => $firstEnd,
-                'first_payment_amount' => $request->validated('new_first_payment_amount'),
-                'second_payment_starts_on' => $firstEnd,
-                'second_payment_ends_on' => $secondEnd,
-                'second_payment_amount' => $request->validated('new_second_payment_amount'),
-                'renewed_from_id' => $policy->id,
-                'created_by' => $request->user()->id,
-            ]);
-        });
-
-        $label = $payment === 'first' ? 'primer' : 'segundo';
-
-        if (! $renewal) {
-            return back()->with('success', "Se registró el {$label} pago de la póliza {$policy->policy}.");
-        }
-
-        return back()->with('success', "Se registró el {$label} pago y la unidad se renovó con la póliza {$renewal->policy}.");
     }
 
     /** DELETE /flotillas/{unit} */
@@ -304,21 +257,19 @@ class FleetController extends Controller
     private function storeDocuments(StoreUnitRequest|UpdateUnitRequest $request, Unit $unit): void
     {
         foreach ($request->file('evidences', []) as $file) {
-            $this->storeEvidence($request, $unit, $file, UnitEvidence::OFFICIAL_DOCUMENT);
+            $this->storeEvidence($request, $unit, $file);
         }
     }
 
     /**
      * Guarda el archivo en disco y deja en la base su ruta y el nombre con
      * el que lo subieron, que es el que se va a descargar. Los comprobantes
-     * llevan además su periodo y de cuál de los dos pagos son.
+     * de pago no pasan por aquí: se suben desde Pólizas.
      */
-    private function storeEvidence(Request $request, Unit $unit, UploadedFile $file, string $type, ?UnitPolicy $policy = null, ?string $payment = null): void
+    private function storeEvidence(Request $request, Unit $unit, UploadedFile $file): void
     {
         $unit->evidences()->create([
-            'unit_policy_id' => $policy?->id,
-            'type' => $type,
-            'payment' => $payment,
+            'type' => UnitEvidence::OFFICIAL_DOCUMENT,
             'path' => Storage::disk('local')->putFile("units/{$unit->id}", $file),
             'name' => $file->getClientOriginalName(),
             'mime_type' => $file->getClientMimeType(),
@@ -342,6 +293,7 @@ class FleetController extends Controller
 
         return [
             'id' => $unit->id,
+            'type' => $unit->type,
             'brand' => $unit->brand,
             'model' => $unit->model,
             'serial_number' => $unit->serial_number,

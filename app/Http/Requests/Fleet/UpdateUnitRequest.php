@@ -42,6 +42,7 @@ class UpdateUnitRequest extends FormRequest
 
         return [
             'business_unit_id' => ['required', 'integer', 'exists:business_units,id'],
+            'type' => ['required', Rule::in(Unit::TYPES)],
             'brand' => ['required', 'string', 'max:255'],
             'model' => ['required', 'string', 'max:255'],
             'serial_number' => ['nullable', 'string', 'max:255', Rule::unique('units', 'serial_number')->ignore($unit)],
@@ -82,6 +83,7 @@ class UpdateUnitRequest extends FormRequest
     {
         return [
             'business_unit_id' => 'unidad de negocio',
+            'type' => 'tipo de unidad',
             'brand' => 'marca',
             'model' => 'modelo',
             'serial_number' => 'número de serie',

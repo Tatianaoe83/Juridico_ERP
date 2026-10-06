@@ -9,6 +9,8 @@ defineProps({
     businessUnits: { type: Array, default: () => [] },
     /** Valores del enum `status`, tal como los acepta el servidor. */
     statuses: { type: Array, default: () => [] },
+    /** Valores del enum `type`: vehículo o maquinaria. */
+    types: { type: Array, default: () => [] },
 });
 
 const breadcrumbs = [
@@ -46,7 +48,7 @@ const breadcrumbs = [
                 </Link>
             </div>
 
-            <UnitForm :business-units="businessUnits" :statuses="statuses" />
+            <UnitForm :business-units="businessUnits" :statuses="statuses" :types="types" />
         </div>
     </AppShell>
 </template>

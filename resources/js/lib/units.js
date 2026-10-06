@@ -1,4 +1,4 @@
-import { CircleCheck, CircleSlash, Wrench } from 'lucide-vue-next';
+import { Car, CircleCheck, CircleSlash, Tractor, Wrench } from 'lucide-vue-next';
 import { localDate } from '@/lib/licenses';
 
 /**
@@ -27,6 +27,12 @@ export const UNIT_STATUS = {
         dot: 'bg-slate-400',
         tone: 'bg-slate-50 text-slate-600 ring-slate-500/15 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10',
     },
+};
+
+/** Valores del enum `type` de units → etiqueta e icono. Igual que Unit::TYPES. */
+export const UNIT_TYPES = {
+    vehicle: { label: 'Vehículo', icon: Car },
+    machinery: { label: 'Maquinaria', icon: Tractor },
 };
 
 const NEUTRAL_TONE = 'bg-slate-50 text-slate-600 ring-slate-500/15 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10';
@@ -135,30 +141,6 @@ export function paymentCountdown(iso) {
             days <= PAYMENT_WARNING_DAYS
                 ? 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/25'
                 : 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/25',
-    };
-}
-
-/**
- * Qué pagos del periodo vigente se pueden registrar, con el motivo si no hay
- * ninguno. Son las mismas reglas que valida el servidor: sin periodo no hay
- * qué pagar, cada pago se registra una vez y el segundo necesita su fecha
- * límite porque de ahí arranca la renovación.
- *
- * @returns {{ payable: Array<'first'|'second'>, reason: string|null }}
- */
-export function payablePayments(unit) {
-    if (!unit?.policy_id) return { payable: [], reason: 'La unidad no tiene periodo vigente' };
-
-    const payable = [];
-
-    if (!unit.first_payment?.paid_at) payable.push('first');
-    if (!unit.second_payment?.paid_at && unit.second_payment?.ends_on) payable.push('second');
-
-    if (payable.length) return { payable, reason: null };
-
-    return {
-        payable,
-        reason: unit.second_payment?.paid_at ? 'Los dos pagos ya están registrados' : 'Falta la fecha límite del segundo pago',
     };
 }
 

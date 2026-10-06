@@ -5,7 +5,7 @@ import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
 import FilePreviewDialog from '@/components/app/FilePreviewDialog.vue';
 import FormSelect from '@/components/app/FormSelect.vue';
 import { ACCEPT, FILE_KINDS, extensionOf, fileSize, kindOf } from '@/lib/files';
-import { UNIT_STATUS } from '@/lib/units';
+import { UNIT_STATUS, UNIT_TYPES } from '@/lib/units';
 
 /**
  * El formulario de la unidad, el mismo para el alta y la edición: solo cambia
@@ -18,12 +18,15 @@ const props = defineProps({
     businessUnits: { type: Array, default: () => [] },
     /** Valores del enum `status`, tal como los acepta el servidor. */
     statuses: { type: Array, default: () => [] },
+    /** Valores del enum `type`: vehículo o maquinaria. */
+    types: { type: Array, default: () => [] },
 });
 
 const editing = computed(() => props.unit !== null);
 
 const form = useForm({
     business_unit_id: props.unit?.business_unit_id ?? '',
+    type: props.unit?.type ?? 'vehicle',
     brand: (props.unit?.brand ?? '').toUpperCase(),
     model: (props.unit?.model ?? '').toUpperCase(),
     serial_number: props.unit?.serial_number ?? '',
@@ -235,7 +238,37 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
     <form id="unit-form" class="flex flex-col gap-3 tall:gap-4" novalidate @submit.prevent="submit">
         <!-- Vehículo -->
         <section :class="CARD">
-            <p :class="SECTION_TITLE">Vehículo</p>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <p :class="SECTION_TITLE">Unidad</p>
+
+                <!-- Tipo de unidad: se elige, no se escribe -->
+                <div>
+                    <div
+                        class="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/[0.05]"
+                        role="radiogroup"
+                        aria-label="Tipo de unidad"
+                    >
+                        <button
+                            v-for="value in types"
+                            :key="value"
+                            type="button"
+                            role="radio"
+                            :aria-checked="form.type === value"
+                            class="inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3 text-[0.75rem] font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25"
+                            :class="
+                                form.type === value
+                                    ? 'bg-white text-brand shadow-sm dark:bg-white/15 dark:text-white'
+                                    : 'text-slate-500 hover:text-slate-800 dark:text-brand-gray dark:hover:text-white'
+                            "
+                            @click="form.type = value"
+                        >
+                            <component :is="UNIT_TYPES[value]?.icon" class="size-3.5" />
+                            {{ UNIT_TYPES[value]?.label ?? value }}
+                        </button>
+                    </div>
+                    <p v-if="form.errors.type" :class="ERROR">{{ form.errors.type }}</p>
+                </div>
+            </div>
 
             <div class="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div>

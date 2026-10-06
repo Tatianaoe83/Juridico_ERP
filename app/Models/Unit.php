@@ -16,6 +16,9 @@ class Unit extends Model
     /** Los mismos valores que el enum de la columna `status`. */
     public const STATUSES = ['active', 'maintenance', 'inactive'];
 
+    /** Los mismos valores que el enum de la columna `type`: vehículo o maquinaria. */
+    public const TYPES = ['vehicle', 'machinery'];
+
     /** Campos que se guardan siempre en mayúsculas. */
     public const UPPERCASE = ['brand', 'model', 'plate', 'responsible'];
 
