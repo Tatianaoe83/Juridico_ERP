@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import {
     ArrowLeft,
     Ban,
@@ -10,19 +10,15 @@ import {
     FilePen,
     Hash,
     Landmark,
-    Loader2,
     MessageSquareText,
     Paperclip,
     ScanLine,
     Truck,
-    Upload,
     User,
     Wallet,
-    X,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
-import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
 import FilePreviewDialog from '@/components/app/FilePreviewDialog.vue';
 import PolicyPaymentDialog from '@/components/app/PolicyPaymentDialog.vue';
 import { usePermissions } from '@/composables/usePermissions';
@@ -97,9 +93,7 @@ const INSTALLMENT_STATUS = {
 
 const cancellation = computed(() => props.policy.cancellation_requested_on || props.policy.cancelled_on);
 
-/* ---------- Comprobantes y facturas ---------- */
-
-const canUpdate = computed(() => can('polizas.update'));
+/* ---------- Pago y comprobante ---------- */
 
 const previewOpen = ref(false);
 const previewFile = ref(null);
@@ -112,7 +106,7 @@ function openFile(file) {
 const fileKind = (name) => FILE_KINDS[kindOf(name)] ?? FILE_KINDS.pdf;
 
 /** Se registra el pago mientras la cuota no esté pagada ni la póliza cancelada. */
-const payable = (installment) => canUpdate.value && ['pending', 'overdue'].includes(installment.status);
+const payable = (installment) => can('polizas.update') && ['pending', 'overdue'].includes(installment.status);
 
 // Registrar pago: un modal con la fecha y el comprobante.
 const paymentOpen = ref(false);
@@ -121,83 +115,6 @@ const paying = ref(null);
 function pay(installment) {
     paying.value = installment;
     paymentOpen.value = true;
-}
-
-// Facturas: se suben directo al elegirlas, sin modal.
-const invoiceInput = ref(null);
-const invoiceFor = ref(null);
-const uploading = ref(null);
-const invoiceErrors = ref({});
-
-function pickInvoices(installment) {
-    invoiceFor.value = installment.payment;
-    invoiceInput.value?.click();
-}
-
-function uploadInvoices(event) {
-    const files = Array.from(event.target.files);
-    const payment = invoiceFor.value;
-
-    event.target.value = '';
-
-    if (!files.length || !payment) return;
-
-    uploading.value = payment;
-    invoiceErrors.value = {};
-
-    router.post(
-        `/polizas/${props.policy.id}/facturas/${payment}`,
-        { invoices: files },
-        {
-            preserveScroll: true,
-            forceFormData: true,
-            onError: (errors) => (invoiceErrors.value = { [payment]: Object.values(errors) }),
-            onFinish: () => (uploading.value = null),
-        },
-    );
-}
-
-// Quitar factura: con confirmación, como todo lo que borra.
-const deleteOpen = ref(false);
-const toDelete = ref(null);
-const deleting = ref(null);
-
-function askDelete(file) {
-    toDelete.value = file;
-    deleteOpen.value = true;
-}
-
-function destroyInvoice() {
-    const file = toDelete.value;
-
-    deleting.value = file.id;
-
-    router.delete(`/polizas/${props.policy.id}/facturas/${file.id}`, {
-        preserveScroll: true,
-        onFinish: () => (deleting.value = null),
-    });
-}
-
-/** Los dos apartados de cada cuota, en el orden en que se piden. */
-function fileSections(installment) {
-    return [
-        {
-            key: 'receipts',
-            title: 'Comprobante de pago',
-            files: installment.receipts,
-            empty: 'Sin comprobante.',
-            removable: false,
-            action: payable(installment) ? { label: 'Registrar pago', icon: Wallet, run: () => pay(installment) } : null,
-        },
-        {
-            key: 'invoices',
-            title: 'Facturas',
-            files: installment.invoices,
-            empty: 'Sin factura.',
-            removable: canUpdate.value,
-            action: canUpdate.value ? { label: 'Subir factura', icon: Upload, run: () => pickInvoices(installment) } : null,
-        },
-    ];
 }
 
 /** «22 sep 2026, 14:30» para las marcas de tiempo del registro. */
@@ -343,38 +260,26 @@ const EMPTY = 'mt-3 flex items-center gap-2 text-[0.78rem] text-slate-400 dark:t
                                     </div>
                                 </dl>
 
-                                <!-- Comprobante de pago y facturas: clic en el archivo para verlo -->
-                                <div
-                                    v-for="section in fileSections(installment)"
-                                    :key="section.key"
-                                    class="border-t border-slate-200/70 pt-3 dark:border-white/[0.06]"
-                                >
+                                <!-- Comprobante de pago: clic en el archivo para verlo -->
+                                <div class="border-t border-slate-200/70 pt-3 dark:border-white/[0.06]">
                                     <div class="flex items-center justify-between gap-2">
-                                        <p :class="DT">{{ section.title }}</p>
+                                        <p :class="DT">Comprobante de pago</p>
                                         <button
-                                            v-if="section.action"
+                                            v-if="payable(installment)"
                                             type="button"
-                                            class="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[0.7rem] font-semibold text-brand transition-colors hover:bg-brand/[0.07] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25 disabled:pointer-events-none disabled:opacity-50 dark:text-white dark:hover:bg-white/10"
-                                            :disabled="section.key === 'invoices' && uploading === installment.payment"
-                                            @click="section.action.run"
+                                            class="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[0.7rem] font-semibold text-brand transition-colors hover:bg-brand/[0.07] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25 dark:text-white dark:hover:bg-white/10"
+                                            @click="pay(installment)"
                                         >
-                                            <Loader2 v-if="section.key === 'invoices' && uploading === installment.payment" class="size-3.5 animate-spin" />
-                                            <component :is="section.action.icon" v-else class="size-3.5" />
-                                            {{ section.action.label }}
+                                            <Wallet class="size-3.5" />
+                                            Registrar pago
                                         </button>
                                     </div>
 
-                                    <ul v-if="section.files.length" class="mt-1.5 flex flex-col gap-1.5">
-                                        <li
-                                            v-for="file in section.files"
-                                            :key="file.id"
-                                            class="relative"
-                                            :class="deleting === file.id && 'pointer-events-none opacity-40'"
-                                        >
+                                    <ul v-if="installment.receipts.length" class="mt-1.5 flex flex-col gap-1.5">
+                                        <li v-for="file in installment.receipts" :key="file.id">
                                             <button
                                                 type="button"
                                                 class="flex w-full cursor-pointer items-center gap-2.5 rounded-lg bg-white px-2.5 py-2 text-left text-[0.75rem] ring-1 ring-slate-200 transition-colors hover:ring-brand/30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25 dark:bg-white/[0.04] dark:ring-white/10 dark:hover:ring-white/25"
-                                                :class="section.removable && 'pr-9'"
                                                 @click="openFile(file)"
                                             >
                                                 <span class="grid size-7 shrink-0 place-content-center rounded-md" :class="fileKind(file.name).tile">
@@ -387,28 +292,12 @@ const EMPTY = 'mt-3 flex items-center gap-2 text-[0.78rem] text-slate-400 dark:t
                                                     </span>
                                                 </span>
                                             </button>
-                                            <button
-                                                v-if="section.removable"
-                                                type="button"
-                                                class="absolute top-1/2 right-1.5 grid size-6 -translate-y-1/2 cursor-pointer place-content-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-red-500/25 dark:hover:bg-red-500/10 dark:hover:text-red-300"
-                                                :aria-label="`Quitar ${file.name}`"
-                                                title="Quitar factura"
-                                                @click="askDelete(file)"
-                                            >
-                                                <X class="size-3.5" />
-                                            </button>
                                         </li>
                                     </ul>
                                     <p v-else class="mt-1 flex items-center gap-1.5 text-[0.72rem] text-slate-400 dark:text-brand-gray/70">
                                         <Paperclip class="size-3.5" />
-                                        {{ section.empty }}
+                                        Sin comprobante.
                                     </p>
-
-                                    <template v-if="section.key === 'invoices'">
-                                        <p v-for="error in invoiceErrors[installment.payment] ?? []" :key="error" class="mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400">
-                                            {{ error }}
-                                        </p>
-                                    </template>
                                 </div>
                             </article>
                         </div>
@@ -484,14 +373,5 @@ const EMPTY = 'mt-3 flex items-center gap-2 text-[0.78rem] text-slate-400 dark:t
         <FilePreviewDialog v-model:open="previewOpen" :file="previewFile" />
 
         <PolicyPaymentDialog v-model:open="paymentOpen" :policy="policy" :installment="paying" />
-
-        <ConfirmDeleteDialog
-            v-model:open="deleteOpen"
-            :text="toDelete ? `¿Seguro que quieres quitar la factura «${toDelete.name}»?` : ''"
-            @confirm="destroyInvoice"
-        />
-
-        <!-- Uno solo para las dos cuotas: `invoiceFor` dice a cuál van -->
-        <input ref="invoiceInput" type="file" multiple accept=".pdf,.xml" class="hidden" @change="uploadInvoices" />
     </AppShell>
 </template>

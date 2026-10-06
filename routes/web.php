@@ -141,18 +141,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/polizas/{policy}/archivos/{evidence}', [PolicyController::class, 'file'])
         ->middleware('can:polizas.view')
         ->name('policies.file');
-    // Cada cuota: su comprobante de pago y sus facturas.
+    // Registrar el pago de una cuota con su comprobante.
     Route::post('/polizas/{policy}/pagos/{payment}', [PolicyController::class, 'pay'])
         ->whereIn('payment', ['first', 'second'])
         ->middleware('can:polizas.update')
         ->name('policies.pay');
-    Route::post('/polizas/{policy}/facturas/{payment}', [PolicyController::class, 'storeInvoices'])
-        ->whereIn('payment', ['first', 'second'])
-        ->middleware('can:polizas.update')
-        ->name('policies.invoices.store');
-    Route::delete('/polizas/{policy}/facturas/{evidence}', [PolicyController::class, 'destroyInvoice'])
-        ->middleware('can:polizas.update')
-        ->name('policies.invoices.destroy');
 
     // Administración de usuarios. La Policy afina por registro: quién puede
     // tocar a quién no lo resuelve un permiso suelto.

@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Policy\RegisterPolicyPaymentRequest;
-use App\Http\Requests\Policy\StorePolicyInvoiceRequest;
 use App\Models\Bond;
 use App\Models\UnitEvidence;
 use App\Models\UnitPolicy;
@@ -93,10 +92,7 @@ class PolicyController extends Controller
         $policy->load([
             'unit.businessUnit:id,name',
             'creator:id,name',
-            'evidences' => fn ($query) => $query
-                ->whereIn('type', [UnitEvidence::PAYMENT_RECEIPT, UnitEvidence::INVOICE])
-                ->with('uploader:id,name')
-                ->orderBy('id'),
+            'evidences' => fn ($query) => $query->where('type', UnitEvidence::PAYMENT_RECEIPT)->with('uploader:id,name')->orderBy('id'),
         ]);
 
         $unit = $policy->unit;
@@ -124,8 +120,7 @@ class PolicyController extends Controller
                     'amount' => $policy->{"{$payment}_payment_amount"} !== null ? (float) $policy->{"{$payment}_payment_amount"} : null,
                     'paid_at' => $policy->{"{$payment}_payment_paid_at"}?->toDateString(),
                     'status' => $this->paymentStatus($policy, $payment, $cancelled),
-                    'receipts' => $this->filesOf($policy, $payment, UnitEvidence::PAYMENT_RECEIPT),
-                    'invoices' => $this->filesOf($policy, $payment, UnitEvidence::INVOICE),
+                    'receipts' => $this->receiptsOf($policy, $payment),
                 ]),
                 'cancellation_requested_on' => $policy->cancellation_requested_on?->toDateString(),
                 'cancelled_on' => $policy->cancelled_on?->toDateString(),
@@ -179,7 +174,7 @@ class PolicyController extends Controller
     /**
      * GET /polizas/{policy}/archivos/{evidence}
      *
-     * Comprobantes y facturas viven fuera de public: se sirven por aquí, con
+     * Los comprobantes viven fuera de public: se sirven por aquí, con
      * el nombre con el que se subieron y solo si son de esta póliza.
      */
     public function file(UnitPolicy $policy, UnitEvidence $evidence): StreamedResponse
@@ -206,42 +201,6 @@ class PolicyController extends Controller
         $label = $payment === 'first' ? 'primer' : 'segundo';
 
         return back()->with('success', "Se registró el {$label} pago de la póliza {$policy->policy}.");
-    }
-
-    /**
-     * POST /polizas/{policy}/facturas/{payment}
-     *
-     * Las facturas de una cuota. Se suman a las que ya tenga.
-     */
-    public function storeInvoices(StorePolicyInvoiceRequest $request, UnitPolicy $policy, string $payment): RedirectResponse
-    {
-        $files = $request->file('invoices', []);
-
-        DB::transaction(function () use ($request, $policy, $payment, $files) {
-            foreach ($files as $file) {
-                $this->storeFile($request, $policy, $file, UnitEvidence::INVOICE, $payment);
-            }
-        });
-
-        $count = count($files);
-
-        return back()->with('success', $count === 1 ? 'Se subió la factura.' : "Se subieron {$count} archivos de factura.");
-    }
-
-    /**
-     * DELETE /polizas/{policy}/facturas/{evidence}
-     *
-     * Solo facturas: los comprobantes son la prueba de que se pagó y no se
-     * quitan desde aquí.
-     */
-    public function destroyInvoice(UnitPolicy $policy, UnitEvidence $evidence): RedirectResponse
-    {
-        abort_unless($evidence->unit_policy_id === $policy->id && $evidence->type === UnitEvidence::INVOICE, 404);
-
-        Storage::disk('local')->delete($evidence->path);
-        $evidence->delete();
-
-        return back()->with('success', "Se quitó la factura {$evidence->name}.");
     }
 
     /**
@@ -281,12 +240,11 @@ class PolicyController extends Controller
         return $dueOn && $dueOn->lt(today()) ? 'overdue' : 'pending';
     }
 
-    /** Los archivos de un tipo (comprobante o factura) de una cuota, listos para la vista. */
-    private function filesOf(UnitPolicy $policy, string $payment, string $type): Collection
+    /** Los comprobantes de una cuota, listos para la vista. */
+    private function receiptsOf(UnitPolicy $policy, string $payment): Collection
     {
         return $policy->evidences
             ->where('payment', $payment)
-            ->where('type', $type)
             ->values()
             ->map(fn (UnitEvidence $evidence) => $this->fileSummary($evidence));
     }
