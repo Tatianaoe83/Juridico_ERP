@@ -1,8 +1,10 @@
 <script setup>
 import { Link, useForm } from '@inertiajs/vue3';
-import { Building2, FileText, Hash, Loader2, MessageSquareText, Paperclip, RotateCcw, Save, ScanLine, Truck, User, X } from 'lucide-vue-next';
-import { computed, nextTick, ref } from 'vue';
+import { Building2, Hash, Loader2, MessageSquareText, Paperclip, RotateCcw, Save, ScanLine, Truck, User, X } from 'lucide-vue-next';
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
+import FilePreviewDialog from '@/components/app/FilePreviewDialog.vue';
 import FormSelect from '@/components/app/FormSelect.vue';
+import { ACCEPT, FILE_KINDS, extensionOf, fileSize, kindOf } from '@/lib/files';
 import { UNIT_STATUS } from '@/lib/units';
 
 /**
@@ -54,18 +56,72 @@ function toUpper(field, event) {
 
 const fileInput = ref(null);
 
-/** Las que ya están guardadas, menos las que se marcaron para quitar. */
-const savedEvidences = computed(() => (props.unit?.evidences ?? []).filter((e) => !form.remove_evidences.includes(e.id)));
+/** Miniatura de las imágenes nuevas; se liberan al quitarlas o al salir. */
+const previews = new Map();
+
+onBeforeUnmount(() => previews.forEach((url) => URL.revokeObjectURL(url)));
+
+/** Los que el selector dejó pasar («Todos los archivos») pero no se aceptan. */
+const rejected = ref([]);
+
+/** Los que ya estaban en la lista y no se volvieron a sumar. */
+const duplicated = ref([]);
+
+/**
+ * El mismo archivo es el mismo nombre con el mismo peso. Cuenta contra los
+ * nuevos y contra los guardados que se conservan: uno marcado para quitar
+ * se puede volver a subir.
+ */
+function fingerprint(name, size) {
+    return `${name.toLowerCase()}|${size}`;
+}
 
 function addFiles(event) {
+    const picked = Array.from(event.target.files);
+    const taken = new Set([
+        ...(props.unit?.evidences ?? [])
+            .filter((evidence) => !form.remove_evidences.includes(evidence.id))
+            .map((evidence) => fingerprint(evidence.name, evidence.size ?? 0)),
+        ...form.evidences.map((file) => fingerprint(file.name, file.size)),
+    ]);
+
+    const accepted = [];
+    rejected.value = [];
+    duplicated.value = [];
+
+    for (const file of picked) {
+        const key = fingerprint(file.name, file.size);
+
+        if (!kindOf(file.name)) {
+            rejected.value.push(file.name);
+        } else if (taken.has(key)) {
+            duplicated.value.push(file.name);
+        } else {
+            // También evita repetirlo si lo eligió dos veces en la misma selección.
+            taken.add(key);
+            accepted.push(file);
+        }
+    }
+
+    accepted
+        .filter((file) => kindOf(file.name) === 'image')
+        .forEach((file) => previews.set(file, URL.createObjectURL(file)));
+
     // Se suman a las que ya eligió: abrir el selector otra vez no borra lo anterior.
-    form.evidences = [...form.evidences, ...Array.from(event.target.files)];
+    form.evidences = [...form.evidences, ...accepted];
 
     // El input se limpia para poder volver a elegir el mismo archivo.
     event.target.value = '';
 }
 
 function removeFile(index) {
+    const file = form.evidences[index];
+
+    if (previews.has(file)) {
+        URL.revokeObjectURL(previews.get(file));
+        previews.delete(file);
+    }
+
     form.evidences = form.evidences.filter((_, i) => i !== index);
 }
 
@@ -78,12 +134,56 @@ function restoreSaved(id) {
     form.remove_evidences = form.remove_evidences.filter((value) => value !== id);
 }
 
-/** «1.4 MB», «812 KB»: el peso importa porque el límite es de 10 MB por archivo. */
-function fileSize(bytes) {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+/**
+ * Guardadas y nuevas en una sola fila de tarjetas. Las guardadas que se
+ * marcaron para quitar siguen ahí, apagadas, para poder deshacerlo.
+ */
+const fileCards = computed(() =>
+    [
+        ...(props.unit?.evidences ?? []).map((evidence) => ({
+            key: `saved-${evidence.id}`,
+            saved: true,
+            id: evidence.id,
+            name: evidence.name,
+            size: evidence.size ?? 0,
+            removed: form.remove_evidences.includes(evidence.id),
+        })),
+        ...form.evidences.map((file, index) => ({
+            key: `new-${index}-${file.name}`,
+            saved: false,
+            index,
+            name: file.name,
+            size: file.size,
+            preview: previews.get(file),
+            // Los errores llegan por archivo: evidences.0, evidences.1…
+            error: Boolean(form.errors[`evidences.${index}`]),
+        })),
+    ].map((card) => {
+        const extension = extensionOf(card.name);
 
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+        return { ...card, extension: extension.toUpperCase(), kind: FILE_KINDS[kindOf(card.name)] ?? FILE_KINDS.pdf };
+    }),
+);
+
+function toggleCard(card) {
+    if (!card.saved) return removeFile(card.index);
+
+    card.removed ? restoreSaved(card.id) : removeSaved(card.id);
+}
+
+/* ---------- Vista previa ---------- */
+
+const previewOpen = ref(false);
+const previewFile = ref(null);
+
+/** El nuevo se ve desde memoria; el guardado se trae de su ruta de descarga. */
+function openPreview(card) {
+    previewFile.value = {
+        name: card.name,
+        size: card.size,
+        source: card.saved ? `/flotillas/${props.unit.id}/evidencias/${card.id}` : form.evidences[card.index],
+    };
+    previewOpen.value = true;
 }
 
 /* ---------- Envío ---------- */
@@ -300,85 +400,94 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                         Tarjeta de circulación, factura…
                     </p>
 
-                    <!-- Las que ya están guardadas: se marcan para quitar y se puede deshacer -->
-                    <ul v-if="unit?.evidences?.length" class="mb-2 flex flex-col gap-1.5">
-                        <li
-                            v-for="evidence in unit.evidences"
-                            :key="evidence.id"
-                            class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[0.75rem]"
-                            :class="
-                                savedEvidences.includes(evidence)
-                                    ? 'bg-slate-50 dark:bg-white/[0.04]'
-                                    : 'bg-red-50/70 line-through opacity-60 dark:bg-red-500/10'
-                            "
-                        >
-                            <FileText class="size-3.5 shrink-0 text-slate-400 dark:text-brand-gray" />
-                            <span class="min-w-0 flex-1 truncate text-slate-700 dark:text-slate-200" :title="evidence.name">{{ evidence.name }}</span>
-                            <span class="shrink-0 tabular-nums text-slate-400 dark:text-brand-gray/70">{{ fileSize(evidence.size ?? 0) }}</span>
-                            <button
-                                v-if="savedEvidences.includes(evidence)"
-                                type="button"
-                                class="grid size-5 shrink-0 cursor-pointer place-content-center rounded text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-300"
-                                :aria-label="`Quitar ${evidence.name}`"
-                                @click="removeSaved(evidence.id)"
-                            >
-                                <X class="size-3.5" />
-                            </button>
-                            <button
-                                v-else
-                                type="button"
-                                class="grid size-5 shrink-0 cursor-pointer place-content-center rounded text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
-                                :aria-label="`Conservar ${evidence.name}`"
-                                @click="restoreSaved(evidence.id)"
-                            >
-                                <RotateCcw class="size-3.5" />
-                            </button>
-                        </li>
-                    </ul>
-
                     <button
                         type="button"
-                        class="flex w-full cursor-pointer flex-col items-center gap-1 rounded-xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-5 text-center transition-colors duration-150 hover:border-brand/40 hover:bg-brand/[0.03] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/15 dark:border-white/15 dark:bg-white/[0.03] dark:hover:border-white/30 dark:hover:bg-white/[0.06]"
+                        class="flex h-28 w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 bg-slate-50/70 px-4 text-center transition-colors duration-150 hover:border-brand/40 hover:bg-brand/[0.03] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/15 dark:border-white/15 dark:bg-white/[0.03] dark:hover:border-white/30 dark:hover:bg-white/[0.06]"
                         @click="fileInput?.click()"
                     >
                         <Paperclip class="size-4 text-slate-400 dark:text-brand-gray" />
                         <span class="text-[0.78rem] font-semibold text-slate-700 dark:text-slate-200">Elegir archivos</span>
                         <span class="text-[0.7rem] text-slate-400 dark:text-brand-gray/70">
-                            PDF, imágenes u Office · hasta 10 archivos de 10 MB
+                            PDF, Word, Excel, imágenes o XML · hasta 10 archivos de 10 MB
                             <template v-if="editing"> · se suman a los que ya tiene</template>
                         </span>
                     </button>
 
-                    <input
-                        ref="fileInput"
-                        type="file"
-                        multiple
-                        accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx"
-                        class="hidden"
-                        @change="addFiles"
-                    />
+                    <input ref="fileInput" type="file" multiple :accept="ACCEPT" class="hidden" @change="addFiles" />
 
-                    <ul v-if="form.evidences.length" class="mt-2 flex flex-col gap-1.5">
+                    <!-- Una tarjeta por archivo, en fila; las que no caben bajan a la siguiente -->
+                    <ul v-if="fileCards.length" class="mt-2 flex flex-wrap gap-2">
                         <li
-                            v-for="(file, index) in form.evidences"
-                            :key="`${file.name}-${index}`"
-                            class="flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[0.75rem] dark:bg-white/[0.04]"
+                            v-for="card in fileCards"
+                            :key="card.key"
+                            class="relative flex h-28 w-24 flex-col items-center gap-1.5 rounded-xl border px-2 pt-3 pb-2 text-center transition-opacity duration-150"
+                            :class="[
+                                card.removed
+                                    ? 'border-dashed border-red-300 bg-red-50/60 opacity-60 dark:border-red-500/30 dark:bg-red-500/[0.06]'
+                                    : card.error
+                                      ? 'border-red-400 bg-white ring-2 ring-red-500/15 dark:border-red-400/60 dark:bg-white/[0.03]'
+                                      : 'border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.03]',
+                            ]"
+                            :title="card.name"
                         >
-                            <FileText class="size-3.5 shrink-0 text-slate-400 dark:text-brand-gray" />
-                            <span class="min-w-0 flex-1 truncate text-slate-700 dark:text-slate-200" :title="file.name">{{ file.name }}</span>
-                            <span class="shrink-0 tabular-nums text-slate-400 dark:text-brand-gray/70">{{ fileSize(file.size) }}</span>
+                            <!-- Toda la tarjeta abre la vista previa; la X queda encima -->
                             <button
                                 type="button"
-                                class="grid size-5 shrink-0 cursor-pointer place-content-center rounded text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-300"
-                                :aria-label="`Quitar ${file.name}`"
-                                @click="removeFile(index)"
+                                class="absolute inset-0 cursor-pointer rounded-xl transition-colors hover:bg-slate-900/[0.03] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/15 dark:hover:bg-white/[0.04]"
+                                :aria-label="`Ver ${card.name}`"
+                                @click="openPreview(card)"
+                            />
+
+                            <!-- Punto de marca: todavía no se sube -->
+                            <span
+                                v-if="!card.saved"
+                                class="pointer-events-none absolute top-1.5 left-1.5 size-1.5 rounded-full bg-brand dark:bg-brand-gray"
+                                title="Por subir"
+                            />
+
+                            <img
+                                v-if="card.preview"
+                                :src="card.preview"
+                                alt=""
+                                class="size-10 shrink-0 rounded-lg object-cover ring-1 ring-slate-200 dark:ring-white/10"
+                            />
+                            <span v-else class="grid size-10 shrink-0 place-content-center rounded-lg" :class="card.kind.tile">
+                                <component :is="card.kind.icon" class="size-5" />
+                            </span>
+
+                            <span
+                                class="line-clamp-2 w-full text-[0.66rem] leading-tight font-medium break-all text-slate-700 dark:text-slate-200"
+                                :class="{ 'line-through': card.removed }"
                             >
-                                <X class="size-3.5" />
+                                {{ card.name }}
+                            </span>
+
+                            <span class="mt-auto text-[0.6rem] tabular-nums text-slate-400 dark:text-brand-gray/70">
+                                <span class="font-bold">{{ card.extension }}</span> · {{ fileSize(card.size) }}
+                            </span>
+
+                            <button
+                                type="button"
+                                class="absolute top-1 right-1 z-[1] grid size-5 cursor-pointer place-content-center rounded text-slate-400 transition-colors"
+                                :class="
+                                    card.removed
+                                        ? 'hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white'
+                                        : 'hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-300'
+                                "
+                                :aria-label="card.removed ? `Conservar ${card.name}` : `Quitar ${card.name}`"
+                                @click="toggleCard(card)"
+                            >
+                                <RotateCcw v-if="card.removed" class="size-3.5" />
+                                <X v-else class="size-3.5" />
                             </button>
                         </li>
                     </ul>
 
-                    <!-- Los errores llegan por archivo: evidences.0, evidences.1… -->
+                    <p v-if="rejected.length" :class="ERROR">
+                        No se agregó {{ rejected.join(', ') }}: solo PDF, Word, Excel, imágenes (JPG, PNG, WEBP) o XML.
+                    </p>
+                    <p v-if="duplicated.length" :class="ERROR">Ya está en la lista: {{ duplicated.join(', ') }}.</p>
+
                     <template v-for="(error, key) in form.errors" :key="key">
                         <p v-if="String(key).startsWith('evidences')" :class="ERROR">{{ error }}</p>
                     </template>
@@ -420,5 +529,7 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                 {{ editing ? 'Guardar cambios' : 'Guardar unidad' }}
             </button>
         </div>
+
+        <FilePreviewDialog v-model:open="previewOpen" :file="previewFile" />
     </form>
 </template>

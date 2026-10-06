@@ -18,6 +18,9 @@ class UnitEvidence extends Model
 
     public const PAYMENT_RECEIPT = 'payment_receipt';
 
+    /** Extensiones que se aceptan como documento oficial: PDF, Word, Excel, imagen y XML. */
+    public const DOCUMENT_TYPES = 'pdf,doc,docx,xls,xlsx,jpg,jpeg,png,webp,xml';
+
     /** El plural de «evidence» es igual en inglés: Laravel deduciría `unit_evidence`. */
     protected $table = 'unit_evidences';
 

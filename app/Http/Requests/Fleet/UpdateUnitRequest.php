@@ -4,6 +4,7 @@ namespace App\Http\Requests\Fleet;
 
 use App\Models\Unit;
 use App\Models\UnitEvidence;
+use App\Rules\ValidDocumentContent;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -52,7 +53,14 @@ class UpdateUnitRequest extends FormRequest
             'comments' => ['nullable', 'string', 'max:5000'],
 
             'evidences' => ['nullable', 'array', 'max:10'],
-            'evidences.*' => ['file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,webp,doc,docx,xls,xlsx'],
+            // Solo PDF, Word, Excel, imagen o XML, y el contenido tiene que ser
+            // de verdad lo que dice la extensión.
+            'evidences.*' => [
+                'file',
+                'max:10240',
+                'extensions:'.UnitEvidence::DOCUMENT_TYPES,
+                new ValidDocumentContent,
+            ],
 
             // Solo se pueden quitar documentos de esta unidad: el id de otra no
             // pasa la regla y no se borra nada ajeno. Los comprobantes de pago
@@ -95,7 +103,7 @@ class UpdateUnitRequest extends FormRequest
         return [
             'serial_number.unique' => 'Ya hay otra unidad con ese número de serie.',
             'plate.unique' => 'Ya hay otra unidad con esa placa.',
-            'evidences.*.mimes' => 'Solo se aceptan PDF, imágenes y documentos de Office.',
+            'evidences.*.extensions' => 'Solo se aceptan PDF, Word, Excel, imágenes (JPG, PNG, WEBP) y XML.',
             'evidences.*.max' => 'Cada archivo puede pesar hasta 10 MB.',
         ];
     }

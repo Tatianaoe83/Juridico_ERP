@@ -27,6 +27,7 @@ const SIZES = {
     sm: 'sm:max-w-md',
     md: 'sm:max-w-xl',
     lg: 'sm:max-w-2xl',
+    xl: 'sm:max-w-5xl',
 };
 </script>
 
