@@ -20,6 +20,12 @@ class UnitPolicy extends Model
     /** Los dos pagos, tal como van en el prefijo de sus columnas. */
     public const PAYMENTS = ['first', 'second'];
 
+    /**
+     * Los mismos valores que el enum de la columna `coverage`: responsabilidad
+     * civil, limitada, amplia y amplia plus. Igual para vehículos y maquinaria.
+     */
+    public const COVERAGES = ['civil_liability', 'limited', 'broad', 'broad_plus'];
+
     /** IVA que traen incluido los importes capturados. */
     public const TAX_RATE = 0.16;
 

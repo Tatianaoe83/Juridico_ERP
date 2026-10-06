@@ -1,11 +1,12 @@
 <script setup>
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ChevronLeft, ChevronRight, Clock, Eye, FileCheck, Layers, Pencil, Search, ShieldAlert, ShieldCheck, Trash2, X } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, Clock, Eye, FileCheck, Layers, Pencil, Plus, Search, ShieldAlert, ShieldCheck, Trash2, X } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
+import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
 import FilterSelect from '@/components/app/FilterSelect.vue';
 import { usePermissions } from '@/composables/usePermissions';
-import { COVERAGE_STATUS, COVERAGE_TYPES, coverageStatus } from '@/lib/coverages';
+import { COVERAGE_STATUS, COVERAGE_TYPES, POLICY_COVERAGES, coverageStatus } from '@/lib/coverages';
 import { money, shortDate } from '@/lib/units';
 
 const props = defineProps({
@@ -19,7 +20,7 @@ const props = defineProps({
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Pólizas y Fianzas' }];
 
-// La unidad de una póliza solo lleva a su ficha si puede ver flotillas.
+// Los botones de crear y editar solo se muestran a quien tiene el permiso.
 const { can } = usePermissions();
 
 /* ---------- Búsqueda, tipo y páginas ---------- */
@@ -156,7 +157,49 @@ const cards = computed(() => [
 
 const PAYMENT_LABEL = { first: '1 de 2', second: '2 de 2' };
 
+/** La categoría: en pólizas, su cobertura; en fianzas, el producto (o el beneficiario si no lo tiene). */
+function category(row) {
+    if (row.type === 'policy') return POLICY_COVERAGES[row.coverage] ?? 'Sin cobertura';
+
+    return row.subject ?? '—';
+}
+
 /** Cada tipo tiene su propio detalle. */
+/* ---------- Eliminar ---------- */
+
+// El modal de confirmación es el mismo de toda la app.
+const deleteOpen = ref(false);
+const toDelete = ref(null);
+const deleting = ref(null);
+
+function askDelete(row) {
+    toDelete.value = row;
+    deleteOpen.value = true;
+}
+
+function destroy() {
+    const row = toDelete.value;
+
+    // La fila se apaga mientras el servidor borra.
+    deleting.value = row.key;
+
+    router.delete(showUrl(row), {
+        preserveScroll: true,
+        onFinish: () => (deleting.value = null),
+    });
+}
+
+/** La póliza se lleva sus comprobantes de pago: se avisa antes. */
+const deleteText = computed(() => {
+    const row = toDelete.value;
+
+    if (!row) return '';
+
+    return row.type === 'policy'
+        ? `¿Seguro que quieres eliminar la póliza «${row.number}»? También se borran sus comprobantes de pago.`
+        : `¿Seguro que quieres eliminar la fianza «${row.number}»?`;
+});
+
 const showUrl = (row) => (row.type === 'bond' ? `/polizas/fianzas/${row.id}` : `/polizas/${row.id}`);
 
 /** Inicio y fin de la vigencia; con una sola fecha, esa. */
@@ -220,6 +263,24 @@ const PAGE_BTN =
                         <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Cumplimiento</p>
                         <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Pólizas y Fianzas</h1>
                     </div>
+                </div>
+
+                <!-- Una para cada tipo: el formulario de cada una es distinto -->
+                <div v-if="can('polizas.create')" class="flex flex-wrap items-center gap-2">
+                    <Link
+                        href="/polizas/fianzas/crear"
+                        class="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[0.8rem] font-semibold text-slate-700 transition-colors duration-150 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-500/10 dark:border-white/10 dark:bg-transparent dark:text-brand-gray dark:hover:bg-white/[0.06] dark:hover:text-white"
+                    >
+                        <Plus class="size-4" />
+                        Nueva fianza
+                    </Link>
+                    <Link
+                        href="/polizas/crear"
+                        class="inline-flex h-9 items-center gap-2 rounded-xl bg-brand px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
+                    >
+                        <Plus class="size-4" />
+                        Nueva póliza
+                    </Link>
                 </div>
             </div>
 
@@ -305,6 +366,7 @@ const PAGE_BTN =
                                 v-for="row in coverages.data"
                                 :key="row.key"
                                 class="transition-colors duration-150 hover:bg-slate-50/80 dark:hover:bg-white/[0.025]"
+                                :class="deleting === row.key && 'pointer-events-none opacity-40'"
                                 :style="rowHeight ? { height: `${rowHeight}px` } : null"
                             >
                                 <!-- Número y tipo -->
@@ -319,7 +381,7 @@ const PAGE_BTN =
                                     </span>
                                 </td>
 
-                                <!-- Proveedor y sobre qué: la unidad o el tipo de fianza -->
+                                <!-- Proveedor y categoría: la cobertura de la póliza o el producto de la fianza -->
                                 <td :class="[TD, 'hidden max-w-0 @2xl:table-cell @2xl:w-1/4']">
                                     <span
                                         class="block truncate"
@@ -327,14 +389,9 @@ const PAGE_BTN =
                                     >
                                         {{ row.provider ?? 'Sin proveedor' }}
                                     </span>
-                                    <component
-                                        :is="row.unit_id && can('flotillas.view') ? Link : 'span'"
-                                        :href="row.unit_id && can('flotillas.view') ? `/flotillas/${row.unit_id}` : undefined"
-                                        class="block truncate text-[0.7rem] text-slate-500 dark:text-brand-gray/80"
-                                        :class="row.unit_id && can('flotillas.view') && 'hover:text-brand hover:underline dark:hover:text-white'"
-                                    >
-                                        {{ [row.subject, row.detail].filter(Boolean).join(' · ') || '—' }}
-                                    </component>
+                                    <span class="block truncate text-[0.7rem] text-slate-500 dark:text-brand-gray/80">
+                                        {{ category(row) }}
+                                    </span>
                                 </td>
 
                                 <!-- Vigencia -->
@@ -385,20 +442,29 @@ const PAGE_BTN =
                                     </span>
                                 </td>
 
-                                <!-- Acciones: todavía sin funcionalidad -->
+                                <!-- Acciones -->
                                 <td :class="TD">
                                     <div class="flex items-center justify-end gap-0.5 @2xl:gap-1">
                                         <Link :href="showUrl(row)" :class="[ACTION, NEUTRAL]" :aria-label="`Ver ${row.number}`" title="Ver detalle">
                                             <Eye class="size-4" />
                                         </Link>
-                                        <button type="button" :class="[ACTION, NEUTRAL]" :aria-label="`Editar ${row.number}`" title="Editar">
+                                        <Link
+                                            v-if="can('polizas.update')"
+                                            :href="`${showUrl(row)}/editar`"
+                                            :class="[ACTION, NEUTRAL]"
+                                            :aria-label="`Editar ${row.number}`"
+                                            title="Editar"
+                                        >
                                             <Pencil class="size-4" />
-                                        </button>
+                                        </Link>
                                         <button
+                                            v-if="can('polizas.delete')"
                                             type="button"
                                             :class="[ACTION, 'text-slate-500 hover:bg-red-50 hover:text-red-600 focus-visible:ring-red-500/25 dark:text-brand-gray dark:hover:bg-red-500/10 dark:hover:text-red-300']"
                                             :aria-label="`Eliminar ${row.number}`"
                                             title="Eliminar"
+                                            :disabled="deleting === row.key"
+                                            @click="askDelete(row)"
                                         >
                                             <Trash2 class="size-4" />
                                         </button>
@@ -485,5 +551,7 @@ const PAGE_BTN =
                 </div>
             </div>
         </div>
+
+        <ConfirmDeleteDialog v-model:open="deleteOpen" :text="deleteText" @confirm="destroy" />
     </AppShell>
 </template>

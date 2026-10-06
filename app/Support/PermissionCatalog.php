@@ -46,7 +46,9 @@ class PermissionCatalog
         'flotillas.update' => 'Editar unidades',
         'flotillas.delete' => 'Eliminar unidades',
         'polizas.view' => 'Ver pólizas y fianzas',
-        'polizas.update' => 'Registrar pagos y facturas de pólizas',
+        'polizas.create' => 'Crear pólizas y fianzas',
+        'polizas.update' => 'Editar pólizas y fianzas y registrar pagos',
+        'polizas.delete' => 'Eliminar pólizas y fianzas',
     ];
 
     public static function label(string $name): string

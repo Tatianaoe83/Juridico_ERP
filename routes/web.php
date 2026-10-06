@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Web\Auth\MicrosoftController;
+use App\Http\Controllers\Web\BondController;
 use App\Http\Controllers\Web\CalendarController;
 use App\Http\Controllers\Web\CalendarEventController;
 use App\Http\Controllers\Web\CalendarShareController;
@@ -112,13 +113,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/flotillas/{unit}/evidencias/{evidence}', [FleetController::class, 'evidence'])
         ->middleware('can:flotillas.view')
         ->name('fleets.evidence');
-    // Registrar un pago semestral con su comprobante; el segundo renueva. El
-    // periodo se busca dentro de la unidad: uno ajeno da 404.
-    Route::post('/flotillas/{unit}/periodos/{policy}/pagos/{payment}', [FleetController::class, 'pay'])
-        ->middleware('can:flotillas.update')
-        ->whereIn('payment', ['first', 'second'])
-        ->scopeBindings()
-        ->name('fleets.pay');
     Route::delete('/flotillas/{unit}', [FleetController::class, 'destroy'])
         ->middleware('can:flotillas.delete')
         ->name('fleets.destroy');
@@ -128,16 +122,50 @@ Route::middleware('auth')->group(function () {
     Route::patch('/flotillas/{unit}', [FleetController::class, 'update'])
         ->middleware('can:flotillas.update')
         ->name('fleets.update');
-    // Pólizas y fianzas: por ahora solo la tabla.
+    // Pólizas y fianzas: una sola tabla; cada una con su alta, detalle y edición.
     Route::get('/polizas', [PolicyController::class, 'index'])
         ->middleware('can:polizas.view')
         ->name('policies.index');
-    Route::get('/polizas/fianzas/{bond}', [PolicyController::class, 'showBond'])
+
+    // Fianzas. Van antes que /polizas/{policy}: si no, «fianzas» entraría como póliza.
+    Route::get('/polizas/fianzas/crear', [BondController::class, 'create'])
+        ->middleware('can:polizas.create')
+        ->name('policies.bonds.create');
+    Route::post('/polizas/fianzas', [BondController::class, 'store'])
+        ->middleware('can:polizas.create')
+        ->name('policies.bonds.store');
+    Route::get('/polizas/fianzas/{bond}', [BondController::class, 'show'])
         ->middleware('can:polizas.view')
         ->name('policies.bonds.show');
+    Route::get('/polizas/fianzas/{bond}/editar', [BondController::class, 'edit'])
+        ->middleware('can:polizas.update')
+        ->name('policies.bonds.edit');
+    Route::patch('/polizas/fianzas/{bond}', [BondController::class, 'update'])
+        ->middleware('can:polizas.update')
+        ->name('policies.bonds.update');
+    Route::delete('/polizas/fianzas/{bond}', [BondController::class, 'destroy'])
+        ->middleware('can:polizas.delete')
+        ->name('policies.bonds.destroy');
+
+    // Pólizas. /polizas/crear va antes que /polizas/{policy}.
+    Route::get('/polizas/crear', [PolicyController::class, 'create'])
+        ->middleware('can:polizas.create')
+        ->name('policies.create');
+    Route::post('/polizas', [PolicyController::class, 'store'])
+        ->middleware('can:polizas.create')
+        ->name('policies.store');
     Route::get('/polizas/{policy}', [PolicyController::class, 'show'])
         ->middleware('can:polizas.view')
         ->name('policies.show');
+    Route::get('/polizas/{policy}/editar', [PolicyController::class, 'edit'])
+        ->middleware('can:polizas.update')
+        ->name('policies.edit');
+    Route::patch('/polizas/{policy}', [PolicyController::class, 'update'])
+        ->middleware('can:polizas.update')
+        ->name('policies.update');
+    Route::delete('/polizas/{policy}', [PolicyController::class, 'destroy'])
+        ->middleware('can:polizas.delete')
+        ->name('policies.destroy');
     Route::get('/polizas/{policy}/archivos/{evidence}', [PolicyController::class, 'file'])
         ->middleware('can:polizas.view')
         ->name('policies.file');

@@ -6,6 +6,14 @@ export const COVERAGE_TYPES = {
     bond: { label: 'Fianza', plural: 'Fianzas', tone: 'bg-violet-50 text-violet-700 dark:bg-violet-400/10 dark:text-violet-300' },
 };
 
+/** Qué cubre la póliza. Igual que UnitPolicy::COVERAGES; las mismas para vehículos y maquinaria. */
+export const POLICY_COVERAGES = {
+    civil_liability: 'Responsabilidad civil',
+    limited: 'Limitada',
+    broad: 'Amplia',
+    broad_plus: 'Amplia plus',
+};
+
 /** Cómo va su vigencia. Igual que App\Support\CoverageStatus. */
 export const COVERAGE_STATUS = {
     active: {

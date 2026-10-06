@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Policy\RegisterPolicyPaymentRequest;
+use App\Http\Requests\Policy\SavePolicyRequest;
 use App\Models\Bond;
+use App\Models\Unit;
 use App\Models\UnitEvidence;
 use App\Models\UnitPolicy;
 use App\Support\CoverageStatus;
@@ -12,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -104,6 +107,7 @@ class PolicyController extends Controller
                 'policy' => $policy->policy,
                 'certificate' => $policy->certificate,
                 'insurer' => $policy->insurer,
+                'coverage' => $policy->coverage,
                 'endorsement' => (bool) $policy->endorsement,
                 'status' => $policy->coverageStatus(),
                 'valid_from' => $policy->first_payment_starts_on?->toDateString(),
@@ -129,6 +133,7 @@ class PolicyController extends Controller
                 'created_at' => $policy->created_at?->toIso8601String(),
                 'unit' => $unit ? [
                     'id' => $unit->id,
+                    'type' => $unit->type,
                     'brand' => $unit->brand,
                     'model' => $unit->model,
                     'serial_number' => $unit->serial_number,
@@ -142,33 +147,121 @@ class PolicyController extends Controller
         ]);
     }
 
-    /** GET /polizas/fianzas/{bond} */
-    public function showBond(Bond $bond): Response
+    /** GET /polizas/crear */
+    public function create(Request $request): Response
     {
-        $bond->load('creator:id,name');
+        return Inertia::render('Policies/Create', [
+            ...$this->formOptions(),
+            // Desde la ficha de una unidad puede llegar ya elegida.
+            'unitId' => $request->integer('unidad') ?: null,
+        ]);
+    }
 
-        return Inertia::render('Policies/BondShow', [
-            'bond' => [
-                'id' => $bond->id,
-                'bond' => $bond->bond,
-                'beneficiary' => $bond->beneficiary,
-                'bonding_company' => $bond->bonding_company,
-                'amount' => $bond->amount !== null ? (float) $bond->amount : null,
-                'requested_on' => $bond->requested_on?->toDateString(),
-                'issued_on' => $bond->issued_on?->toDateString(),
-                'valid_from' => $bond->valid_from?->toDateString(),
-                'valid_until' => $bond->valid_until?->toDateString(),
-                'source_document' => $bond->source_document,
-                'product' => $bond->product,
-                'related' => $bond->related,
-                'cancellation_requested_on' => $bond->cancellation_requested_on?->toDateString(),
-                'cancelled_on' => $bond->cancelled_on?->toDateString(),
-                'status' => $bond->status(),
-                'comments' => $bond->comments,
-                'created_by' => $bond->creator?->name,
-                'created_at' => $bond->created_at?->toIso8601String(),
+    /** POST /polizas */
+    public function store(SavePolicyRequest $request): RedirectResponse
+    {
+        $policy = UnitPolicy::create([
+            ...$this->attributes($request),
+            'unit_id' => $request->validated('unit_id'),
+            'created_by' => $request->user()->id,
+        ]);
+
+        return to_route('policies.show', $policy)->with('success', "Se registró la póliza {$policy->policy}.");
+    }
+
+    /** GET /polizas/{policy}/editar */
+    public function edit(UnitPolicy $policy): Response
+    {
+        return Inertia::render('Policies/Edit', [
+            ...$this->formOptions(),
+            'policy' => [
+                'id' => $policy->id,
+                'unit_id' => $policy->unit_id,
+                'policy' => $policy->policy,
+                'certificate' => $policy->certificate,
+                'insurer' => $policy->insurer,
+                'coverage' => $policy->coverage,
+                'endorsement' => (bool) $policy->endorsement,
+                'valid_from' => $policy->first_payment_starts_on?->toDateString(),
+                'first_payment_amount' => $policy->first_payment_amount,
+                'first_payment_due_on' => $policy->first_payment_due_on?->toDateString(),
+                'second_payment_amount' => $policy->second_payment_amount,
+                'second_payment_due_on' => $policy->second_payment_due_on?->toDateString(),
+                'cancellation_requested_on' => $policy->cancellation_requested_on?->toDateString(),
+                'cancelled_on' => $policy->cancelled_on?->toDateString(),
+                'comments' => $policy->comments,
             ],
         ]);
+    }
+
+    /** PATCH /polizas/{policy} */
+    public function update(SavePolicyRequest $request, UnitPolicy $policy): RedirectResponse
+    {
+        $policy->update($this->attributes($request));
+
+        return to_route('policies.show', $policy)->with('success', "Se actualizó la póliza {$policy->policy}.");
+    }
+
+    /**
+     * DELETE /polizas/{policy}
+     *
+     * Los comprobantes se van en cascada con la póliza, pero el disco no sabe
+     * de llaves foráneas: los archivos se borran primero.
+     */
+    public function destroy(UnitPolicy $policy): RedirectResponse
+    {
+        DB::transaction(function () use ($policy) {
+            foreach ($policy->evidences as $evidence) {
+                Storage::disk('local')->delete($evidence->path);
+            }
+
+            $policy->delete();
+        });
+
+        return to_route('policies.index')->with('success', "Se eliminó la póliza {$policy->policy}.");
+    }
+
+    /**
+     * Lo capturado, con los dos semestres calculados desde el inicio de la
+     * vigencia: seis meses exactos cada uno. Si el día no existe en el mes
+     * (31 de agosto → febrero) se queda en el último.
+     *
+     * @return array<string, mixed>
+     */
+    private function attributes(SavePolicyRequest $request): array
+    {
+        $start = Carbon::parse($request->validated('valid_from'));
+        $middle = $start->copy()->addMonthsNoOverflow(UnitPolicy::SEMESTER_MONTHS);
+
+        return [
+            ...collect($request->validated())->except(['unit_id', 'valid_from'])->all(),
+            'endorsement' => $request->boolean('endorsement'),
+            'first_payment_starts_on' => $start,
+            'first_payment_ends_on' => $middle,
+            'second_payment_starts_on' => $middle,
+            'second_payment_ends_on' => $middle->copy()->addMonthsNoOverflow(UnitPolicy::SEMESTER_MONTHS),
+        ];
+    }
+
+    /**
+     * Lo que necesita el formulario: las unidades para elegir y las coberturas.
+     *
+     * @return array<string, mixed>
+     */
+    private function formOptions(): array
+    {
+        return [
+            'units' => Unit::query()
+                ->orderBy('brand')
+                ->orderBy('model')
+                ->get(['id', 'type', 'brand', 'model', 'plate', 'economic_number'])
+                ->map(fn (Unit $unit) => [
+                    'value' => $unit->id,
+                    'label' => collect(["{$unit->brand} {$unit->model}", $unit->plate, $unit->economic_number])->filter()->implode(' · '),
+                    'type' => $unit->type,
+                ]),
+            'coverages' => UnitPolicy::COVERAGES,
+        ];
     }
 
     /**
@@ -269,7 +362,7 @@ class PolicyController extends Controller
      */
     private function policies(): Collection
     {
-        return UnitPolicy::with('unit:id,brand,model,plate,economic_number')
+        return UnitPolicy::with('unit:id,type,brand,model,plate,economic_number')
             ->whereDoesntHave('renewal')
             ->get()
             ->map(function (UnitPolicy $policy) {
@@ -283,6 +376,7 @@ class PolicyController extends Controller
                     'id' => $policy->id,
                     'number' => $policy->policy,
                     'provider' => $policy->insurer,
+                    'coverage' => $policy->coverage,
                     // Sobre qué: la unidad asegurada, con placa y número económico.
                     'subject' => $unitName,
                     'detail' => collect([$unit?->plate, $unit?->economic_number])->filter()->implode(' · ') ?: null,
@@ -319,6 +413,7 @@ class PolicyController extends Controller
                 'id' => $bond->id,
                 'number' => $bond->bond,
                 'provider' => $bond->bonding_company,
+                'coverage' => null,
                 // Sobre qué: el tipo de fianza, o el beneficiario si no lo tiene.
                 'subject' => $bond->product ?? $bond->beneficiary,
                 'detail' => $bond->product ? $bond->beneficiary : $bond->related,

@@ -12,11 +12,13 @@ import {
     Link2,
     MessageSquareText,
     Package,
+    Pencil,
     ShieldCheck,
     UserRound,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
+import { usePermissions } from '@/composables/usePermissions';
 import { COVERAGE_TYPES, coverageStatus } from '@/lib/coverages';
 import { money, shortDate } from '@/lib/units';
 
@@ -30,6 +32,8 @@ const breadcrumbs = [
     { label: 'Pólizas y Fianzas', href: '/polizas' },
     { label: `Fianza ${props.bond.bond}` },
 ];
+
+const { can } = usePermissions();
 
 const status = computed(() => coverageStatus(props.bond.status));
 
@@ -106,13 +110,23 @@ const DD = 'truncate text-[0.82rem] font-semibold text-slate-800 dark:text-white
                     </span>
                 </div>
 
-                <Link
-                    href="/polizas"
-                    class="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[0.8rem] font-semibold text-slate-700 transition-colors duration-150 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-500/10 dark:border-white/10 dark:bg-transparent dark:text-brand-gray dark:hover:bg-white/[0.06] dark:hover:text-white"
-                >
-                    <ArrowLeft class="size-4" />
-                    Volver
-                </Link>
+                <div class="flex items-center gap-2">
+                    <Link
+                        href="/polizas"
+                        class="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[0.8rem] font-semibold text-slate-700 transition-colors duration-150 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-500/10 dark:border-white/10 dark:bg-transparent dark:text-brand-gray dark:hover:bg-white/[0.06] dark:hover:text-white"
+                    >
+                        <ArrowLeft class="size-4" />
+                        Volver
+                    </Link>
+                    <Link
+                        v-if="can('polizas.update')"
+                        :href="`/polizas/fianzas/${bond.id}/editar`"
+                        class="inline-flex h-9 items-center gap-2 rounded-xl bg-brand px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
+                    >
+                        <Pencil class="size-4" />
+                        Editar
+                    </Link>
+                </div>
             </div>
 
             <div class="grid gap-3 tall:gap-4 lg:grid-cols-3">

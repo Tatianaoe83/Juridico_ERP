@@ -12,7 +12,9 @@ import {
     Landmark,
     MessageSquareText,
     Paperclip,
+    Pencil,
     ScanLine,
+    ShieldCheck,
     Truck,
     User,
     Wallet,
@@ -22,9 +24,9 @@ import AppShell from '@/Layouts/AppShell.vue';
 import FilePreviewDialog from '@/components/app/FilePreviewDialog.vue';
 import PolicyPaymentDialog from '@/components/app/PolicyPaymentDialog.vue';
 import { usePermissions } from '@/composables/usePermissions';
-import { COVERAGE_TYPES, coverageStatus } from '@/lib/coverages';
+import { COVERAGE_TYPES, POLICY_COVERAGES, coverageStatus } from '@/lib/coverages';
 import { FILE_KINDS, fileSize, kindOf } from '@/lib/files';
-import { money, shortDate } from '@/lib/units';
+import { UNIT_TYPES, money, shortDate } from '@/lib/units';
 
 const props = defineProps({
     /** El periodo completo: póliza, unidad, cuotas con comprobantes, costo y cancelación. */
@@ -61,6 +63,7 @@ const details = computed(() => [
     { label: 'Póliza', value: props.policy.policy, icon: FileCheck },
     { label: 'Certificado', value: props.policy.certificate, icon: Hash },
     { label: 'Aseguradora', value: props.policy.insurer, icon: Landmark },
+    { label: 'Cobertura', value: POLICY_COVERAGES[props.policy.coverage] ?? null, icon: ShieldCheck },
     { label: 'Endoso', value: props.policy.endorsement ? 'Sí' : 'No', icon: FilePen },
     { label: 'Vigencia', value: range(props.policy.valid_from, props.policy.valid_until), icon: CalendarRange },
 ]);
@@ -69,6 +72,7 @@ const details = computed(() => [
 const unitDetails = computed(() =>
     unit.value
         ? [
+              { label: 'Tipo', value: UNIT_TYPES[unit.value.type]?.label ?? null, icon: UNIT_TYPES[unit.value.type]?.icon ?? Truck },
               { label: 'Descripción', value: unitName.value, icon: Truck },
               { label: 'Número de serie', value: unit.value.serial_number, icon: ScanLine },
               { label: 'Placa', value: unit.value.plate, icon: Hash },
@@ -163,13 +167,23 @@ const EMPTY = 'mt-3 flex items-center gap-2 text-[0.78rem] text-slate-400 dark:t
                     </span>
                 </div>
 
-                <Link
-                    href="/polizas"
-                    class="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[0.8rem] font-semibold text-slate-700 transition-colors duration-150 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-500/10 dark:border-white/10 dark:bg-transparent dark:text-brand-gray dark:hover:bg-white/[0.06] dark:hover:text-white"
-                >
-                    <ArrowLeft class="size-4" />
-                    Volver
-                </Link>
+                <div class="flex items-center gap-2">
+                    <Link
+                        href="/polizas"
+                        class="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[0.8rem] font-semibold text-slate-700 transition-colors duration-150 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-500/10 dark:border-white/10 dark:bg-transparent dark:text-brand-gray dark:hover:bg-white/[0.06] dark:hover:text-white"
+                    >
+                        <ArrowLeft class="size-4" />
+                        Volver
+                    </Link>
+                    <Link
+                        v-if="can('polizas.update')"
+                        :href="`/polizas/${policy.id}/editar`"
+                        class="inline-flex h-9 items-center gap-2 rounded-xl bg-brand px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
+                    >
+                        <Pencil class="size-4" />
+                        Editar
+                    </Link>
+                </div>
             </div>
 
             <div class="grid gap-3 tall:gap-4 lg:grid-cols-3">
