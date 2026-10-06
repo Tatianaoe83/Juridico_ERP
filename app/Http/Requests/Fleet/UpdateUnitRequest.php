@@ -46,9 +46,9 @@ class UpdateUnitRequest extends FormRequest
             'brand' => ['required', 'string', 'max:255'],
             'model' => ['required', 'string', 'max:255'],
             'serial_number' => ['nullable', 'string', 'max:255', Rule::unique('units', 'serial_number')->ignore($unit)],
-            'plate' => ['nullable', 'string', 'max:50', Rule::unique('units', 'plate')->ignore($unit)],
+            'plate' => ['required', 'string', 'max:50', Rule::unique('units', 'plate')->ignore($unit)],
             'economic_number' => ['nullable', 'string', 'max:50'],
-            'responsible' => ['nullable', 'string', 'max:255'],
+            'responsible' => ['required', 'string', 'max:255'],
 
             'status' => ['required', Rule::in(Unit::STATUSES)],
             'comments' => ['nullable', 'string', 'max:5000'],

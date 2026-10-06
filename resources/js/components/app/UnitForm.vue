@@ -334,13 +334,17 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                 </div>
 
                 <div>
-                    <label for="unit-plate" :class="LABEL">Placa</label>
+                    <label for="unit-plate" :class="LABEL">
+                        Placa
+                        <span class="font-normal text-red-500 dark:text-red-400">*</span>
+                    </label>
                     <div class="relative">
                         <input
                             id="unit-plate"
                             :value="form.plate"
                             @input="toUpper('plate', $event)"
                             type="text"
+                            required
                             autocomplete="off"
                             placeholder="Ej. ABC-12-34"
                             :class="FIELD"
@@ -369,13 +373,17 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                 </div>
 
                 <div>
-                    <label for="unit-responsible" :class="LABEL">Responsable</label>
+                    <label for="unit-responsible" :class="LABEL">
+                        Responsable
+                        <span class="font-normal text-red-500 dark:text-red-400">*</span>
+                    </label>
                     <div class="relative">
                         <input
                             id="unit-responsible"
                             :value="form.responsible"
                             @input="toUpper('responsible', $event)"
                             type="text"
+                            required
                             autocomplete="off"
                             placeholder="Ej. Juan Pérez"
                             :class="FIELD"

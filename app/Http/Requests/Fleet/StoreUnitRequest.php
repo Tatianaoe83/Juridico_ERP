@@ -43,9 +43,9 @@ class StoreUnitRequest extends FormRequest
             'brand' => ['required', 'string', 'max:255'],
             'model' => ['required', 'string', 'max:255'],
             'serial_number' => ['nullable', 'string', 'max:255', 'unique:units,serial_number'],
-            'plate' => ['nullable', 'string', 'max:50', 'unique:units,plate'],
+            'plate' => ['required', 'string', 'max:50', 'unique:units,plate'],
             'economic_number' => ['nullable', 'string', 'max:50'],
-            'responsible' => ['nullable', 'string', 'max:255'],
+            'responsible' => ['required', 'string', 'max:255'],
 
             'status' => ['required', Rule::in(Unit::STATUSES)],
             'comments' => ['nullable', 'string', 'max:5000'],
