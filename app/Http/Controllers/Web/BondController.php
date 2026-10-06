@@ -10,8 +10,8 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Fianzas, dentro de Pólizas y Fianzas: el detalle, el alta y la edición.
- * La tabla es la misma de las pólizas (PolicyController@index).
+ * Fianzas, dentro de Pólizas y Fianzas: el detalle, guardar y eliminar. La
+ * tabla, el alta y la edición son las mismas páginas que las de las pólizas.
  */
 class BondController extends Controller
 {
@@ -31,13 +31,7 @@ class BondController extends Controller
         ]);
     }
 
-    /** GET /polizas/fianzas/crear */
-    public function create(): Response
-    {
-        return Inertia::render('Policies/BondCreate');
-    }
-
-    /** POST /polizas/fianzas */
+    /** POST /polizas/fianzas — el formulario está en la misma alta de pólizas (PolicyController@create). */
     public function store(SaveBondRequest $request): RedirectResponse
     {
         $bond = Bond::create([
@@ -48,10 +42,11 @@ class BondController extends Controller
         return to_route('policies.bonds.show', $bond)->with('success', "Se registró la fianza {$bond->bond}.");
     }
 
-    /** GET /polizas/fianzas/{bond}/editar */
+    /** GET /polizas/fianzas/{bond}/editar — la misma página de edición que las pólizas. */
     public function edit(Bond $bond): Response
     {
-        return Inertia::render('Policies/BondEdit', [
+        return Inertia::render('Policies/Edit', [
+            'type' => 'bond',
             'bond' => [...$this->values($bond), 'id' => $bond->id],
         ]);
     }

@@ -127,10 +127,8 @@ Route::middleware('auth')->group(function () {
         ->middleware('can:polizas.view')
         ->name('policies.index');
 
-    // Fianzas. Van antes que /polizas/{policy}: si no, «fianzas» entraría como póliza.
-    Route::get('/polizas/fianzas/crear', [BondController::class, 'create'])
-        ->middleware('can:polizas.create')
-        ->name('policies.bonds.create');
+    // Fianzas. Van antes que /polizas/{policy}: si no, «fianzas» entraría como
+    // póliza. Su alta y su edición usan las mismas páginas que las pólizas.
     Route::post('/polizas/fianzas', [BondController::class, 'store'])
         ->middleware('can:polizas.create')
         ->name('policies.bonds.store');

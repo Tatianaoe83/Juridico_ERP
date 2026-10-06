@@ -1,7 +1,7 @@
 <script setup>
 import { Link, useForm } from '@inertiajs/vue3';
 import { Ban, CalendarClock, CalendarDays, CircleDollarSign, FileCheck, Hash, Landmark, Loader2, MessageSquareText, Save, ShieldCheck, Truck } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { computed, nextTick } from 'vue';
 import FormSelect from '@/components/app/FormSelect.vue';
 import { POLICY_COVERAGES } from '@/lib/coverages';
 import { SEMESTER_MONTHS, UNIT_TYPES, addMonths, money, periodLabel } from '@/lib/units';
@@ -29,9 +29,9 @@ const editing = computed(() => props.policy !== null);
 
 const form = useForm({
     unit_id: props.policy?.unit_id ?? props.unitId ?? '',
-    policy: props.policy?.policy ?? '',
-    certificate: props.policy?.certificate ?? '',
-    insurer: props.policy?.insurer ?? '',
+    policy: (props.policy?.policy ?? '').toUpperCase(),
+    certificate: (props.policy?.certificate ?? '').toUpperCase(),
+    insurer: (props.policy?.insurer ?? '').toUpperCase(),
     coverage: props.policy?.coverage ?? '',
     endorsement: props.policy?.endorsement ?? false,
     valid_from: props.policy?.valid_from ?? '',
@@ -39,10 +39,26 @@ const form = useForm({
     first_payment_due_on: props.policy?.first_payment_due_on ?? '',
     second_payment_amount: props.policy?.second_payment_amount ?? '',
     second_payment_due_on: props.policy?.second_payment_due_on ?? '',
+    // Solo se muestra: no viaja al guardar.
     cancellation_requested_on: props.policy?.cancellation_requested_on ?? '',
     cancelled_on: props.policy?.cancelled_on ?? '',
-    comments: props.policy?.comments ?? '',
+    comments: (props.policy?.comments ?? '').toUpperCase(),
 });
+
+/* ---------- Mayúsculas ---------- */
+
+/**
+ * Póliza, certificado, aseguradora y comentarios van siempre en mayúsculas: se convierten
+ * mientras escribe. El cursor se deja donde estaba para que corregir a media
+ * palabra no lo mande al final.
+ */
+function toUpper(field, event) {
+    const input = event.target;
+    const { selectionStart, selectionEnd } = input;
+
+    form[field] = input.value.toUpperCase();
+    nextTick(() => input.setSelectionRange(selectionStart, selectionEnd));
+}
 
 /* ---------- Opciones ---------- */
 
@@ -79,7 +95,10 @@ const INSTALLMENTS = [
 
 function submit() {
     // Vacío viaja como null para que la base guarde «sin dato».
-    form.transform((data) => Object.fromEntries(Object.entries(data).map(([key, value]) => [key, value === '' ? null : value])));
+    // La solicitud de cancelación no se manda: no se captura aquí.
+    form.transform(({ cancellation_requested_on, ...data }) =>
+        Object.fromEntries(Object.entries(data).map(([key, value]) => [key, value === '' ? null : value])),
+    );
 
     if (editing.value) {
         form.patch(`/polizas/${props.policy.id}`, { preserveScroll: true });
@@ -112,13 +131,6 @@ const CARD =
     'tall:p-5 dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none';
 
 const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80';
-
-const SEGMENT =
-    'h-8 cursor-pointer rounded-lg px-3 text-[0.75rem] font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25';
-
-const SEGMENT_ON = 'bg-white text-brand shadow-sm dark:bg-white/15 dark:text-white';
-
-const SEGMENT_OFF = 'text-slate-500 hover:text-slate-800 dark:text-brand-gray dark:hover:text-white';
 </script>
 
 <template>
@@ -162,7 +174,8 @@ const SEGMENT_OFF = 'text-slate-500 hover:text-slate-800 dark:text-brand-gray da
                     <div class="relative">
                         <input
                             id="policy-number"
-                            v-model="form.policy"
+                            :value="form.policy"
+                            @input="toUpper('policy', $event)"
                             type="text"
                             required
                             autocomplete="off"
@@ -180,7 +193,8 @@ const SEGMENT_OFF = 'text-slate-500 hover:text-slate-800 dark:text-brand-gray da
                     <div class="relative">
                         <input
                             id="policy-certificate"
-                            v-model="form.certificate"
+                            :value="form.certificate"
+                            @input="toUpper('certificate', $event)"
                             type="text"
                             autocomplete="off"
                             :class="FIELD"
@@ -196,7 +210,8 @@ const SEGMENT_OFF = 'text-slate-500 hover:text-slate-800 dark:text-brand-gray da
                     <div class="relative">
                         <input
                             id="policy-insurer"
-                            v-model="form.insurer"
+                            :value="form.insurer"
+                            @input="toUpper('insurer', $event)"
                             type="text"
                             autocomplete="off"
                             placeholder="Ej. Qualitas"
@@ -225,23 +240,46 @@ const SEGMENT_OFF = 'text-slate-500 hover:text-slate-800 dark:text-brand-gray da
                 </div>
 
                 <div>
-                    <span :class="LABEL">Endoso</span>
-                    <div class="inline-grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/[0.05]" role="radiogroup" aria-label="Endoso">
-                        <button
-                            v-for="option in [
-                                { value: true, label: 'Sí' },
-                                { value: false, label: 'No' },
-                            ]"
-                            :key="option.label"
-                            type="button"
-                            role="radio"
-                            :aria-checked="form.endorsement === option.value"
-                            :class="[SEGMENT, 'min-w-14', form.endorsement === option.value ? SEGMENT_ON : SEGMENT_OFF]"
-                            @click="form.endorsement = option.value"
+                    <span id="policy-endorsement-label" :class="LABEL">Endoso</span>
+                    <!-- Interruptor: la perilla se desliza y el texto cambia con un fundido corto -->
+                    <button
+                        type="button"
+                        role="switch"
+                        :aria-checked="form.endorsement"
+                        aria-labelledby="policy-endorsement-label"
+                        class="group flex h-9 w-full cursor-pointer items-center gap-3 rounded-lg border px-3 text-left transition-[border-color,background-color] duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/15"
+                        :class="
+                            form.endorsement
+                                ? 'border-brand/30 bg-brand/[0.05] dark:border-white/25 dark:bg-white/[0.07]'
+                                : 'border-slate-200 bg-slate-50/70 hover:border-slate-300 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20'
+                        "
+                        @click="form.endorsement = !form.endorsement"
+                    >
+                        <span
+                            class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ease-out motion-reduce:transition-none"
+                            :class="form.endorsement ? 'bg-brand dark:bg-brand-light' : 'bg-slate-300 dark:bg-white/20'"
                         >
-                            {{ option.label }}
-                        </button>
-                    </div>
+                            <span
+                                class="absolute left-0.5 size-4 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out motion-reduce:transition-none"
+                                :class="form.endorsement ? 'translate-x-4' : 'translate-x-0'"
+                            />
+                        </span>
+                        <Transition
+                            mode="out-in"
+                            enter-active-class="transition-opacity duration-150 ease-out motion-reduce:transition-none"
+                            enter-from-class="opacity-0"
+                            leave-active-class="transition-opacity duration-100 ease-in motion-reduce:transition-none"
+                            leave-to-class="opacity-0"
+                        >
+                            <span
+                                :key="String(form.endorsement)"
+                                class="text-[0.8rem] font-semibold"
+                                :class="form.endorsement ? 'text-brand dark:text-white' : 'text-slate-500 dark:text-brand-gray'"
+                            >
+                                {{ form.endorsement ? 'Con endoso USA/Canada' : 'Sin endoso USA/Canada' }}
+                            </span>
+                        </Transition>
+                    </button>
                     <p v-if="form.errors.endorsement" :class="ERROR">{{ form.errors.endorsement }}</p>
                 </div>
             </div>
@@ -339,17 +377,17 @@ const SEGMENT_OFF = 'text-slate-500 hover:text-slate-800 dark:text-brand-gray da
                 <div class="grid content-start gap-4 sm:grid-cols-2">
                     <div>
                         <label for="policy-cancel-requested" :class="LABEL">Solicitud de cancelación</label>
+                        <!-- No se captura a mano: la llenará el flujo de solicitar cancelación -->
                         <div class="relative">
                             <input
                                 id="policy-cancel-requested"
-                                v-model="form.cancellation_requested_on"
+                                :value="form.cancellation_requested_on"
                                 type="date"
+                                disabled
                                 :class="FIELD"
-                                :aria-invalid="Boolean(form.errors.cancellation_requested_on)"
                             />
                             <CalendarClock :class="ICON" />
                         </div>
-                        <p v-if="form.errors.cancellation_requested_on" :class="ERROR">{{ form.errors.cancellation_requested_on }}</p>
                     </div>
 
                     <div>
@@ -375,7 +413,8 @@ const SEGMENT_OFF = 'text-slate-500 hover:text-slate-800 dark:text-brand-gray da
                     <div class="relative">
                         <textarea
                             id="policy-comments"
-                            v-model="form.comments"
+                            :value="form.comments"
+                            @input="toUpper('comments', $event)"
                             rows="4"
                             placeholder="Observaciones de la póliza…"
                             :class="[FIELD, 'h-auto resize-y py-2 leading-relaxed']"

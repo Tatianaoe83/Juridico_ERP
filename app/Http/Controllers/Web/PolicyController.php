@@ -147,11 +147,17 @@ class PolicyController extends Controller
         ]);
     }
 
-    /** GET /polizas/crear */
+    /**
+     * GET /polizas/crear
+     *
+     * El alta de pólizas y de fianzas: la misma página, se elige arriba qué se
+     * registra. `?tipo=fianza` la abre ya en fianza.
+     */
     public function create(Request $request): Response
     {
         return Inertia::render('Policies/Create', [
             ...$this->formOptions(),
+            'type' => $request->query('tipo') === 'fianza' ? 'bond' : 'policy',
             // Desde la ficha de una unidad puede llegar ya elegida.
             'unitId' => $request->integer('unidad') ?: null,
         ]);
@@ -173,7 +179,8 @@ class PolicyController extends Controller
     public function edit(UnitPolicy $policy): Response
     {
         return Inertia::render('Policies/Edit', [
-            ...$this->formOptions(),
+            ...$this->formOptions($policy->unit_id),
+            'type' => 'policy',
             'policy' => [
                 'id' => $policy->id,
                 'unit_id' => $policy->unit_id,
@@ -248,10 +255,15 @@ class PolicyController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function formOptions(): array
+    private function formOptions(?int $keepUnitId = null): array
     {
         return [
+            // Las que están en mantenimiento no se ofrecen; al editar, la de la
+            // póliza sí aparece aunque lo esté, para poder mostrarla.
             'units' => Unit::query()
+                ->where(fn ($query) => $query
+                    ->where('status', '!=', 'maintenance')
+                    ->when($keepUnitId, fn ($q) => $q->orWhere('id', $keepUnitId)))
                 ->orderBy('brand')
                 ->orderBy('model')
                 ->get(['id', 'type', 'brand', 'model', 'plate', 'economic_number'])

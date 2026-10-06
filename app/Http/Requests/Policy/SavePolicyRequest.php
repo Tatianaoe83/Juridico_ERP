@@ -21,6 +21,18 @@ class SavePolicyRequest extends FormRequest
         return $this->user()?->can($this->editing() ? 'polizas.update' : 'polizas.create') ?? false;
     }
 
+    /** Campos que se guardan siempre en mayúsculas. */
+    public const UPPERCASE = ['policy', 'certificate', 'insurer', 'comments'];
+
+    /** El formulario ya los manda así; esto cubre cualquier otra entrada. */
+    protected function prepareForValidation(): void
+    {
+        $this->merge(collect(self::UPPERCASE)
+            ->filter(fn (string $field) => is_string($this->input($field)))
+            ->mapWithKeys(fn (string $field) => [$field => mb_strtoupper($this->input($field))])
+            ->all());
+    }
+
     private function editing(): bool
     {
         return $this->route('policy') instanceof UnitPolicy;
@@ -34,7 +46,12 @@ class SavePolicyRequest extends FormRequest
         $policy = $this->route('policy');
 
         return [
-            'unit_id' => $this->editing() ? ['exclude'] : ['required', 'integer', 'exists:units,id'],
+            // Una unidad en mantenimiento no se asegura hasta que regrese.
+            'unit_id' => $this->editing() ? ['exclude'] : [
+                'required',
+                'integer',
+                Rule::exists('units', 'id')->where(fn ($query) => $query->where('status', '!=', 'maintenance')),
+            ],
             'policy' => ['required', 'string', 'max:255', Rule::unique('unit_policies', 'policy')->ignore($policy)],
             'certificate' => ['nullable', 'string', 'max:255'],
             'insurer' => ['nullable', 'string', 'max:255'],
@@ -47,8 +64,14 @@ class SavePolicyRequest extends FormRequest
             'second_payment_amount' => ['nullable', 'numeric', 'min:0', 'max:9999999999'],
             'second_payment_due_on' => ['nullable', 'date'],
 
-            'cancellation_requested_on' => ['nullable', 'date'],
-            'cancelled_on' => ['nullable', 'date', 'after_or_equal:cancellation_requested_on'],
+            // La solicitud de cancelación no se captura en el formulario: la
+            // llenará su propio flujo. La cancelación se compara con la guardada.
+            'cancellation_requested_on' => ['exclude'],
+            'cancelled_on' => [
+                'nullable',
+                'date',
+                ...($policy?->cancellation_requested_on ? ['after_or_equal:'.$policy->cancellation_requested_on->toDateString()] : []),
+            ],
             'comments' => ['nullable', 'string', 'max:5000'],
         ];
     }
@@ -116,6 +139,7 @@ class SavePolicyRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'unit_id.exists' => 'La unidad no existe o está en mantenimiento.',
             'policy.unique' => 'Ya hay una póliza con ese número.',
             'cancelled_on.after_or_equal' => 'La cancelación no puede ser antes de que se solicitara.',
         ];

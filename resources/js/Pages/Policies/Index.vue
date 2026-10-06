@@ -265,23 +265,15 @@ const PAGE_BTN =
                     </div>
                 </div>
 
-                <!-- Una para cada tipo: el formulario de cada una es distinto -->
-                <div v-if="can('polizas.create')" class="flex flex-wrap items-center gap-2">
-                    <Link
-                        href="/polizas/fianzas/crear"
-                        class="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[0.8rem] font-semibold text-slate-700 transition-colors duration-150 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-500/10 dark:border-white/10 dark:bg-transparent dark:text-brand-gray dark:hover:bg-white/[0.06] dark:hover:text-white"
-                    >
-                        <Plus class="size-4" />
-                        Nueva fianza
-                    </Link>
-                    <Link
-                        href="/polizas/crear"
-                        class="inline-flex h-9 items-center gap-2 rounded-xl bg-brand px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
-                    >
-                        <Plus class="size-4" />
-                        Nueva póliza
-                    </Link>
-                </div>
+                <!-- Uno solo: en el alta se elige si es póliza o fianza -->
+                <Link
+                    v-if="can('polizas.create')"
+                    :href="type === 'bond' ? '/polizas/crear?tipo=fianza' : '/polizas/crear'"
+                    class="inline-flex h-9 items-center gap-2 rounded-xl bg-brand px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
+                >
+                    <Plus class="size-4" />
+                    Nuevo registro
+                </Link>
             </div>
 
             <!-- Resumen: de todas las coberturas, no cambia con los filtros de la tabla -->
