@@ -6,11 +6,11 @@ import AppShell from '@/Layouts/AppShell.vue';
 import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
 import FilterSelect from '@/components/app/FilterSelect.vue';
 import { usePermissions } from '@/composables/usePermissions';
-import { COVERAGE_STATUS, COVERAGE_TYPES, POLICY_COVERAGES, coverageStatus } from '@/lib/coverages';
+import { BOND_CATEGORIES, COVERAGE_STATUS, COVERAGE_TYPES, POLICY_COVERAGES, coverageStatus } from '@/lib/coverages';
 import { money, shortDate } from '@/lib/units';
 
 const props = defineProps({
-    /** { data: [{ key, type, number, provider, subject, detail, valid_from, valid_until, amount, status, payments }], meta } */
+    /** { data: [{ key, type, kind, number, provider, subject, detail, valid_from, valid_until, amount, status, payments }], meta } */
     coverages: { type: Object, required: true },
     /** { active, expiring, expired, warning_days } — de todo, sin filtros. */
     stats: { type: Object, required: true },
@@ -157,11 +157,11 @@ const cards = computed(() => [
 
 const PAYMENT_LABEL = { first: '1 de 2', second: '2 de 2' };
 
-/** La categoría: en pólizas, su cobertura; en fianzas, el producto (o el beneficiario si no lo tiene). */
+/** La categoría: en pólizas, su cobertura; en fianzas, su categoría. */
 function category(row) {
-    if (row.type === 'policy') return POLICY_COVERAGES[row.coverage] ?? 'Sin cobertura';
+    if (row.type === 'policy') return POLICY_COVERAGES[row.coverage] ?? 'SIN COBERTURA';
 
-    return row.subject ?? '—';
+    return BOND_CATEGORIES[row.category] ?? 'SIN CATEGORÍA';
 }
 
 /** Cada tipo tiene su propio detalle. */
@@ -366,14 +366,14 @@ const PAGE_BTN =
                                     <span class="block truncate font-semibold text-slate-800 dark:text-white" :title="row.number">{{ row.number }}</span>
                                     <span class="mt-0.5 flex items-center gap-1.5">
                                         <span class="rounded px-1.5 py-px text-[0.58rem] font-bold uppercase tracking-wider" :class="COVERAGE_TYPES[row.type].tone">
-                                            {{ COVERAGE_TYPES[row.type].label }}
+                                            {{ COVERAGE_TYPES[row.type].label }}{{ row.kind === 'construction' ? ' de obra' : '' }}
                                         </span>
                                         <!-- En cards angostos el proveedor baja aquí -->
                                         <span class="truncate text-[0.7rem] text-slate-400 @2xl:hidden dark:text-brand-gray/80">{{ row.provider }}</span>
                                     </span>
                                 </td>
 
-                                <!-- Proveedor y categoría: la cobertura de la póliza o el producto de la fianza -->
+                                <!-- Proveedor y categoría: la cobertura de la póliza o la categoría de la fianza -->
                                 <td :class="[TD, 'hidden max-w-0 @2xl:table-cell @2xl:w-1/4']">
                                     <span
                                         class="block truncate"

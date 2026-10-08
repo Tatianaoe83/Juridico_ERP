@@ -8,8 +8,10 @@ import {
     CalendarRange,
     FileCheck,
     FilePen,
+    HardHat,
     Hash,
     Landmark,
+    MapPin,
     MessageSquareText,
     Paperclip,
     Pencil,
@@ -24,12 +26,12 @@ import AppShell from '@/Layouts/AppShell.vue';
 import FilePreviewDialog from '@/components/app/FilePreviewDialog.vue';
 import PolicyPaymentDialog from '@/components/app/PolicyPaymentDialog.vue';
 import { usePermissions } from '@/composables/usePermissions';
-import { COVERAGE_TYPES, POLICY_COVERAGES, coverageStatus } from '@/lib/coverages';
+import { COVERAGE_TYPES, POLICY_COVERAGES, POLICY_KINDS, coverageStatus } from '@/lib/coverages';
 import { FILE_KINDS, fileSize, kindOf } from '@/lib/files';
 import { UNIT_TYPES, money, shortDate } from '@/lib/units';
 
 const props = defineProps({
-    /** El periodo completo: póliza, unidad, cuotas con comprobantes, costo y cancelación. */
+    /** El periodo completo: póliza, unidad u obra, cuotas con comprobantes, costo y cancelación. */
     policy: { type: Object, required: true },
 });
 
@@ -48,6 +50,11 @@ const unit = computed(() => props.policy.unit);
 
 const unitName = computed(() => (unit.value ? `${unit.value.brand} ${unit.value.model}` : null));
 
+/** Solo en las de obra: nombre, dirección y unidad de negocio. */
+const project = computed(() => props.policy.project);
+
+const construction = computed(() => props.policy.kind === 'construction');
+
 /** «15 ene 2026 – 15 ene 2027»; con una sola fecha, esa. */
 function range(from, to) {
     const start = shortDate(from);
@@ -64,9 +71,21 @@ const details = computed(() => [
     { label: 'Certificado', value: props.policy.certificate, icon: Hash },
     { label: 'Aseguradora', value: props.policy.insurer, icon: Landmark },
     { label: 'Cobertura', value: POLICY_COVERAGES[props.policy.coverage] ?? null, icon: ShieldCheck },
-    { label: 'Endoso', value: props.policy.endorsement ? 'Sí' : 'No', icon: FilePen },
+    // El endoso USA/Canadá es solo de las vehiculares.
+    ...(construction.value ? [] : [{ label: 'Endoso', value: props.policy.endorsement ? 'Sí' : 'No', icon: FilePen }]),
     { label: 'Vigencia', value: range(props.policy.valid_from, props.policy.valid_until), icon: CalendarRange },
 ]);
+
+/** La obra asegurada. */
+const projectDetails = computed(() =>
+    project.value
+        ? [
+              { label: 'Obra', value: project.value.name, icon: HardHat },
+              { label: 'Dirección', value: project.value.address, icon: MapPin },
+              { label: 'Unidad de negocio', value: project.value.business_unit, icon: Building2 },
+          ]
+        : [],
+);
 
 /** La unidad asegurada, con lo que pide la póliza: descripción, serie, placas, económico y asignación. */
 const unitDetails = computed(() =>
@@ -158,7 +177,9 @@ const EMPTY = 'mt-3 flex items-center gap-2 text-[0.78rem] text-slate-400 dark:t
                         <FileCheck class="size-4" />
                     </span>
                     <div class="min-w-0">
-                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">{{ COVERAGE_TYPES.policy.label }}</p>
+                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">
+                            {{ COVERAGE_TYPES.policy.label }} {{ POLICY_KINDS[policy.kind]?.label.toLowerCase() }}
+                        </p>
                         <h1 class="truncate text-xl font-bold tracking-tight text-brand dark:text-white">{{ policy.policy }}</h1>
                     </div>
                     <span class="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.7rem] font-bold whitespace-nowrap ring-1 ring-inset" :class="status.tone">
@@ -204,8 +225,23 @@ const EMPTY = 'mt-3 flex items-center gap-2 text-[0.78rem] text-slate-400 dark:t
                         </dl>
                     </section>
 
+                    <!-- Obra asegurada -->
+                    <section v-if="construction" :class="CARD">
+                        <p :class="SECTION_TITLE">Obra asegurada</p>
+
+                        <dl class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                            <div v-for="detail in projectDetails" :key="detail.label" class="flex items-start gap-2.5">
+                                <span :class="TILE_ICON"><component :is="detail.icon" class="size-3.5" /></span>
+                                <div class="min-w-0">
+                                    <dt :class="DT">{{ detail.label }}</dt>
+                                    <dd :class="DD" :title="detail.value ?? undefined">{{ detail.value ?? '—' }}</dd>
+                                </div>
+                            </div>
+                        </dl>
+                    </section>
+
                     <!-- Unidad asegurada -->
-                    <section :class="CARD">
+                    <section v-else :class="CARD">
                         <div class="flex items-center justify-between gap-3">
                             <p :class="SECTION_TITLE">Unidad asegurada</p>
                             <Link

@@ -6,12 +6,35 @@ export const COVERAGE_TYPES = {
     bond: { label: 'Fianza', plural: 'Fianzas', tone: 'bg-violet-50 text-violet-700 dark:bg-violet-400/10 dark:text-violet-300' },
 };
 
-/** Qué cubre la póliza. Igual que UnitPolicy::COVERAGES; las mismas para vehículos y maquinaria. */
+/** Qué asegura la póliza: una unidad o una obra. Igual que UnitPolicy::KINDS. */
+export const POLICY_KINDS = {
+    vehicle: { label: 'Vehicular' },
+    construction: { label: 'De obra' },
+};
+
+/**
+ * Qué cubre la póliza. Igual que UnitPolicy::COVERAGES: las cuatro primeras son
+ * de las vehiculares (las mismas para vehículos y maquinaria), las otras de obra.
+ */
 export const POLICY_COVERAGES = {
-    civil_liability: 'Responsabilidad civil',
-    limited: 'Limitada',
-    broad: 'Amplia',
-    broad_plus: 'Amplia plus',
+    civil_liability: 'RESPONSABILIDAD CIVIL',
+    limited: 'LIMITADA',
+    broad: 'AMPLIA',
+    broad_plus: 'AMPLIA PLUS',
+    civil_works: 'OBRA CIVIL',
+    construction_liability: 'RESPONSABILIDAD CIVIL DE CONSTRUCCIÓN',
+    erection: 'SEGURO DE MONTAJE',
+    machinery_equipment: 'MAQUINARIA Y EQUIPO',
+};
+
+/** Categoría de la fianza. Igual que Bond::CATEGORIES. */
+export const BOND_CATEGORIES = {
+    performance: 'CUMPLIMIENTO',
+    advance_payment: 'ANTICIPO',
+    quality: 'BUENA CALIDAD',
+    hidden_defects: 'VICIOS OCULTOS',
+    supply: 'SUMINISTRO',
+    tax_interest: 'INTERÉS FISCAL',
 };
 
 /** Cómo va su vigencia. Igual que App\Support\CoverageStatus. */

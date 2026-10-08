@@ -10,7 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 /**
- * Un periodo de póliza de una unidad: su número y sus dos pagos semestrales.
+ * Un periodo de póliza: su número y sus dos pagos semestrales. Asegura una
+ * unidad (vehicular) o una obra; todo lo demás es igual en las dos.
  *
  * Se renueva cada año con número nuevo. Al pagar el segundo semestre se crea
  * el siguiente periodo y este queda en el historial.
@@ -20,11 +21,23 @@ class UnitPolicy extends Model
     /** Los dos pagos, tal como van en el prefijo de sus columnas. */
     public const PAYMENTS = ['first', 'second'];
 
+    /** Los mismos valores que el enum de la columna `kind`. */
+    public const VEHICLE = 'vehicle';
+
+    public const CONSTRUCTION = 'construction';
+
+    public const KINDS = [self::VEHICLE, self::CONSTRUCTION];
+
     /**
-     * Los mismos valores que el enum de la columna `coverage`: responsabilidad
-     * civil, limitada, amplia y amplia plus. Igual para vehículos y maquinaria.
+     * Las coberturas de cada tipo, las mismas que el enum de la columna
+     * `coverage`. Vehicular: responsabilidad civil, limitada, amplia y amplia
+     * plus, igual para vehículos y maquinaria. Obra: obra civil, responsabilidad
+     * civil de construcción, montaje y maquinaria y equipo.
      */
-    public const COVERAGES = ['civil_liability', 'limited', 'broad', 'broad_plus'];
+    public const COVERAGES = [
+        self::VEHICLE => ['civil_liability', 'limited', 'broad', 'broad_plus'],
+        self::CONSTRUCTION => ['civil_works', 'construction_liability', 'erection', 'machinery_equipment'],
+    ];
 
     /** IVA que traen incluido los importes capturados. */
     public const TAX_RATE = 0.16;
@@ -33,6 +46,20 @@ class UnitPolicy extends Model
     public const SEMESTER_MONTHS = 6;
 
     protected $guarded = [];
+
+    public function isConstruction(): bool
+    {
+        return $this->kind === self::CONSTRUCTION;
+    }
+
+    /**
+     * La unidad de negocio: la de obra trae la suya, la vehicular la toma de
+     * su unidad.
+     */
+    public function businessUnitName(): ?string
+    {
+        return $this->isConstruction() ? $this->businessUnit?->name : $this->unit?->businessUnit?->name;
+    }
 
     /** Costo anual: la suma de los dos pagos semestrales, con IVA incluido. */
     public function annualCost(): float
@@ -178,9 +205,16 @@ class UnitPolicy extends Model
         ];
     }
 
+    /** Solo en las vehiculares. */
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);
+    }
+
+    /** Solo en las de obra: la vehicular usa la de su unidad. */
+    public function businessUnit(): BelongsTo
+    {
+        return $this->belongsTo(BusinessUnit::class);
     }
 
     /** El periodo del que salió al renovar. */

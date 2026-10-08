@@ -16,9 +16,9 @@ const props = defineProps({
     type: { type: String, default: 'policy' },
     /** [{ value, label, type }] */
     units: { type: Array, default: () => [] },
-    /** Valores del enum `coverage`. */
-    coverages: { type: Array, default: () => [] },
-    /** Catálogo: [{ id, name }], para la fianza. */
+    /** Valores del enum `coverage` por tipo de póliza. */
+    coverages: { type: Object, default: () => ({}) },
+    /** Catálogo: [{ id, name }], para la póliza de obra y la fianza. */
     businessUnits: { type: Array, default: () => [] },
     /** Valores del enum `category` de la fianza. */
     categories: { type: Array, default: () => [] },
@@ -59,7 +59,6 @@ const breadcrumbs = computed(() => [
                         <component :is="selected.icon" class="size-4" />
                     </span>
                     <div>
-                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Pólizas y Fianzas</p>
                         <h1 class="text-lg leading-tight font-bold tracking-tight text-brand dark:text-white">{{ title }}</h1>
                     </div>
                 </div>
@@ -113,7 +112,7 @@ const breadcrumbs = computed(() => [
             >
                 <KeepAlive>
                     <BondForm v-if="current === 'bond'" key="bond" :business-units="businessUnits" :categories="categories" />
-                    <PolicyForm v-else key="policy" :units="units" :coverages="coverages" :unit-id="unitId" />
+                    <PolicyForm v-else key="policy" :units="units" :coverages="coverages" :business-units="businessUnits" :unit-id="unitId" />
                 </KeepAlive>
             </Transition>
         </div>

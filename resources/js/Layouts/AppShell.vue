@@ -3,7 +3,6 @@ import { Link, usePage } from '@inertiajs/vue3';
 import {
     CalendarCheck,
     CalendarDays,
-    ChevronRight,
     FileBadge,
     FileCheck,
     KeyRound,
@@ -269,32 +268,6 @@ function toggleGroup(group) {
                     <PanelLeftClose v-if="sidebarOpen" class="size-[1.1rem]" />
                     <PanelLeftOpen v-else class="size-[1.1rem]" />
                 </button>
-
-                <span class="hidden h-6 w-px bg-slate-200 sm:block dark:bg-white/10" aria-hidden="true" />
-
-                <nav aria-label="Ruta" class="flex min-w-0 items-center gap-1.5 text-sm">
-                    <template v-for="(crumb, i) in breadcrumbs" :key="crumb.label">
-                        <ChevronRight v-if="i > 0" class="size-3.5 shrink-0 text-slate-300 dark:text-white/25" />
-                        <Link
-                            v-if="crumb.href && i < breadcrumbs.length - 1"
-                            :href="crumb.href"
-                            class="truncate text-muted-foreground hover:text-brand dark:text-brand-gray dark:hover:text-white"
-                        >
-                            {{ crumb.label }}
-                        </Link>
-                        <span
-                            v-else
-                            class="truncate"
-                            :class="
-                                i === breadcrumbs.length - 1
-                                    ? 'font-semibold text-brand dark:text-white'
-                                    : 'text-muted-foreground dark:text-brand-gray'
-                            "
-                        >
-                            {{ crumb.label }}
-                        </span>
-                    </template>
-                </nav>
 
                 <div class="ml-auto flex items-center gap-2 sm:gap-3">
                     <button

@@ -9,42 +9,43 @@ use Illuminate\Support\Carbon;
 use Throwable;
 
 /**
- * Agenda en Outlook el vencimiento de cada pago semestral de un periodo de
- * póliza. Solo avisa: registrar un pago no toca los eventos.
+ * Refleja cada póliza en el calendario de Outlook: la fecha límite de cada
+ * pago y el fin de la vigencia quedan agendados sin capturarlos a mano.
  *
  * Aquí solo se arma el evento; cómo se inserta lo resuelve CalendarEvents.
  *
  * Nada de esto puede tumbar el alta: si Graph falla o la cuenta no está
- * vinculada, la unidad se guarda igual y el evento sencillamente no se crea.
+ * vinculada, la póliza se guarda igual y el evento sencillamente no se crea.
  * Por eso los métodos devuelven bool en vez de lanzar.
  */
 class UnitCalendar
 {
     /**
-     * Los dos semestres, con la columna de la que sale su fecha y dónde se
-     * guarda el id del evento. La fecha es la de cierre: el pago vence cuando
-     * el periodo termina, nunca cuando empieza.
+     * Las tres fechas que van al calendario, con la columna de la que sale
+     * cada una y dónde se guarda el id de su evento. Los pagos usan la fecha
+     * límite que pone la aseguradora, no el cierre del semestre.
      *
      * @var array<int, array{label: string, date: string, event: string}>
      */
-    private const PAYMENTS = [
-        ['label' => 'Primer pago', 'date' => 'first_payment_ends_on', 'event' => 'first_payment_event_id'],
-        ['label' => 'Segundo pago', 'date' => 'second_payment_ends_on', 'event' => 'second_payment_event_id'],
+    public const EVENTS = [
+        ['label' => 'Límite primer pago', 'date' => 'first_payment_due_on', 'event' => 'first_payment_event_id'],
+        ['label' => 'Límite segundo pago', 'date' => 'second_payment_due_on', 'event' => 'second_payment_event_id'],
+        ['label' => 'Fin de vigencia', 'date' => 'second_payment_ends_on', 'event' => 'validity_event_id'],
     ];
 
     /**
-     * Anticipación del recordatorio del evento del vencimiento, en minutos:
-     * una semana. Es el recordatorio propio de Outlook, el del reloj.
+     * Anticipación del recordatorio de cada evento, en minutos: una semana.
+     * Es el recordatorio propio de Outlook, el del reloj.
      */
     private const REMINDER_MINUTES = 10080;
 
     public function __construct(private readonly CalendarEvents $events) {}
 
     /**
-     * Pone al día los dos eventos del periodo: crea el que falta, reemplaza el
-     * que cambió de fecha y quita el del semestre al que le borraron la fecha.
+     * Pone al día los tres eventos de la póliza: crea el que falta, mueve el
+     * que cambió de fecha y quita el de la fecha que se borró.
      *
-     * Se llama justo después de guardar el periodo: de ese guardado sale qué
+     * Se llama justo después de guardar la póliza: de ese guardado sale qué
      * fechas se movieron.
      *
      * Devuelve false si algo no se pudo agendar, para poder decirlo en pantalla.
@@ -59,13 +60,31 @@ class UnitCalendar
         // borraría de getChanges() lo que cambió en la edición.
         $changed = array_keys($policy->getChanges());
 
-        // Limpieza de la versión anterior: antes cada aviso era un evento
-        // aparte. Ahora el aviso vive dentro del evento del vencimiento, así
-        // que los sueltos se borran la próxima vez que se guarda la unidad.
-        $ok = $this->forgetReminders($policy->unit, $actor);
+        $policy->loadMissing('unit.businessUnit');
 
-        foreach (self::PAYMENTS as $payment) {
-            $ok = $this->syncPayment($policy, $actor, $payment, in_array($payment['date'], $changed, true)) && $ok;
+        // Limpieza de la versión anterior: antes cada aviso era un evento
+        // aparte. Ahora el aviso vive dentro del evento, así que los sueltos
+        // se borran la próxima vez que se guarda la póliza.
+        $ok = $policy->unit ? $this->forgetReminders($policy->unit, $actor) : true;
+
+        foreach (self::EVENTS as $entry) {
+            $ok = $this->syncEvent($policy, $actor, $entry, in_array($entry['date'], $changed, true)) && $ok;
+        }
+
+        return $ok;
+    }
+
+    /** Quita de Outlook los eventos de la póliza, si los hay. */
+    public function forgetPolicy(UnitPolicy $policy, User $actor): bool
+    {
+        if (! $this->events->available($actor)) {
+            return false;
+        }
+
+        $ok = true;
+
+        foreach (self::EVENTS as $entry) {
+            $ok = $this->forgetEvent($policy, $actor, $entry['event']) && $ok;
         }
 
         return $ok;
@@ -85,67 +104,39 @@ class UnitCalendar
 
         $policy = $unit->currentPolicy;
 
-        if (! $policy) {
-            return $ok;
-        }
-
-        foreach (self::PAYMENTS as $payment) {
-            $ok = $this->forgetEvent($policy, $actor, $payment['event']) && $ok;
-        }
-
-        return $ok;
+        return $policy ? $this->forgetPolicy($policy, $actor) && $ok : $ok;
     }
 
     /**
-     * @param  array{label: string, date: string, event: string}  $payment
+     * @param  array{label: string, date: string, event: string}  $entry
      */
-    private function syncPayment(UnitPolicy $policy, User $actor, array $payment, bool $dateChanged): bool
+    private function syncEvent(UnitPolicy $policy, User $actor, array $entry, bool $dateChanged): bool
     {
-        $date = $policy->{$payment['date']};
+        $date = $policy->{$entry['date']};
 
-        // Sin fecha de vencimiento no hay nada que agendar: si había evento,
-        // se quita en vez de dejarlo colgado en una fecha que ya no existe.
+        // Sin fecha no hay nada que agendar: si había evento, se quita en vez
+        // de dejarlo colgado en una fecha que ya no existe.
         if (! $date) {
-            return $this->forgetEvent($policy, $actor, $payment['event']);
+            return $this->forgetEvent($policy, $actor, $entry['event']);
         }
 
         // Misma fecha y evento ya agendado: no se toca. Cualquier cambio al
-        // evento hace que Outlook reenvíe la invitación a todos los invitados.
-        if ($policy->{$payment['event']} && ! $dateChanged) {
+        // evento hace que Outlook reenvíe la invitación a los compartidos.
+        if ($policy->{$entry['event']} && ! $dateChanged) {
             return true;
         }
 
-        // La fecha se movió: el evento viejo se cancela (al borrarlo, Outlook
-        // avisa la cancelación a los invitados) y se agenda uno nuevo. Si ya
-        // no existía en Outlook, igual se crea el nuevo.
-        if ($policy->{$payment['event']}) {
-            try {
-                $this->events->delete($actor, $policy->{$payment['event']}, notify: false);
-            } catch (Throwable $e) {
-                report($e);
-            }
-
-            // Si el nuevo no se llega a crear, el siguiente guardado lo intenta
-            // otra vez en lugar de creer que ya hay uno.
-            $policy->forceFill([$payment['event'] => null])->save();
-        }
-
         try {
-            $event = $this->events->create(
-                $actor,
-                $this->event($policy, $payment['label'], $date),
-                // Con invitados, igual que las licencias: así Outlook manda la
-                // invitación de cada vencimiento. Son dos correos por periodo
-                // porque son dos fechas límite distintas.
-                notify: false,
-            );
+            // Sin correo propio: la invitación nativa de Outlook ya avisa a
+            // los compartidos.
+            $event = $this->events->sync($actor, $policy->{$entry['event']}, $this->event($policy, $entry['label'], $date), notify: false);
         } catch (Throwable $e) {
             report($e);
 
             return false;
         }
 
-        $policy->forceFill([$payment['event'] => $event['id']])->save();
+        $policy->forceFill([$entry['event'] => $event['id']])->save();
 
         return true;
     }
@@ -204,28 +195,34 @@ class UnitCalendar
     }
 
     /**
-     * Lo que se ve en Outlook. De todo el día y en la fecha de vencimiento:
-     * ese es el último día para pagar, no un horario de nada.
+     * Lo que se ve en Outlook. De todo el día: es el último día para pagar o
+     * el día que se acaba la vigencia, no un horario de nada.
      *
      * @return array<string, mixed>
      */
     private function event(UnitPolicy $policy, string $label, Carbon $date): array
     {
         $unit = $policy->unit;
+        $unitName = trim("{$unit?->brand} {$unit?->model}");
+        $businessUnit = $policy->businessUnitName();
 
         $lines = array_filter([
-            'Unidad: '.$unit->brand.' '.$unit->model,
-            'Póliza: '.$policy->policy,
-            $unit->economic_number ? "Económico: {$unit->economic_number}" : null,
-            $unit->plate ? "Placa: {$unit->plate}" : null,
-            $unit->businessUnit?->name ? 'Unidad de negocio: '.$unit->businessUnit->name : null,
-            $unit->responsible ? "Responsable: {$unit->responsible}" : null,
+            "Póliza: {$policy->policy}",
+            $policy->insurer ? "Aseguradora: {$policy->insurer}" : null,
+            $policy->project ? "Obra: {$policy->project}" : null,
+            $policy->project_address ? "Dirección: {$policy->project_address}" : null,
+            $unitName ? "Unidad: {$unitName}" : null,
+            $unit?->plate ? "Placa: {$unit->plate}" : null,
+            $unit?->economic_number ? "Económico: {$unit->economic_number}" : null,
+            $businessUnit ? "Unidad de negocio: {$businessUnit}" : null,
+            $unit?->responsible ? "Responsable: {$unit->responsible}" : null,
         ]);
 
         $day = $date->copy()->startOfDay();
 
         return [
-            'title' => "{$label} · Póliza {$policy->policy} · {$unit->brand} {$unit->model}",
+            // En la de obra, la obra va donde iría la unidad.
+            'title' => collect([$label, "Póliza {$policy->policy}", $policy->isConstruction() ? $policy->project : $unitName])->filter()->implode(' · '),
             'description' => implode("\n", $lines),
             // La unidad de negocio va en la descripción: en «Ubicación» Outlook
             // la muestra como si fuera un lugar.
@@ -233,8 +230,7 @@ class UnitCalendar
             'all_day' => true,
             'start' => $day,
             'end' => $day->copy(),
-            // El recordatorio de Outlook: salta una semana antes en el buzón
-            // de quien lo tenga, sin que el servidor mande nada.
+            // La alerta la lanza Outlook en cada buzón; el servidor no manda nada.
             'reminder_minutes' => self::REMINDER_MINUTES,
         ];
     }

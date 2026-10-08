@@ -9,10 +9,11 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 /**
- * Alta y edición de una póliza de unidad. La vigencia se captura con su
- * inicio: los dos semestres salen de ahí, seis meses cada uno.
+ * Alta y edición de una póliza, vehicular o de obra. La vigencia se captura
+ * con su inicio: los dos semestres salen de ahí, seis meses cada uno.
  *
- * Al editar la unidad no cambia: sus comprobantes ya van ligados a ella.
+ * Al editar no cambian el tipo ni la unidad: sus comprobantes ya van ligados
+ * a ella. La obra sí se puede corregir: por ahora es texto libre.
  */
 class SavePolicyRequest extends FormRequest
 {
@@ -22,20 +23,33 @@ class SavePolicyRequest extends FormRequest
     }
 
     /** Campos que se guardan siempre en mayúsculas. */
-    public const UPPERCASE = ['policy', 'certificate', 'insurer', 'comments'];
+    public const UPPERCASE = ['policy', 'certificate', 'insurer', 'project', 'project_address', 'comments'];
 
-    /** El formulario ya los manda así; esto cubre cualquier otra entrada. */
+    /**
+     * El formulario ya los manda así; esto cubre cualquier otra entrada. Al
+     * editar, el tipo es el guardado.
+     */
     protected function prepareForValidation(): void
     {
         $this->merge(collect(self::UPPERCASE)
             ->filter(fn (string $field) => is_string($this->input($field)))
             ->mapWithKeys(fn (string $field) => [$field => mb_strtoupper($this->input($field))])
             ->all());
+
+        if ($this->editing()) {
+            $this->merge(['kind' => $this->route('policy')->kind]);
+        }
     }
 
     private function editing(): bool
     {
         return $this->route('policy') instanceof UnitPolicy;
+    }
+
+    /** El tipo de la póliza: el que se eligió o, si no llega, vehicular. */
+    public function kind(): string
+    {
+        return in_array($this->input('kind'), UnitPolicy::KINDS, true) ? $this->input('kind') : UnitPolicy::VEHICLE;
     }
 
     /**
@@ -44,19 +58,26 @@ class SavePolicyRequest extends FormRequest
     public function rules(): array
     {
         $policy = $this->route('policy');
+        $construction = $this->kind() === UnitPolicy::CONSTRUCTION;
 
         return [
+            'kind' => $this->editing() ? ['exclude'] : ['required', Rule::in(UnitPolicy::KINDS)],
             // Una unidad en mantenimiento no se asegura hasta que regrese.
-            'unit_id' => $this->editing() ? ['exclude'] : [
+            'unit_id' => $this->editing() || $construction ? ['exclude'] : [
                 'required',
                 'integer',
                 Rule::exists('units', 'id')->where(fn ($query) => $query->where('status', '!=', 'maintenance')),
             ],
+            // La obra, solo en las de obra.
+            'project' => $construction ? ['required', 'string', 'max:255'] : ['exclude'],
+            'project_address' => $construction ? ['nullable', 'string', 'max:255'] : ['exclude'],
+            'business_unit_id' => $construction ? ['required', 'integer', 'exists:business_units,id'] : ['exclude'],
             'policy' => ['required', 'string', 'max:255', Rule::unique('unit_policies', 'policy')->ignore($policy)],
             'certificate' => ['nullable', 'string', 'max:255'],
             'insurer' => ['nullable', 'string', 'max:255'],
-            'coverage' => ['required', Rule::in(UnitPolicy::COVERAGES)],
-            'endorsement' => ['boolean'],
+            'coverage' => ['required', Rule::in(UnitPolicy::COVERAGES[$this->kind()])],
+            // El endoso USA/Canadá es para circular allá: una obra no se mueve.
+            'endorsement' => $construction ? ['exclude'] : ['boolean'],
 
             'valid_from' => ['required', 'date'],
             'first_payment_amount' => ['nullable', 'numeric', 'min:0', 'max:9999999999'],
@@ -78,7 +99,8 @@ class SavePolicyRequest extends FormRequest
 
     /**
      * Una unidad tiene una sola póliza a la vez: la vigencia nueva no puede
-     * encimarse con otra de la misma unidad que no esté cancelada.
+     * encimarse con otra de la misma unidad que no esté cancelada. La obra
+     * es texto libre: ahí no hay con qué comparar.
      *
      * @return array<int, callable>
      */
@@ -86,7 +108,7 @@ class SavePolicyRequest extends FormRequest
     {
         return [
             function (Validator $validator) {
-                if ($validator->errors()->isNotEmpty()) {
+                if ($validator->errors()->isNotEmpty() || $this->kind() === UnitPolicy::CONSTRUCTION) {
                     return;
                 }
 
@@ -116,7 +138,11 @@ class SavePolicyRequest extends FormRequest
     public function attributes(): array
     {
         return [
+            'kind' => 'tipo de póliza',
             'unit_id' => 'unidad',
+            'project' => 'obra',
+            'project_address' => 'dirección de la obra',
+            'business_unit_id' => 'unidad de negocio',
             'policy' => 'número de póliza',
             'certificate' => 'certificado',
             'insurer' => 'aseguradora',
