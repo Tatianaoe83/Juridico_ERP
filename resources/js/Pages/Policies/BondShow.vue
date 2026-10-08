@@ -4,6 +4,7 @@ import {
     ArrowLeft,
     Ban,
     Building,
+    Building2,
     CalendarCheck,
     CalendarClock,
     CalendarPlus,
@@ -19,7 +20,7 @@ import {
 import { computed } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import { usePermissions } from '@/composables/usePermissions';
-import { COVERAGE_TYPES, coverageStatus } from '@/lib/coverages';
+import { BOND_CATEGORIES, COVERAGE_TYPES, coverageStatus } from '@/lib/coverages';
 import { money, shortDate } from '@/lib/units';
 
 const props = defineProps({
@@ -51,8 +52,9 @@ function range(from, to) {
 const details = computed(() => [
     { label: 'Fianza', value: props.bond.bond, icon: ShieldCheck },
     { label: 'Afianzadora', value: props.bond.bonding_company, icon: Building },
+    { label: 'Unidad de negocio', value: props.bond.business_unit, icon: Building2 },
     { label: 'Beneficiario', value: props.bond.beneficiary, icon: UserRound },
-    { label: 'Producto', value: props.bond.product, icon: Package },
+    { label: 'Categoría', value: BOND_CATEGORIES[props.bond.category] ?? null, icon: Package },
     { label: 'Relativo', value: props.bond.related, icon: Link2 },
     { label: 'Docto. fuente', value: props.bond.source_document, icon: FileText },
 ]);

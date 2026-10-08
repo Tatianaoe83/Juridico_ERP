@@ -32,6 +32,8 @@ const props = defineProps({
     icon: { type: [Object, Function], default: null },
     invalid: { type: Boolean, default: false },
     id: { type: String, default: undefined },
+    /** Más bajo (h-8), para formularios que deben caber sin scroll. */
+    compact: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -60,12 +62,13 @@ const ITEM =
         <SelectTrigger
             :id="id"
             :aria-invalid="invalid"
-            class="group flex h-9 w-full cursor-pointer items-center gap-2 rounded-lg border bg-slate-50/70 px-3 text-[0.8rem] outline-none transition-[border-color,background-color,box-shadow] duration-150 hover:border-slate-300 focus-visible:border-brand/50 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-brand/10 data-[state=open]:border-brand/50 data-[state=open]:bg-white data-[state=open]:ring-4 data-[state=open]:ring-brand/10 dark:bg-white/[0.04] dark:hover:border-white/20 dark:focus-visible:border-brand-gray/50 dark:focus-visible:bg-white/[0.06] dark:focus-visible:ring-white/10 dark:data-[state=open]:border-brand-gray/50 dark:data-[state=open]:bg-white/[0.06] dark:data-[state=open]:ring-white/10"
-            :class="
+            class="group flex w-full cursor-pointer items-center gap-2 rounded-lg border bg-slate-50/70 px-3 text-[0.8rem] outline-none transition-[border-color,background-color,box-shadow] duration-150 hover:border-slate-300 focus-visible:border-brand/50 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-brand/10 data-[state=open]:border-brand/50 data-[state=open]:bg-white data-[state=open]:ring-4 data-[state=open]:ring-brand/10 dark:bg-white/[0.04] dark:hover:border-white/20 dark:focus-visible:border-brand-gray/50 dark:focus-visible:bg-white/[0.06] dark:focus-visible:ring-white/10 dark:data-[state=open]:border-brand-gray/50 dark:data-[state=open]:bg-white/[0.06] dark:data-[state=open]:ring-white/10"
+            :class="[
+                compact ? 'h-8' : 'h-9',
                 invalid
                     ? 'border-red-400 dark:border-red-400/60'
-                    : 'border-slate-200 dark:border-white/10'
-            "
+                    : 'border-slate-200 dark:border-white/10',
+            ]"
         >
             <!-- Punto de color si lo hay; si no, el icono del campo -->
             <span
