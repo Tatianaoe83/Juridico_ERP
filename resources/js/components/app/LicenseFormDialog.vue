@@ -13,14 +13,15 @@ const props = defineProps({
     businessUnits: { type: Array, default: () => [] },
 });
 
-const companyOptions = computed(() => props.businessUnits.map(({ id, name }) => ({ value: id, label: name })));
+// En mayúsculas, como el resto del formulario.
+const companyOptions = computed(() => props.businessUnits.map(({ id, name }) => ({ value: id, label: name.toUpperCase() })));
 
-/** La autoridad va siempre en mayúsculas; el cursor se queda donde estaba. */
-function upperAuthority(event) {
+/** Nombre, autoridad y comentarios van siempre en mayúsculas; el cursor se queda donde estaba. */
+function upper(field, event) {
     const input = event.target;
     const { selectionStart, selectionEnd } = input;
 
-    form.authority = input.value.toUpperCase();
+    form[field] = input.value.toUpperCase();
     nextTick(() => input.setSelectionRange(selectionStart, selectionEnd));
 }
 
@@ -45,12 +46,12 @@ watch(
         if (!open) return;
 
         form.defaults({
-            name: props.license?.name ?? '',
+            name: (props.license?.name ?? '').toUpperCase(),
             business_unit_id: props.license?.business_unit_id ?? '',
             authority: (props.license?.authority ?? '').toUpperCase(),
             valid_until: props.license?.valid_until ?? '',
             valid_time: props.license?.valid_time ?? '',
-            comments: props.license?.comments ?? '',
+            comments: (props.license?.comments ?? '').toUpperCase(),
         });
         form.reset();
         form.clearErrors();
@@ -109,14 +110,15 @@ const ERROR = 'mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400';
                 <div class="relative">
                     <input
                         id="license-name"
-                        v-model="form.name"
+                        :value="form.name"
                         type="text"
                         required
                         autofocus
                         autocomplete="off"
-                        placeholder="Ej. Licencia de construcción"
+                        placeholder="Ej. LICENCIA DE CONSTRUCCIÓN"
                         :class="FIELD"
                         :aria-invalid="Boolean(form.errors.name)"
+                        @input="upper('name', $event)"
                     />
                     <FileBadge :class="ICON" />
                 </div>
@@ -125,7 +127,7 @@ const ERROR = 'mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400';
 
             <div>
                 <label for="license-company" :class="LABEL">
-                    Empresa
+                    Unidad de negocio
                     <span class="font-normal text-red-500 dark:text-red-400">*</span>
                 </label>
                 <FormSelect
@@ -133,7 +135,7 @@ const ERROR = 'mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400';
                     v-model="form.business_unit_id"
                     :options="companyOptions"
                     :icon="Building2"
-                    placeholder="Selecciona una empresa"
+                    placeholder="Selecciona una unidad de negocio"
                     :invalid="Boolean(form.errors.business_unit_id)"
                 />
                 <p v-if="!businessUnits.length" class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">
@@ -157,7 +159,7 @@ const ERROR = 'mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400';
                         placeholder="Ej. SEMARNAT"
                         :class="FIELD"
                         :aria-invalid="Boolean(form.errors.authority)"
-                        @input="upperAuthority"
+                        @input="upper('authority', $event)"
                     />
                     <Landmark :class="ICON" />
                 </div>
@@ -208,11 +210,12 @@ const ERROR = 'mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400';
                 <div class="relative">
                     <textarea
                         id="license-comments"
-                        v-model="form.comments"
+                        :value="form.comments"
                         rows="3"
-                        placeholder="Notas, requisitos pendientes, contacto en la dependencia…"
+                        placeholder="NOTAS, REQUISITOS PENDIENTES, CONTACTO EN LA DEPENDENCIA…"
                         :class="[FIELD, 'h-auto resize-y py-2 leading-relaxed']"
                         :aria-invalid="Boolean(form.errors.comments)"
+                        @input="upper('comments', $event)"
                     />
                     <MessageSquareText class="pointer-events-none absolute top-2.5 left-3 size-3.5 text-slate-400 dark:text-white/35" />
                 </div>

@@ -38,7 +38,7 @@ const status = computed(() => (props.license ? licenseStatus(props.license.statu
 const tiles = computed(() =>
     props.license
         ? [
-            { icon: Building2, label: 'Empresa', value: props.license.company ?? '—' },
+            { icon: Building2, label: 'Unidad de negocio', value: props.license.company ?? '—' },
             { icon: Landmark, label: 'Autoridad', value: props.license.authority ?? '—' },
             {
                 icon: CalendarDays,
@@ -64,7 +64,7 @@ const tiles = computed(() =>
         size="md"
         :icon="FileBadge"
         :title="license?.name ?? ''"
-        :description="license?.company ?? 'Sin empresa'"
+        :description="license?.company ?? 'Sin unidad de negocio'"
         @update:open="emit('update:open', $event)"
     >
         <div v-if="license" class="space-y-5 px-6 pt-1 pb-6 short:space-y-4 short:pb-4 sm:px-7">

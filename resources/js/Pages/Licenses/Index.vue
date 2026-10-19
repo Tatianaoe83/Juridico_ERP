@@ -375,7 +375,7 @@ const PAGE_BTN =
                             <input
                                 v-model="search"
                                 type="search"
-                                placeholder="Buscar por nombre, empresa o autoridad…"
+                                placeholder="Buscar por nombre, unidad de negocio o autoridad…"
                                 class="peer h-9 w-full rounded-lg border border-slate-200 bg-slate-50/70 pr-9 pl-9 text-[0.8rem] text-slate-900 outline-none transition-[border-color,background-color,box-shadow] duration-150 placeholder:text-slate-400 hover:border-slate-300 focus:border-brand/50 focus:bg-white focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/30 dark:hover:border-white/20 dark:focus:border-brand-gray/50 dark:focus:bg-white/[0.06] dark:focus:ring-white/10 [&::-webkit-search-cancel-button]:hidden"
                             />
                             <Search
@@ -405,8 +405,8 @@ const PAGE_BTN =
                             v-model="company"
                             :options="companyOptions"
                             :icon="Building2"
-                            placeholder="Todas las empresas"
-                            label="Filtrar por empresa"
+                            placeholder="Todas las unidades de negocio"
+                            label="Filtrar por unidad de negocio"
                             width="@xl:w-48"
                         />
 
@@ -494,7 +494,7 @@ const PAGE_BTN =
                         <thead class="sticky top-0 z-10 bg-slate-50 text-slate-500 dark:bg-brand-deep dark:text-brand-gray">
                             <tr>
                                 <th :class="TH">Nombre / trámite</th>
-                                <th :class="[TH, 'hidden @3xl:table-cell']">Empresa</th>
+                                <th :class="[TH, 'hidden @3xl:table-cell']">Unidad de negocio</th>
                                 <th :class="[TH, 'hidden @4xl:table-cell']">Autoridad</th>
                                 <th :class="[TH, 'hidden @lg:table-cell']">Vigencia</th>
                                 <th :class="[TH, 'hidden @lg:table-cell']">Días restantes</th>
@@ -522,7 +522,7 @@ const PAGE_BTN =
                                             <span class="block truncate font-semibold text-slate-800 dark:text-white" :title="license.name">{{ license.name }}</span>
                                             <!-- En cards angostos los datos de las columnas ocultas bajan aquí -->
                                             <span class="block truncate text-[0.7rem] text-slate-400 @4xl:hidden dark:text-brand-gray/80">
-                                                <span class="@3xl:hidden">{{ license.company ?? 'Sin empresa' }}</span>
+                                                <span class="@3xl:hidden">{{ license.company ?? 'Sin unidad de negocio' }}</span>
                                                 <span v-if="license.authority"><span class="@3xl:hidden"> · </span>{{ license.authority }}</span>
                                                 <span class="@lg:hidden"> · vigencia {{ shortDate(license.valid_until) }}<template v-if="license.valid_until"> ({{ daysText(license.valid_until) }})</template></span>
                                                 <span class="@2xl:hidden"> · {{ statusOf(license.status).label }}</span>

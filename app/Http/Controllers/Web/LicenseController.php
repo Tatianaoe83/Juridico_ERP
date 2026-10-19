@@ -243,9 +243,11 @@ class LicenseController extends Controller
      */
     private function validated(Request $request): array
     {
-        // La autoridad se guarda siempre en mayúsculas, llegue como llegue.
-        if (is_string($request->input('authority'))) {
-            $request->merge(['authority' => mb_strtoupper($request->input('authority'))]);
+        // Nombre, autoridad y comentarios se guardan siempre en mayúsculas, lleguen como lleguen.
+        foreach (['name', 'authority', 'comments'] as $field) {
+            if (is_string($request->input($field))) {
+                $request->merge([$field => mb_strtoupper($request->input($field))]);
+            }
         }
 
         $data = $request->validate([
@@ -259,7 +261,7 @@ class LicenseController extends Controller
             'comments' => ['nullable', 'string'],
         ], [
             'name.required' => 'Escribe el nombre o trámite.',
-            'business_unit_id.required' => 'Elige la empresa.',
+            'business_unit_id.required' => 'Elige la unidad de negocio.',
             'business_unit_id.exists' => 'Elige una unidad de negocio del catálogo.',
             'authority.required' => 'Escribe la autoridad.',
             'valid_until.required' => 'Pon la fecha de vencimiento.',
