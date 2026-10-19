@@ -49,7 +49,7 @@ class LicenseController extends Controller
                 ->where('name', 'like', "%{$search}%")
                 ->orWhereHas('businessUnit', fn ($q2) => $q2->where('name', 'like', "%{$search}%"))
                 ->orWhere('authority', 'like', "%{$search}%")))
-            ->when($status, fn ($query) => $query->where('status', $status))
+            ->when($status, fn ($query) => $query->inStatus($status))
             ->when($company, fn ($query) => $query->where('business_unit_id', $company))
             ->when($authority, fn ($query) => $query->where('authority', $authority))
             ->when($year, fn ($query) => $query->whereYear('valid_until', $year))
@@ -62,10 +62,7 @@ class LicenseController extends Controller
             ->withQueryString();
 
         // El resumen es de todo el catálogo: no cambia con la búsqueda ni el filtro.
-        $counts = License::query()
-            ->selectRaw('status, count(*) as total')
-            ->groupBy('status')
-            ->pluck('total', 'status');
+        $counts = License::statusCounts();
 
         return Inertia::render('Licenses/Index', [
             'licenses' => [
@@ -77,7 +74,7 @@ class LicenseController extends Controller
                     'authority' => $license->authority,
                     'valid_until' => $license->valid_until?->toDateString(),
                     'valid_time' => $license->valid_time ? substr($license->valid_time, 0, 5) : null,
-                    'status' => $license->status,
+                    'status' => $license->status(),
                     // Para el modal de detalle: evita pedir el registro otra vez.
                     'comments' => $license->comments,
                     'created_at' => $license->created_at?->toIso8601String(),
@@ -95,8 +92,8 @@ class LicenseController extends Controller
                 ],
             ],
             'stats' => [
-                'total' => (int) $counts->sum(),
-                ...collect(License::STATUSES)->mapWithKeys(fn ($s) => [$s => (int) ($counts[$s] ?? 0)])->all(),
+                'total' => array_sum($counts),
+                ...$counts,
             ],
             'filters' => [
                 'search' => $search,
@@ -239,8 +236,8 @@ class LicenseController extends Controller
     }
 
     /**
-     * Mismos campos al crear y al editar. El estatus nunca viene del
-     * formulario: se recalcula con la vigencia cada vez que se guarda.
+     * Mismos campos al crear y al editar. El estatus no se guarda: sale de
+     * la vigencia al consultar (License::status()).
      *
      * @return array<string, mixed>
      */
@@ -275,7 +272,6 @@ class LicenseController extends Controller
             // Con segundos, como la guarda la base: «10:00» contra «10:00:00»
             // contaría como cambio de hora y reenviaría el evento.
             'valid_time' => isset($data['valid_time']) ? Carbon::parse($data['valid_time'])->format('H:i:s') : null,
-            'status' => License::statusFor(Carbon::parse($data['valid_until'])),
         ];
     }
 }

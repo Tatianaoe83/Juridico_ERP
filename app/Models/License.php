@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -13,7 +14,10 @@ use Illuminate\Support\Carbon;
  */
 class License extends Model
 {
-    /** Los mismos valores que el enum de la columna `status`. */
+    /**
+     * Los estados posibles. No se guardan: salen de la vigencia cada vez que
+     * se consultan, así que nunca se quedan atrás de la fecha.
+     */
     public const STATUSES = ['active', 'expiring', 'expired'];
 
     /** Días antes de la vigencia en que pasa a «por vencer». */
@@ -44,6 +48,49 @@ class License extends Model
         }
 
         return $validUntil->lte($today->copy()->addDays(self::WARNING_DAYS)) ? 'expiring' : 'active';
+    }
+
+    /** El estado de hoy, con la misma regla que statusFor(). */
+    public function status(): string
+    {
+        return self::statusFor($this->valid_until);
+    }
+
+    /**
+     * Filtra por estado con rangos de la vigencia: los mismos cortes que
+     * statusFor(), pero en SQL para poder paginar.
+     */
+    public function scopeInStatus(Builder $query, string $status): void
+    {
+        $today = today();
+        $limit = $today->copy()->addDays(self::WARNING_DAYS);
+
+        match ($status) {
+            'expired' => $query->whereDate('valid_until', '<', $today),
+            'expiring' => $query->whereDate('valid_until', '>=', $today)->whereDate('valid_until', '<=', $limit),
+            'active' => $query->whereDate('valid_until', '>', $limit),
+        };
+    }
+
+    /**
+     * Cuántas hay en cada estado, de todo el catálogo.
+     *
+     * @return array<string, int>
+     */
+    public static function statusCounts(): array
+    {
+        $today = today()->toDateString();
+        $limit = today()->addDays(self::WARNING_DAYS)->toDateString();
+
+        $counts = self::query()
+            ->selectRaw(
+                "case when valid_until < ? then 'expired' when valid_until <= ? then 'expiring' else 'active' end as state, count(*) as total",
+                [$today, $limit],
+            )
+            ->groupBy('state')
+            ->pluck('total', 'state');
+
+        return collect(self::STATUSES)->mapWithKeys(fn ($s) => [$s => (int) ($counts[$s] ?? 0)])->all();
     }
 
     /**
