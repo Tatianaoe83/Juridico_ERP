@@ -296,7 +296,7 @@ const cards = computed(() => [
 ]);
 
 /* Mismas medidas que la tabla de permisos. */
-const TH = 'px-3 py-2 text-left text-[0.62rem] font-bold uppercase tracking-[0.14em] whitespace-nowrap tall:py-2.5 @2xl:px-4 @6xl:px-6';
+const TH = 'px-3 py-2 text-left text-[0.68rem] font-bold whitespace-nowrap tall:py-2.5 @2xl:px-4 @6xl:px-6';
 const TD = 'px-3 py-1.5 tall:py-2 @2xl:px-4 @6xl:px-6';
 
 const ACTION =
@@ -325,8 +325,7 @@ const PAGE_BTN =
                         <FileBadge class="size-4" />
                     </span>
                     <div>
-                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Cumplimiento</p>
-                        <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Licencias y Permisos</h1>
+                        <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Licencias y permisos</h1>
                     </div>
                 </div>
 
@@ -352,7 +351,7 @@ const PAGE_BTN =
                         <component :is="card.icon" class="size-4" />
                     </span>
                     <div class="min-w-0">
-                        <p class="truncate text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">{{ card.label }}</p>
+                        <p class="truncate text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/80">{{ card.label }}</p>
                         <p class="text-xl leading-tight font-bold text-slate-800 tabular-nums dark:text-white">{{ card.value }}</p>
                         <p class="truncate text-[0.68rem] text-slate-400 dark:text-brand-gray/70">{{ card.hint }}</p>
                     </div>
@@ -493,7 +492,7 @@ const PAGE_BTN =
                     <table class="w-full text-[0.8rem]">
                         <thead class="sticky top-0 z-10 bg-slate-50 text-slate-500 dark:bg-brand-deep dark:text-brand-gray">
                             <tr>
-                                <th :class="TH">Nombre / trámite</th>
+                                <th :class="TH">Nombre / Trámite</th>
                                 <th :class="[TH, 'hidden @3xl:table-cell']">Unidad de negocio</th>
                                 <th :class="[TH, 'hidden @4xl:table-cell']">Autoridad</th>
                                 <th :class="[TH, 'hidden @lg:table-cell']">Vigencia</th>

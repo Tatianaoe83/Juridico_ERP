@@ -104,7 +104,7 @@ const ERROR = 'mt-1 text-[0.7rem] font-medium text-red-600 dark:text-red-400';
         <form id="license-form" class="grid gap-4 px-6 pt-1 pb-6 short:pb-4 sm:grid-cols-2 sm:px-7" novalidate @submit.prevent="submit">
             <div class="sm:col-span-2">
                 <label for="license-name" :class="LABEL">
-                    Nombre / trámite
+                    Nombre / Trámite
                     <span class="font-normal text-red-500 dark:text-red-400">*</span>
                 </label>
                 <div class="relative">

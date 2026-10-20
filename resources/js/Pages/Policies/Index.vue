@@ -251,7 +251,7 @@ const deleteText = computed(() => {
 
 const showUrl = (row) => (row.type === 'bond' ? `/polizas/fianzas/${row.id}` : `/polizas/${row.id}`);
 
-const TH = 'px-3 py-2 text-left text-[0.62rem] font-bold uppercase tracking-[0.14em] whitespace-nowrap tall:py-2.5 @2xl:px-4 @6xl:px-6';
+const TH = 'px-3 py-2 text-left text-[0.68rem] font-bold whitespace-nowrap tall:py-2.5 @2xl:px-4 @6xl:px-6';
 const TD = 'px-3 py-2 @2xl:px-4 @6xl:px-6';
 
 const ACTION =
@@ -280,8 +280,7 @@ const PAGE_BTN =
                         <FileCheck class="size-4" />
                     </span>
                     <div>
-                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Cumplimiento</p>
-                        <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Pólizas y Fianzas</h1>
+                        <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Pólizas y fianzas</h1>
                     </div>
                 </div>
 
@@ -307,7 +306,7 @@ const PAGE_BTN =
                         <component :is="card.icon" class="size-[1.1rem]" />
                     </span>
                     <span class="min-w-0">
-                        <span class="block truncate text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">{{ card.label }}</span>
+                        <span class="block truncate text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/80">{{ card.label }}</span>
                         <span class="block text-2xl leading-tight font-bold tabular-nums text-slate-800 dark:text-white">{{ card.value }}</span>
                         <span class="block truncate text-[0.68rem] text-slate-400 dark:text-brand-gray/70">{{ card.hint }}</span>
                     </span>
