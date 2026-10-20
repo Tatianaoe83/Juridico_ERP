@@ -277,7 +277,7 @@ class MachineryController extends Controller
         ]);
     }
 
-    /** Las vehiculares y las de obra tienen su propia pantalla. */
+    /** Las vehiculares tienen su propia pantalla. */
     private function ensureMachinery(UnitPolicy $policy): void
     {
         abort_unless($policy->isMachinery(), 404);

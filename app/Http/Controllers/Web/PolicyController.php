@@ -3,20 +3,17 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Policy\RegisterPolicyPaymentRequest;
 use App\Http\Requests\Policy\SavePolicyRequest;
 use App\Models\Bond;
 use App\Models\BusinessUnit;
-use App\Models\Unit;
-use App\Models\UnitEvidence;
-use App\Models\UnitPolicy;
-use App\Services\UnitCalendar;
+use App\Models\ConstructionPolicy;
+use App\Models\ConstructionPolicyDocument;
+use App\Models\ConstructionPolicyEndorsement;
+use App\Services\ConstructionPolicyCalendar;
 use App\Support\CoverageStatus;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -27,7 +24,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /**
  * Pólizas y Fianzas (Cumplimiento): una sola tabla con las dos coberturas.
  * Cada renglón dice qué es, quién la da, sobre qué, su vigencia, la suma y
- * cómo va. Por ahora solo la tabla.
+ * cómo va. Las pólizas de aquí son solo de obra: las vehiculares y las de
+ * maquinaria viven en Flotillas.
  */
 class PolicyController extends Controller
 {
@@ -48,7 +46,7 @@ class PolicyController extends Controller
         CoverageStatus::CANCELLED,
     ];
 
-    public function __construct(private readonly UnitCalendar $calendar) {}
+    public function __construct(private readonly ConstructionPolicyCalendar $calendar) {}
 
     public function index(Request $request): Response
     {
@@ -91,69 +89,54 @@ class PolicyController extends Controller
     /**
      * GET /polizas/{policy}
      *
-     * Todo el periodo: la póliza, la unidad u obra asegurada, las dos cuotas
-     * con sus comprobantes, el costo desglosado y la cancelación.
+     * La póliza, la obra asegurada, el monto desglosado, sus documentos y sus endosos.
      */
-    public function show(UnitPolicy $policy): Response
+    public function show(ConstructionPolicy $policy): Response
     {
         $policy->load([
-            'unit.businessUnit:id,name',
             'businessUnit:id,name',
             'creator:id,name',
-            'evidences' => fn ($query) => $query->where('type', UnitEvidence::PAYMENT_RECEIPT)->with('uploader:id,name')->orderBy('id'),
+            'documents.uploader:id,name',
+            'endorsements.creator:id,name',
         ]);
-
-        $unit = $policy->unit;
-        $cancelled = $policy->coverageStatus() === CoverageStatus::CANCELLED;
 
         return Inertia::render('Policies/Show', [
             'policy' => [
                 'id' => $policy->id,
-                'kind' => $policy->kind,
                 'policy' => $policy->policy,
-                'certificate' => $policy->certificate,
                 'insurer' => $policy->insurer,
                 'coverage' => $policy->coverage,
-                'endorsement' => (bool) $policy->endorsement,
-                'status' => $policy->coverageStatus(),
-                'valid_from' => $policy->first_payment_starts_on?->toDateString(),
-                'valid_until' => $policy->second_payment_ends_on?->toDateString(),
-                'annual_cost' => $policy->annualCost(),
+                'status' => $policy->status(),
+                'project' => $policy->project,
+                'project_address' => $policy->project_address,
+                'business_unit' => $policy->businessUnit?->name,
+                'valid_from' => $policy->valid_from?->toDateString(),
+                'valid_until' => $policy->valid_until?->toDateString(),
+                'amount' => $policy->amount !== null ? (float) $policy->amount : null,
+                'endorsements_amount' => (float) $policy->endorsements->sum('amount'),
+                'total' => $policy->total(),
                 'tax' => $policy->tax(),
                 'subtotal' => $policy->subtotal(),
-                'tax_rate' => UnitPolicy::TAX_RATE,
-                'payments' => collect(UnitPolicy::PAYMENTS)->map(fn (string $payment) => [
-                    'payment' => $payment,
-                    'starts_on' => $policy->{"{$payment}_payment_starts_on"}?->toDateString(),
-                    'ends_on' => $policy->{"{$payment}_payment_ends_on"}?->toDateString(),
-                    'due_on' => $policy->{"{$payment}_payment_due_on"}?->toDateString(),
-                    'amount' => $policy->{"{$payment}_payment_amount"} !== null ? (float) $policy->{"{$payment}_payment_amount"} : null,
-                    'paid_at' => $policy->{"{$payment}_payment_paid_at"}?->toDateString(),
-                    'status' => $this->paymentStatus($policy, $payment, $cancelled),
-                    'receipts' => $this->receiptsOf($policy, $payment),
+                'tax_rate' => ConstructionPolicy::TAX_RATE,
+                'documents' => $policy->documents->map(fn (ConstructionPolicyDocument $document) => [
+                    'id' => $document->id,
+                    'name' => $document->name,
+                    'size' => $document->size,
+                    'uploaded_by' => $document->uploader?->name,
                 ]),
-                'cancellation_requested_on' => $policy->cancellation_requested_on?->toDateString(),
-                'cancelled_on' => $policy->cancelled_on?->toDateString(),
+                'endorsements' => $policy->endorsements->map(fn (ConstructionPolicyEndorsement $endorsement) => [
+                    'id' => $endorsement->id,
+                    'endorsement' => $endorsement->endorsement,
+                    'previous_valid_until' => $endorsement->previous_valid_until?->toDateString(),
+                    'valid_until' => $endorsement->valid_until?->toDateString(),
+                    'amount' => $endorsement->amount !== null ? (float) $endorsement->amount : null,
+                    'file' => $endorsement->path ? ['name' => $endorsement->name, 'size' => $endorsement->size] : null,
+                    'created_by' => $endorsement->creator?->name,
+                    'created_at' => $endorsement->created_at?->toIso8601String(),
+                ]),
                 'comments' => $policy->comments,
                 'created_by' => $policy->creator?->name,
                 'created_at' => $policy->created_at?->toIso8601String(),
-                'project' => $policy->isConstruction() ? [
-                    'name' => $policy->project,
-                    'address' => $policy->project_address,
-                    'business_unit' => $policy->businessUnit?->name,
-                ] : null,
-                'unit' => $unit ? [
-                    'id' => $unit->id,
-                    'type' => $unit->type,
-                    'brand' => $unit->brand,
-                    'model' => $unit->model,
-                    'serial_number' => $unit->serial_number,
-                    'plate' => $unit->plate,
-                    'economic_number' => $unit->economic_number,
-                    'responsible' => $unit->responsible,
-                    'business_unit' => $unit->businessUnit?->name,
-                    'status' => $unit->status,
-                ] : null,
             ],
         ]);
     }
@@ -169,19 +152,22 @@ class PolicyController extends Controller
         return Inertia::render('Policies/Create', [
             ...$this->formOptions(),
             'type' => $request->query('tipo') === 'fianza' ? 'bond' : 'policy',
-            // Desde la ficha de una unidad puede llegar ya elegida.
-            'unitId' => $request->integer('unidad') ?: null,
         ]);
     }
 
     /** POST /polizas */
     public function store(SavePolicyRequest $request): RedirectResponse
     {
-        $policy = UnitPolicy::create([
-            ...$this->attributes($request),
-            'unit_id' => $request->validated('unit_id'),
-            'created_by' => $request->user()->id,
-        ]);
+        $policy = DB::transaction(function () use ($request) {
+            $policy = ConstructionPolicy::create([
+                ...$request->policyAttributes(),
+                'created_by' => $request->user()->id,
+            ]);
+
+            $this->storeDocuments($request, $policy);
+
+            return $policy;
+        });
 
         $agendada = $this->calendar->sync($policy, $request->user());
 
@@ -190,46 +176,46 @@ class PolicyController extends Controller
     }
 
     /** GET /polizas/{policy}/editar */
-    public function edit(UnitPolicy $policy): Response
+    public function edit(ConstructionPolicy $policy): Response
     {
         return Inertia::render('Policies/Edit', [
-            ...$this->formOptions($policy->unit_id),
+            ...$this->formOptions(),
             'type' => 'policy',
             'policy' => [
                 'id' => $policy->id,
-                'kind' => $policy->kind,
-                'unit_id' => $policy->unit_id,
                 'project' => $policy->project,
                 'project_address' => $policy->project_address,
                 'business_unit_id' => $policy->business_unit_id,
                 'policy' => $policy->policy,
-                'certificate' => $policy->certificate,
                 'insurer' => $policy->insurer,
                 'coverage' => $policy->coverage,
-                'endorsement' => (bool) $policy->endorsement,
-                'valid_from' => $policy->first_payment_starts_on?->toDateString(),
-                'first_payment_amount' => $policy->first_payment_amount,
-                'first_payment_due_on' => $policy->first_payment_due_on?->toDateString(),
-                'second_payment_amount' => $policy->second_payment_amount,
-                'second_payment_due_on' => $policy->second_payment_due_on?->toDateString(),
-                'cancellation_requested_on' => $policy->cancellation_requested_on?->toDateString(),
-                'cancelled_on' => $policy->cancelled_on?->toDateString(),
+                'valid_from' => $policy->valid_from?->toDateString(),
+                'valid_until' => $policy->valid_until?->toDateString(),
+                // Con endosos el fin solo se ve: lo mueve el último endoso.
+                'endorsed' => $policy->endorsements()->exists(),
+                'amount' => $policy->amount,
                 'comments' => $policy->comments,
+                // Sus documentos, para poder quitarlos.
+                'documents' => $policy->documents()->get(['id', 'name', 'size']),
             ],
         ]);
     }
 
-    /** PATCH /polizas/{policy} */
-    public function update(SavePolicyRequest $request, UnitPolicy $policy): RedirectResponse
+    /** PATCH /polizas/{policy} (llega como POST con _method: lleva archivos) */
+    public function update(SavePolicyRequest $request, ConstructionPolicy $policy): RedirectResponse
     {
-        $policy->update($this->attributes($request));
+        DB::transaction(function () use ($request, $policy) {
+            $policy->update($request->policyAttributes());
 
-        // Outlook solo se toca si se movió alguna de las tres fechas o le falta
-        // un evento: actualizarlo le vuelve a llegar el aviso a los compartidos.
-        $moved = $policy->wasChanged(array_column(UnitCalendar::EVENTS, 'date'))
-            || collect(UnitCalendar::EVENTS)->contains(fn (array $entry) => $policy->{$entry['date']} && ! $policy->{$entry['event']});
+            $this->forgetDocuments($request, $policy);
+            $this->storeDocuments($request, $policy);
+        });
 
-        $note = $moved ? $this->calendarNote($this->calendar->sync($policy, $request->user())) : '';
+        // Outlook solo se toca si se movió el fin o aún no tiene evento:
+        // actualizarlo le vuelve a llegar el aviso a los compartidos.
+        $note = $policy->wasChanged('valid_until') || ! $policy->calendar_event_id
+            ? $this->calendarNote($this->calendar->sync($policy, $request->user()))
+            : '';
 
         return to_route('policies.show', $policy)->with('success', "Se actualizó la póliza {$policy->policy}.".$note);
     }
@@ -237,18 +223,18 @@ class PolicyController extends Controller
     /**
      * DELETE /polizas/{policy}
      *
-     * Los comprobantes se van en cascada con la póliza, pero el disco no sabe
-     * de llaves foráneas: los archivos se borran primero.
+     * Documentos y endosos se van en cascada con la póliza, pero el disco no
+     * sabe de llaves foráneas: sus archivos se borran primero.
      */
-    public function destroy(Request $request, UnitPolicy $policy): RedirectResponse
+    public function destroy(Request $request, ConstructionPolicy $policy): RedirectResponse
     {
-        // Primero los eventos: después del delete ya no hay de dónde sacar sus ids.
-        $this->calendar->forgetPolicy($policy, $request->user());
+        // Primero el evento: después del delete ya no hay de dónde sacar su id.
+        $this->calendar->forget($policy, $request->user());
 
         DB::transaction(function () use ($policy) {
-            foreach ($policy->evidences as $evidence) {
-                Storage::disk('local')->delete($evidence->path);
-            }
+            $paths = $policy->documents->pluck('path')->concat($policy->endorsements->pluck('path'))->filter();
+
+            Storage::disk('local')->delete($paths->all());
 
             $policy->delete();
         });
@@ -257,10 +243,51 @@ class PolicyController extends Controller
     }
 
     /**
+     * GET /polizas/{policy}/documentos/{document}
+     *
+     * Los documentos viven fuera de public: se sirven por aquí, con el nombre
+     * con el que se subieron y solo si son de esta póliza.
+     */
+    public function document(ConstructionPolicy $policy, ConstructionPolicyDocument $document): StreamedResponse
+    {
+        abort_unless($document->construction_policy_id === $policy->id, 404);
+        abort_unless(Storage::disk('local')->exists($document->path), 404);
+
+        return Storage::disk('local')->download($document->path, $document->name);
+    }
+
+    /** Guarda en disco los documentos que llegan en el formulario. */
+    private function storeDocuments(SavePolicyRequest $request, ConstructionPolicy $policy): void
+    {
+        foreach ($request->file('documents', []) as $file) {
+            $policy->documents()->create([
+                'path' => Storage::disk('local')->putFile("policies/{$policy->id}", $file),
+                'name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getClientMimeType(),
+                'size' => $file->getSize(),
+                'uploaded_by' => $request->user()->id,
+            ]);
+        }
+    }
+
+    /**
+     * Borra los documentos que se quitaron en el formulario: primero el
+     * archivo del disco y luego el registro. El FormRequest ya comprobó que
+     * cada id es de esta póliza.
+     */
+    private function forgetDocuments(SavePolicyRequest $request, ConstructionPolicy $policy): void
+    {
+        foreach ($policy->documents()->whereIn('id', $request->validated('remove_documents') ?? [])->get() as $document) {
+            Storage::disk('local')->delete($document->path);
+            $document->delete();
+        }
+    }
+
+    /**
      * Agendar es un extra: si Outlook no respondió o la cuenta no está
      * vinculada, se dice en el mismo aviso en vez de fallar el guardado.
      */
-    private function calendarNote(bool $agendada): string
+    public static function calendarNote(bool $agendada): string
     {
         return $agendada
             ? ' Se agendó en el calendario.'
@@ -268,200 +295,48 @@ class PolicyController extends Controller
     }
 
     /**
-     * Lo capturado, con los dos semestres calculados desde el inicio de la
-     * vigencia: seis meses exactos cada uno. Si el día no existe en el mes
-     * (31 de agosto → febrero) se queda en el último. La de obra nunca lleva
-     * endoso: es para que el vehículo circule en USA/Canadá.
+     * Lo que necesita el formulario: las coberturas de obra, las unidades de
+     * negocio (para la póliza y la fianza) y las categorías de fianza.
      *
      * @return array<string, mixed>
      */
-    private function attributes(SavePolicyRequest $request): array
-    {
-        $start = Carbon::parse($request->validated('valid_from'));
-        $middle = $start->copy()->addMonthsNoOverflow(UnitPolicy::SEMESTER_MONTHS);
-
-        return [
-            ...collect($request->validated())->except(['unit_id', 'valid_from'])->all(),
-            'endorsement' => $request->kind() === UnitPolicy::VEHICLE && $request->boolean('endorsement'),
-            'first_payment_starts_on' => $start,
-            'first_payment_ends_on' => $middle,
-            'second_payment_starts_on' => $middle,
-            'second_payment_ends_on' => $middle->copy()->addMonthsNoOverflow(UnitPolicy::SEMESTER_MONTHS),
-        ];
-    }
-
-    /**
-     * Lo que necesita el formulario: las unidades para elegir, las coberturas
-     * de cada tipo de póliza y las unidades de negocio (para la póliza de obra
-     * y la fianza).
-     *
-     * @return array<string, mixed>
-     */
-    private function formOptions(?int $keepUnitId = null): array
+    private function formOptions(): array
     {
         return [
-            // Las que están en mantenimiento no se ofrecen; al editar, la de la
-            // póliza sí aparece aunque lo esté, para poder mostrarla.
-            'units' => Unit::query()
-                ->where(fn ($query) => $query
-                    ->where('status', '!=', 'maintenance')
-                    ->when($keepUnitId, fn ($q) => $q->orWhere('id', $keepUnitId)))
-                ->orderBy('brand')
-                ->orderBy('model')
-                ->get(['id', 'type', 'brand', 'model', 'plate'])
-                ->map(fn (Unit $unit) => [
-                    'value' => $unit->id,
-                    'label' => collect([trim("{$unit->brand} {$unit->model}"), $unit->plate])->filter()->implode(' · '),
-                    'type' => $unit->type,
-                ]),
             'businessUnits' => BusinessUnit::orderBy('name')->get(['id', 'name']),
-            'coverages' => UnitPolicy::COVERAGES,
+            'coverages' => ConstructionPolicy::COVERAGES,
             'categories' => Bond::CATEGORIES,
         ];
     }
 
     /**
-     * GET /polizas/{policy}/archivos/{evidence}
-     *
-     * Los comprobantes viven fuera de public: se sirven por aquí, con
-     * el nombre con el que se subieron y solo si son de esta póliza.
-     */
-    public function file(UnitPolicy $policy, UnitEvidence $evidence): StreamedResponse
-    {
-        abort_unless($evidence->unit_policy_id === $policy->id, 404);
-        abort_unless(Storage::disk('local')->exists($evidence->path), 404);
-
-        return Storage::disk('local')->download($evidence->path, $evidence->name);
-    }
-
-    /**
-     * POST /polizas/{policy}/pagos/{payment}
-     *
-     * Marca la cuota como pagada con su comprobante.
-     */
-    public function pay(RegisterPolicyPaymentRequest $request, UnitPolicy $policy, string $payment): RedirectResponse
-    {
-        DB::transaction(function () use ($request, $policy, $payment) {
-            $this->storeFile($request, $policy, $request->file('receipt'), UnitEvidence::PAYMENT_RECEIPT, $payment);
-
-            $policy->update(["{$payment}_payment_paid_at" => $request->validated('paid_at')]);
-        });
-
-        $label = $payment === 'first' ? 'primer' : 'segundo';
-
-        return back()->with('success', "Se registró el {$label} pago de la póliza {$policy->policy}.");
-    }
-
-    /**
-     * Guarda el archivo en disco junto a los de la unidad (o de la póliza, si
-     * es de obra) y deja en la base su ruta, el nombre con el que lo subieron,
-     * su periodo y de qué cuota es.
-     */
-    private function storeFile(Request $request, UnitPolicy $policy, UploadedFile $file, string $type, string $payment): void
-    {
-        $folder = $policy->unit_id ? "units/{$policy->unit_id}" : "policies/{$policy->id}";
-
-        $policy->evidences()->create([
-            'unit_id' => $policy->unit_id,
-            'type' => $type,
-            'payment' => $payment,
-            'path' => Storage::disk('local')->putFile($folder, $file),
-            'name' => $file->getClientOriginalName(),
-            'mime_type' => $file->getClientMimeType(),
-            'size' => $file->getSize(),
-            'uploaded_by' => $request->user()->id,
-        ]);
-    }
-
-    /**
-     * Cómo va una cuota según su fecha límite de pago: pagada, vencida o
-     * pendiente. Si la póliza se canceló, lo que faltaba ya no se cobra.
-     */
-    private function paymentStatus(UnitPolicy $policy, string $payment, bool $cancelled): string
-    {
-        if ($policy->isPaid($payment)) {
-            return 'paid';
-        }
-
-        if ($cancelled) {
-            return 'cancelled';
-        }
-
-        $dueOn = $policy->{"{$payment}_payment_due_on"};
-
-        return $dueOn && $dueOn->lt(today()) ? 'overdue' : 'pending';
-    }
-
-    /** Los comprobantes de una cuota, listos para la vista. */
-    private function receiptsOf(UnitPolicy $policy, string $payment): Collection
-    {
-        return $policy->evidences
-            ->where('payment', $payment)
-            ->values()
-            ->map(fn (UnitEvidence $evidence) => $this->fileSummary($evidence));
-    }
-
-    /** @return array<string, mixed> */
-    private function fileSummary(UnitEvidence $evidence): array
-    {
-        return [
-            'id' => $evidence->id,
-            'name' => $evidence->name,
-            'size' => $evidence->size,
-            'uploaded_by' => $evidence->uploader?->name,
-            'created_at' => $evidence->created_at?->toIso8601String(),
-        ];
-    }
-
-    /**
-     * Las pólizas de unidades y de obra, solo el periodo vigente de cada una:
-     * los renovados son historial y se ven en la ficha de la unidad.
+     * Las pólizas de obra. Su fin de vigencia ya es el del último endoso.
      *
      * @return Collection<int, array<string, mixed>>
      */
     private function policies(): Collection
     {
-        return UnitPolicy::with('unit:id,type,brand,model,plate,economic_number,business_unit_id', 'unit.businessUnit:id,name', 'businessUnit:id,name')
-            ->whereDoesntHave('renewal')
+        return ConstructionPolicy::with('businessUnit:id,name')
+            ->withSum('endorsements', 'amount')
             ->get()
-            ->map(function (UnitPolicy $policy) {
-                $unit = $policy->unit;
-                $due = $policy->nextDue();
-                $unitName = $unit ? trim("{$unit->brand} {$unit->model}") : null;
-                $construction = $policy->isConstruction();
-
-                return [
-                    'key' => "policy-{$policy->id}",
-                    'type' => 'policy',
-                    'kind' => $policy->kind,
-                    'id' => $policy->id,
-                    'number' => $policy->policy,
-                    'provider' => $policy->insurer,
-                    'coverage' => $policy->coverage,
-                    // Sobre qué: la obra con su dirección, o la unidad con placa y número económico.
-                    'subject' => $construction ? $policy->project : $unitName,
-                    'detail' => $construction
-                        ? $policy->project_address
-                        : (collect([$unit?->plate, $unit?->economic_number])->filter()->implode(' · ') ?: null),
-                    'unit_id' => $unit?->id,
-                    'business_unit' => $policy->businessUnitName(),
-                    'valid_from' => $policy->first_payment_starts_on?->toDateString(),
-                    'valid_until' => $policy->second_payment_ends_on?->toDateString(),
-                    'amount' => $policy->annualCost(),
-                    'status' => $policy->coverageStatus(),
-                    // Las dos cuotas: cuál ya se pagó y la fecha límite de la que
-                    // sigue. Cancelada ya no hay cuotas que seguir.
-                    'payments' => $policy->coverageStatus() === CoverageStatus::CANCELLED ? null : [
-                        'paid' => collect(UnitPolicy::PAYMENTS)->mapWithKeys(fn (string $payment) => [$payment => $policy->isPaid($payment)])->all(),
-                        'due' => $due ? [
-                            'payment' => $due['payment'],
-                            'due_on' => $due['due_on']?->toDateString(),
-                            'status' => $due['status'],
-                        ] : null,
-                    ],
-                    'search' => [$policy->policy, $policy->certificate, $policy->insurer, $unitName, $unit?->plate, $unit?->economic_number, $policy->project, $policy->project_address, $policy->businessUnitName()],
-                ];
-            });
+            ->map(fn (ConstructionPolicy $policy) => [
+                'key' => "policy-{$policy->id}",
+                'type' => 'policy',
+                'id' => $policy->id,
+                'number' => $policy->policy,
+                'provider' => $policy->insurer,
+                'coverage' => $policy->coverage,
+                // Sobre qué: la obra con su dirección.
+                'subject' => $policy->project,
+                'detail' => $policy->project_address,
+                'business_unit' => $policy->businessUnit?->name,
+                'valid_from' => $policy->valid_from?->toDateString(),
+                'valid_until' => $policy->valid_until?->toDateString(),
+                // Lo que cuesta con todo y endosos; sin ningún monto capturado, nada.
+                'amount' => $policy->amount === null && ! $policy->endorsements_sum_amount ? null : $policy->total(),
+                'status' => $policy->status(),
+                'search' => [$policy->policy, $policy->insurer, $policy->project, $policy->project_address, $policy->businessUnit?->name],
+            ]);
     }
 
     /**
@@ -482,13 +357,11 @@ class PolicyController extends Controller
                 // Sobre qué: a quién se garantiza y el asunto.
                 'subject' => $bond->beneficiary,
                 'detail' => $bond->related,
-                'unit_id' => null,
                 'business_unit' => $bond->businessUnit?->name,
                 'valid_from' => $bond->valid_from?->toDateString(),
                 'valid_until' => $bond->valid_until?->toDateString(),
                 'amount' => (float) $bond->amount,
                 'status' => $bond->status(),
-                'payments' => null,
                 'search' => [$bond->bond, $bond->bonding_company, $bond->beneficiary, $bond->related, $bond->source_document, $bond->businessUnit?->name],
             ]);
     }
@@ -511,6 +384,7 @@ class PolicyController extends Controller
         $count = fn (string ...$statuses) => $all->whereIn('status', $statuses)->count();
 
         return [
+            'total' => $all->count(),
             'active' => $count(CoverageStatus::ACTIVE),
             'expiring' => $count(CoverageStatus::EXPIRING),
             'expired' => $count(CoverageStatus::EXPIRED),

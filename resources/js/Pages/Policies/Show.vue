@@ -1,37 +1,34 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import {
     ArrowLeft,
-    Ban,
     Building2,
-    CalendarClock,
     CalendarRange,
     FileCheck,
-    FilePen,
+    FileClock,
+    FilePlus2,
+    FolderOpen,
     HardHat,
-    Hash,
     Landmark,
     MapPin,
     MessageSquareText,
     Paperclip,
     Pencil,
-    ScanLine,
     ShieldCheck,
-    Truck,
-    User,
-    Wallet,
+    Trash2,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
+import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
 import FilePreviewDialog from '@/components/app/FilePreviewDialog.vue';
-import PolicyPaymentDialog from '@/components/app/PolicyPaymentDialog.vue';
+import PolicyEndorsementDialog from '@/components/app/PolicyEndorsementDialog.vue';
 import { usePermissions } from '@/composables/usePermissions';
-import { COVERAGE_TYPES, POLICY_COVERAGES, POLICY_KINDS, coverageStatus } from '@/lib/coverages';
+import { POLICY_COVERAGES, coverageStatus } from '@/lib/coverages';
 import { FILE_KINDS, fileSize, kindOf } from '@/lib/files';
-import { UNIT_TYPES, money, shortDate } from '@/lib/units';
+import { money, shortDate } from '@/lib/units';
 
 const props = defineProps({
-    /** El periodo completo: póliza, unidad u obra, cuotas con comprobantes, costo y cancelación. */
+    /** La póliza de obra: datos, obra asegurada, monto desglosado, documentos y endosos. */
     policy: { type: Object, required: true },
 });
 
@@ -41,19 +38,9 @@ const breadcrumbs = [
     { label: `Póliza ${props.policy.policy}` },
 ];
 
-// La unidad lleva a su ficha solo si puede ver flotillas.
 const { can } = usePermissions();
 
 const status = computed(() => coverageStatus(props.policy.status));
-
-const unit = computed(() => props.policy.unit);
-
-const unitName = computed(() => (unit.value ? `${unit.value.brand} ${unit.value.model}` : null));
-
-/** Solo en las de obra: nombre, dirección y unidad de negocio. */
-const project = computed(() => props.policy.project);
-
-const construction = computed(() => props.policy.kind === 'construction');
 
 /** «15 ene 2026 – 15 ene 2027»; con una sola fecha, esa. */
 function range(from, to) {
@@ -68,77 +55,62 @@ function range(from, to) {
 /** Los datos de la póliza, en fichas. */
 const details = computed(() => [
     { label: 'Póliza', value: props.policy.policy, icon: FileCheck },
-    { label: 'Certificado', value: props.policy.certificate, icon: Hash },
     { label: 'Aseguradora', value: props.policy.insurer, icon: Landmark },
     { label: 'Cobertura', value: POLICY_COVERAGES[props.policy.coverage] ?? null, icon: ShieldCheck },
-    // El endoso USA/Canadá es solo de las vehiculares.
-    ...(construction.value ? [] : [{ label: 'Endoso', value: props.policy.endorsement ? 'Sí' : 'No', icon: FilePen }]),
     { label: 'Vigencia', value: range(props.policy.valid_from, props.policy.valid_until), icon: CalendarRange },
 ]);
 
 /** La obra asegurada. */
-const projectDetails = computed(() =>
-    project.value
-        ? [
-              { label: 'Obra', value: project.value.name, icon: HardHat },
-              { label: 'Dirección', value: project.value.address, icon: MapPin },
-              { label: 'Unidad de negocio', value: project.value.business_unit, icon: Building2 },
-          ]
-        : [],
-);
+const projectDetails = computed(() => [
+    { label: 'Obra', value: props.policy.project, icon: HardHat },
+    { label: 'Dirección', value: props.policy.project_address, icon: MapPin },
+    { label: 'Unidad de negocio', value: props.policy.business_unit, icon: Building2 },
+]);
 
-/** La unidad asegurada, con lo que pide la póliza: descripción, serie, placas, económico y asignación. */
-const unitDetails = computed(() =>
-    unit.value
-        ? [
-              { label: 'Tipo', value: UNIT_TYPES[unit.value.type]?.label ?? null, icon: UNIT_TYPES[unit.value.type]?.icon ?? Truck },
-              { label: 'Descripción', value: unitName.value, icon: Truck },
-              { label: 'Número de serie', value: unit.value.serial_number, icon: ScanLine },
-              { label: 'Placa', value: unit.value.plate, icon: Hash },
-              { label: '# Económico', value: unit.value.economic_number, icon: Hash },
-              { label: 'Asignación', value: unit.value.business_unit, icon: Building2 },
-              { label: 'Responsable', value: unit.value.responsible, icon: User },
-          ]
-        : [],
-);
+/* ---------- Endosos ---------- */
 
-/* ---------- Cuotas ---------- */
+// El más reciente arriba: es el que marca el fin de vigencia.
+const endorsements = computed(() => [...props.policy.endorsements].reverse());
 
-const PAYMENT_TITLE = { first: 'Primer pago', second: 'Segundo pago' };
-
-/** Cómo va cada cuota según su fecha límite de pago. */
-const INSTALLMENT_STATUS = {
-    paid: { label: 'Pagada', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/25' },
-    pending: { label: 'Pendiente', tone: 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/25' },
-    overdue: { label: 'Vencida', tone: 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-400/10 dark:text-red-300 dark:ring-red-400/25' },
-    cancelled: { label: 'Cancelada', tone: 'bg-slate-50 text-slate-600 ring-slate-500/15 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10' },
-};
-
-const cancellation = computed(() => props.policy.cancellation_requested_on || props.policy.cancelled_on);
-
-/* ---------- Pago y comprobante ---------- */
+const endorsementOpen = ref(false);
 
 const previewOpen = ref(false);
 const previewFile = ref(null);
 
-function openFile(file) {
-    previewFile.value = { name: file.name, size: file.size ?? 0, source: `/polizas/${props.policy.id}/archivos/${file.id}` };
+function openFile(endorsement) {
+    previewFile.value = {
+        name: endorsement.file.name,
+        size: endorsement.file.size ?? 0,
+        source: `/polizas/${props.policy.id}/endosos/${endorsement.id}/archivo`,
+    };
+    previewOpen.value = true;
+}
+
+function openDocument(document) {
+    previewFile.value = { name: document.name, size: document.size ?? 0, source: `/polizas/${props.policy.id}/documentos/${document.id}` };
     previewOpen.value = true;
 }
 
 const fileKind = (name) => FILE_KINDS[kindOf(name)] ?? FILE_KINDS.pdf;
 
-/** Se registra el pago mientras la cuota no esté pagada ni la póliza cancelada. */
-const payable = (installment) => can('polizas.update') && ['pending', 'overdue'].includes(installment.status);
+// Solo el último se quita: la vigencia regresa al fin que tenía antes de él.
+const deleteOpen = ref(false);
+const removing = ref(null);
 
-// Registrar pago: un modal con la fecha y el comprobante.
-const paymentOpen = ref(false);
-const paying = ref(null);
-
-function pay(installment) {
-    paying.value = installment;
-    paymentOpen.value = true;
+function askRemove(endorsement) {
+    removing.value = endorsement;
+    deleteOpen.value = true;
 }
+
+function remove() {
+    router.delete(`/polizas/${props.policy.id}/endosos/${removing.value.id}`, { preserveScroll: true });
+}
+
+const removeText = computed(() =>
+    removing.value
+        ? `¿Seguro que quieres quitar este endoso? La vigencia regresa a terminar el ${shortDate(removing.value.previous_valid_until)}.`
+        : '',
+);
 
 /** «22 sep 2026, 14:30» para las marcas de tiempo del registro. */
 function dateTime(iso) {
@@ -177,9 +149,7 @@ const EMPTY = 'mt-3 flex items-center gap-2 text-[0.78rem] text-slate-400 dark:t
                         <FileCheck class="size-4" />
                     </span>
                     <div class="min-w-0">
-                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">
-                            {{ COVERAGE_TYPES.policy.label }} {{ POLICY_KINDS[policy.kind]?.label.toLowerCase() }}
-                        </p>
+                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Póliza de obra</p>
                         <h1 class="truncate text-xl font-bold tracking-tight text-brand dark:text-white">{{ policy.policy }}</h1>
                     </div>
                     <span class="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.7rem] font-bold whitespace-nowrap ring-1 ring-inset" :class="status.tone">
@@ -214,7 +184,7 @@ const EMPTY = 'mt-3 flex items-center gap-2 text-[0.78rem] text-slate-400 dark:t
                     <section :class="CARD">
                         <p :class="SECTION_TITLE">Datos de la póliza</p>
 
-                        <dl class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        <dl class="mt-3 grid gap-3 sm:grid-cols-2">
                             <div v-for="detail in details" :key="detail.label" class="flex items-start gap-2.5">
                                 <span :class="TILE_ICON"><component :is="detail.icon" class="size-3.5" /></span>
                                 <div class="min-w-0">
@@ -226,7 +196,7 @@ const EMPTY = 'mt-3 flex items-center gap-2 text-[0.78rem] text-slate-400 dark:t
                     </section>
 
                     <!-- Obra asegurada -->
-                    <section v-if="construction" :class="CARD">
+                    <section :class="CARD">
                         <p :class="SECTION_TITLE">Obra asegurada</p>
 
                         <dl class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -240,130 +210,132 @@ const EMPTY = 'mt-3 flex items-center gap-2 text-[0.78rem] text-slate-400 dark:t
                         </dl>
                     </section>
 
-                    <!-- Unidad asegurada -->
-                    <section v-else :class="CARD">
-                        <div class="flex items-center justify-between gap-3">
-                            <p :class="SECTION_TITLE">Unidad asegurada</p>
-                            <Link
-                                v-if="unit && can('flotillas.view')"
-                                :href="`/flotillas/${unit.id}`"
-                                class="text-[0.72rem] font-semibold text-brand hover:underline dark:text-white"
-                            >
-                                Ver unidad
-                            </Link>
-                        </div>
+                    <!-- Documentos de la póliza: clic para verlos; se suben y quitan al editar -->
+                    <section :class="CARD">
+                        <p :class="SECTION_TITLE">Documentos</p>
 
-                        <dl v-if="unit" class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                            <div v-for="detail in unitDetails" :key="detail.label" class="flex items-start gap-2.5">
-                                <span :class="TILE_ICON"><component :is="detail.icon" class="size-3.5" /></span>
-                                <div class="min-w-0">
-                                    <dt :class="DT">{{ detail.label }}</dt>
-                                    <dd :class="DD" :title="detail.value ?? undefined">{{ detail.value ?? '—' }}</dd>
-                                </div>
-                            </div>
-                        </dl>
+                        <ul v-if="policy.documents.length" class="mt-3 grid gap-2 sm:grid-cols-2">
+                            <li v-for="document in policy.documents" :key="document.id">
+                                <button
+                                    type="button"
+                                    class="flex w-full cursor-pointer items-center gap-2.5 rounded-lg bg-white px-2.5 py-2 text-left text-[0.75rem] ring-1 ring-slate-200 transition-colors hover:ring-brand/30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25 dark:bg-white/[0.04] dark:ring-white/10 dark:hover:ring-white/25"
+                                    @click="openDocument(document)"
+                                >
+                                    <span class="grid size-7 shrink-0 place-content-center rounded-md" :class="fileKind(document.name).tile">
+                                        <component :is="fileKind(document.name).icon" class="size-3.5" />
+                                    </span>
+                                    <span class="min-w-0 flex-1">
+                                        <span class="block truncate font-semibold text-slate-700 dark:text-slate-200" :title="document.name">{{ document.name }}</span>
+                                        <span class="block text-[0.66rem] text-slate-400 dark:text-brand-gray/70">
+                                            {{ fileSize(document.size ?? 0) }}<template v-if="document.uploaded_by"> · {{ document.uploaded_by }}</template>
+                                        </span>
+                                    </span>
+                                </button>
+                            </li>
+                        </ul>
                         <p v-else :class="EMPTY">
-                            <Truck class="size-4" />
-                            La unidad ya no existe.
+                            <FolderOpen class="size-4" />
+                            Sin documentos.
                         </p>
                     </section>
 
-                    <!-- Cuotas: los dos pagos semestrales con sus comprobantes -->
+                    <!-- Endosos de extensión: la misma póliza, con su fin recorrido -->
                     <section :class="CARD">
-                        <p :class="SECTION_TITLE">Cuotas</p>
-
-                        <div class="mt-3 grid gap-3 sm:grid-cols-2">
-                            <article
-                                v-for="installment in policy.payments"
-                                :key="installment.payment"
-                                class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 dark:border-white/10 dark:bg-white/[0.03]"
+                        <div class="flex items-center justify-between gap-3">
+                            <p :class="SECTION_TITLE">Endosos</p>
+                            <button
+                                v-if="can('polizas.update')"
+                                type="button"
+                                class="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[0.72rem] font-semibold text-brand transition-colors hover:bg-brand/[0.07] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25 dark:text-white dark:hover:bg-white/10"
+                                @click="endorsementOpen = true"
                             >
-                                <div class="flex items-center justify-between gap-2">
-                                    <p class="text-[0.8rem] font-bold text-slate-800 dark:text-white">{{ PAYMENT_TITLE[installment.payment] }}</p>
-                                    <span
-                                        class="inline-flex items-center rounded-md px-1.5 py-0.5 text-[0.65rem] font-bold ring-1 ring-inset"
-                                        :class="INSTALLMENT_STATUS[installment.status].tone"
-                                    >
-                                        {{ INSTALLMENT_STATUS[installment.status].label }}
-                                    </span>
-                                </div>
+                                <FilePlus2 class="size-3.5" />
+                                Registrar endoso
+                            </button>
+                        </div>
 
-                                <p class="text-xl leading-none font-bold tabular-nums text-slate-800 dark:text-white">
-                                    {{ installment.amount !== null ? money(installment.amount) : '—' }}
-                                </p>
-
-                                <dl class="grid grid-cols-2 gap-x-3 gap-y-2 text-[0.75rem]">
-                                    <div class="col-span-2">
-                                        <dt :class="DT">Periodo</dt>
-                                        <dd class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ range(installment.starts_on, installment.ends_on) ?? '—' }}</dd>
-                                    </div>
-                                    <div>
-                                        <dt :class="DT">Fecha límite</dt>
-                                        <dd class="flex items-center gap-1 font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                                            <CalendarClock class="size-3.5 text-slate-400 dark:text-brand-gray" />
-                                            {{ shortDate(installment.due_on) ?? 'Sin fecha' }}
-                                        </dd>
-                                    </div>
-                                    <div>
-                                        <dt :class="DT">Pagado el</dt>
-                                        <dd class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ shortDate(installment.paid_at) ?? '—' }}</dd>
-                                    </div>
-                                </dl>
-
-                                <!-- Comprobante de pago: clic en el archivo para verlo -->
-                                <div class="border-t border-slate-200/70 pt-3 dark:border-white/[0.06]">
-                                    <div class="flex items-center justify-between gap-2">
-                                        <p :class="DT">Comprobante de pago</p>
-                                        <button
-                                            v-if="payable(installment)"
-                                            type="button"
-                                            class="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[0.7rem] font-semibold text-brand transition-colors hover:bg-brand/[0.07] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25 dark:text-white dark:hover:bg-white/10"
-                                            @click="pay(installment)"
-                                        >
-                                            <Wallet class="size-3.5" />
-                                            Registrar pago
-                                        </button>
-                                    </div>
-
-                                    <ul v-if="installment.receipts.length" class="mt-1.5 flex flex-col gap-1.5">
-                                        <li v-for="file in installment.receipts" :key="file.id">
-                                            <button
-                                                type="button"
-                                                class="flex w-full cursor-pointer items-center gap-2.5 rounded-lg bg-white px-2.5 py-2 text-left text-[0.75rem] ring-1 ring-slate-200 transition-colors hover:ring-brand/30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25 dark:bg-white/[0.04] dark:ring-white/10 dark:hover:ring-white/25"
-                                                @click="openFile(file)"
-                                            >
-                                                <span class="grid size-7 shrink-0 place-content-center rounded-md" :class="fileKind(file.name).tile">
-                                                    <component :is="fileKind(file.name).icon" class="size-3.5" />
-                                                </span>
-                                                <span class="min-w-0 flex-1">
-                                                    <span class="block truncate font-semibold text-slate-700 dark:text-slate-200" :title="file.name">{{ file.name }}</span>
-                                                    <span class="block text-[0.66rem] text-slate-400 dark:text-brand-gray/70">
-                                                        {{ fileSize(file.size ?? 0) }}<template v-if="file.uploaded_by"> · {{ file.uploaded_by }}</template>
-                                                    </span>
-                                                </span>
-                                            </button>
-                                        </li>
-                                    </ul>
-                                    <p v-else class="mt-1 flex items-center gap-1.5 text-[0.72rem] text-slate-400 dark:text-brand-gray/70">
-                                        <Paperclip class="size-3.5" />
-                                        Sin comprobante.
+                        <ul v-if="endorsements.length" class="mt-3 flex flex-col gap-2">
+                            <li
+                                v-for="(endorsement, index) in endorsements"
+                                :key="endorsement.id"
+                                class="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 dark:border-white/10 dark:bg-white/[0.03]"
+                            >
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-[0.8rem] font-bold text-slate-800 dark:text-white">
+                                        {{ endorsement.endorsement ? `Endoso ${endorsement.endorsement}` : 'Endoso sin número' }}
+                                    </p>
+                                    <p class="text-[0.72rem] tabular-nums text-slate-500 dark:text-brand-gray">
+                                        Extiende del {{ shortDate(endorsement.previous_valid_until) }} al
+                                        <span class="font-semibold text-slate-700 dark:text-slate-200">{{ shortDate(endorsement.valid_until) }}</span>
+                                        <template v-if="endorsement.amount !== null">
+                                            · <span class="font-semibold text-slate-700 dark:text-slate-200">{{ money(endorsement.amount) }}</span>
+                                        </template>
+                                    </p>
+                                    <p class="text-[0.66rem] text-slate-400 dark:text-brand-gray/70">
+                                        {{ dateTime(endorsement.created_at) }}<template v-if="endorsement.created_by"> · {{ endorsement.created_by }}</template>
                                     </p>
                                 </div>
-                            </article>
-                        </div>
+
+                                <button
+                                    v-if="endorsement.file"
+                                    type="button"
+                                    class="flex max-w-56 cursor-pointer items-center gap-2 rounded-lg bg-white px-2.5 py-1.5 text-left text-[0.72rem] ring-1 ring-slate-200 transition-colors hover:ring-brand/30 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25 dark:bg-white/[0.04] dark:ring-white/10 dark:hover:ring-white/25"
+                                    @click="openFile(endorsement)"
+                                >
+                                    <span class="grid size-6 shrink-0 place-content-center rounded-md" :class="fileKind(endorsement.file.name).tile">
+                                        <component :is="fileKind(endorsement.file.name).icon" class="size-3.5" />
+                                    </span>
+                                    <span class="min-w-0">
+                                        <span class="block truncate font-semibold text-slate-700 dark:text-slate-200" :title="endorsement.file.name">{{ endorsement.file.name }}</span>
+                                        <span class="block text-[0.64rem] text-slate-400 dark:text-brand-gray/70">{{ fileSize(endorsement.file.size ?? 0) }}</span>
+                                    </span>
+                                </button>
+                                <span v-else class="flex items-center gap-1.5 text-[0.72rem] text-slate-400 dark:text-brand-gray/70">
+                                    <Paperclip class="size-3.5" />
+                                    Sin documento
+                                </span>
+
+                                <!-- Solo el último se puede quitar -->
+                                <button
+                                    v-if="index === 0 && can('polizas.update')"
+                                    type="button"
+                                    class="grid size-7 cursor-pointer place-content-center rounded-lg text-slate-400 transition-colors duration-150 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-red-500/20 dark:text-brand-gray dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                                    aria-label="Quitar endoso"
+                                    title="Quitar endoso"
+                                    @click="askRemove(endorsement)"
+                                >
+                                    <Trash2 class="size-3.5" />
+                                </button>
+                            </li>
+                        </ul>
+                        <p v-else :class="EMPTY">
+                            <FileClock class="size-4" />
+                            Sin endosos: la vigencia es la original.
+                        </p>
                     </section>
                 </div>
 
                 <!-- Columna lateral -->
                 <div class="flex flex-col gap-3 tall:gap-4">
-                    <!-- Costo anual desglosado -->
+                    <!-- Monto desglosado -->
                     <section :class="CARD">
-                        <p :class="SECTION_TITLE">Costo anual</p>
+                        <p :class="SECTION_TITLE">Monto a pagar</p>
 
-                        <p class="mt-3 text-2xl font-bold tabular-nums text-brand dark:text-white">{{ money(policy.annual_cost) }}</p>
-                        <p class="text-[0.7rem] text-slate-400 dark:text-brand-gray/70">IVA incluido · suma de las dos cuotas</p>
+                        <p class="mt-3 text-2xl font-bold tabular-nums text-brand dark:text-white">{{ money(policy.total) }}</p>
+                        <p class="text-[0.7rem] text-slate-400 dark:text-brand-gray/70">IVA incluido<template v-if="policy.endorsements_amount"> · póliza más endosos</template></p>
 
                         <dl class="mt-3 flex flex-col gap-1.5 border-t border-slate-100 pt-3 text-[0.78rem] dark:border-white/[0.06]">
+                            <!-- Con endosos cobrados se ve de dónde sale el total -->
+                            <template v-if="policy.endorsements_amount">
+                                <div class="flex justify-between gap-3">
+                                    <dt class="text-slate-500 dark:text-brand-gray">Póliza</dt>
+                                    <dd class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ money(policy.amount) }}</dd>
+                                </div>
+                                <div class="flex justify-between gap-3">
+                                    <dt class="text-slate-500 dark:text-brand-gray">Endosos</dt>
+                                    <dd class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ money(policy.endorsements_amount) }}</dd>
+                                </div>
+                            </template>
                             <div class="flex justify-between gap-3">
                                 <dt class="text-slate-500 dark:text-brand-gray">Subtotal</dt>
                                 <dd class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ money(policy.subtotal) }}</dd>
@@ -371,28 +343,6 @@ const EMPTY = 'mt-3 flex items-center gap-2 text-[0.78rem] text-slate-400 dark:t
                             <div class="flex justify-between gap-3">
                                 <dt class="text-slate-500 dark:text-brand-gray">IVA ({{ Math.round(policy.tax_rate * 100) }}%)</dt>
                                 <dd class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">{{ money(policy.tax) }}</dd>
-                            </div>
-                        </dl>
-                    </section>
-
-                    <!-- Cancelación: solo si se pidió -->
-                    <section v-if="cancellation" :class="CARD">
-                        <p :class="SECTION_TITLE">Cancelación</p>
-
-                        <dl class="mt-3 flex flex-col gap-3">
-                            <div class="flex items-start gap-2.5">
-                                <span :class="TILE_ICON"><CalendarClock class="size-3.5" /></span>
-                                <div class="min-w-0">
-                                    <dt :class="DT">Solicitud de cancelación</dt>
-                                    <dd :class="DD">{{ shortDate(policy.cancellation_requested_on) ?? '—' }}</dd>
-                                </div>
-                            </div>
-                            <div class="flex items-start gap-2.5">
-                                <span :class="TILE_ICON"><Ban class="size-3.5" /></span>
-                                <div class="min-w-0">
-                                    <dt :class="DT">Fecha de cancelación</dt>
-                                    <dd :class="DD">{{ shortDate(policy.cancelled_on) ?? 'Pendiente' }}</dd>
-                                </div>
                             </div>
                         </dl>
                     </section>
@@ -422,6 +372,8 @@ const EMPTY = 'mt-3 flex items-center gap-2 text-[0.78rem] text-slate-400 dark:t
 
         <FilePreviewDialog v-model:open="previewOpen" :file="previewFile" />
 
-        <PolicyPaymentDialog v-model:open="paymentOpen" :policy="policy" :installment="paying" />
+        <PolicyEndorsementDialog v-model:open="endorsementOpen" :policy="policy" />
+
+        <ConfirmDeleteDialog v-model:open="deleteOpen" :text="removeText" @confirm="remove" />
     </AppShell>
 </template>

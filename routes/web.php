@@ -12,6 +12,7 @@ use App\Http\Controllers\Web\LicenseNotificationController;
 use App\Http\Controllers\Web\MachineryController;
 use App\Http\Controllers\Web\PermissionController;
 use App\Http\Controllers\Web\PolicyController;
+use App\Http\Controllers\Web\PolicyEndorsementController;
 use App\Http\Controllers\Web\RoleController;
 use App\Http\Controllers\Web\UserController;
 use Illuminate\Support\Facades\Auth;
@@ -182,14 +183,19 @@ Route::middleware('auth')->group(function () {
     Route::delete('/polizas/{policy}', [PolicyController::class, 'destroy'])
         ->middleware('can:polizas.delete')
         ->name('policies.destroy');
-    Route::get('/polizas/{policy}/archivos/{evidence}', [PolicyController::class, 'file'])
+    Route::get('/polizas/{policy}/documentos/{document}', [PolicyController::class, 'document'])
         ->middleware('can:polizas.view')
-        ->name('policies.file');
-    // Registrar el pago de una cuota con su comprobante.
-    Route::post('/polizas/{policy}/pagos/{payment}', [PolicyController::class, 'pay'])
-        ->whereIn('payment', ['first', 'second'])
+        ->name('policies.document');
+    // Endosos de extensión: recorren el fin de vigencia de la misma póliza.
+    Route::post('/polizas/{policy}/endosos', [PolicyEndorsementController::class, 'store'])
         ->middleware('can:polizas.update')
-        ->name('policies.pay');
+        ->name('policies.endorsements.store');
+    Route::get('/polizas/{policy}/endosos/{endorsement}/archivo', [PolicyEndorsementController::class, 'file'])
+        ->middleware('can:polizas.view')
+        ->name('policies.endorsements.file');
+    Route::delete('/polizas/{policy}/endosos/{endorsement}', [PolicyEndorsementController::class, 'destroy'])
+        ->middleware('can:polizas.update')
+        ->name('policies.endorsements.destroy');
 
     // Administración de usuarios. La Policy afina por registro: quién puede
     // tocar a quién no lo resuelve un permiso suelto.

@@ -17,10 +17,8 @@ const props = defineProps({
     policy: { type: Object, default: null },
     /** La fianza con sus valores tal como se capturan (solo si type = bond). */
     bond: { type: Object, default: null },
-    /** [{ value, label, type }] */
-    units: { type: Array, default: () => [] },
-    /** Valores del enum `coverage` por tipo de póliza. */
-    coverages: { type: Object, default: () => ({}) },
+    /** Valores del enum `coverage` de la póliza de obra. */
+    coverages: { type: Array, default: () => [] },
     /** Catálogo: [{ id, name }] (póliza de obra y fianza). */
     businessUnits: { type: Array, default: () => [] },
     /** Valores del enum `category` (solo si type = bond). */
@@ -72,7 +70,7 @@ const breadcrumbs = computed(() => [
             </div>
 
             <BondForm v-if="isBond" :bond="bond" :business-units="businessUnits" :categories="categories" />
-            <PolicyForm v-else :policy="policy" :units="units" :coverages="coverages" :business-units="businessUnits" />
+            <PolicyForm v-else :policy="policy" :coverages="coverages" :business-units="businessUnits" />
         </div>
     </AppShell>
 </template>

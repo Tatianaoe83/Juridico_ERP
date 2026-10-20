@@ -20,34 +20,19 @@ use Throwable;
  */
 class UnitCalendar
 {
-    /**
-     * Las fechas que van al calendario en la de obra, con la columna de la que
-     * sale cada una y dónde se guarda el id de su evento. Los pagos usan la
-     * fecha límite que pone la aseguradora, no el cierre del semestre.
-     *
-     * @var array<int, array{label: string, date: string, event: string}>
-     */
-    public const EVENTS = [
-        ['label' => 'Límite primer pago', 'date' => 'first_payment_due_on', 'event' => 'first_payment_event_id'],
-        ['label' => 'Límite segundo pago', 'date' => 'second_payment_due_on', 'event' => 'second_payment_event_id'],
-        ['label' => 'Fin de vigencia', 'date' => 'second_payment_ends_on', 'event' => 'validity_event_id'],
-    ];
+    /** Las columnas donde se guarda el id de cada evento de la póliza. */
+    private const EVENT_COLUMNS = ['first_payment_event_id', 'second_payment_event_id', 'validity_event_id'];
 
     /**
-     * Las fechas de cada póliza. La de obra agenda sus pagos y su fin de
-     * vigencia. La vehicular y la de maquinaria no agendan pagos: la
-     * empresarial vehicular, el cierre de cada semestre (vigencia 1 y 2, cada
-     * uno en el lugar de su pago); las que no tienen semestres, solo su fin.
-     * El lugar del segundo pago queda sin fecha: si tenía evento, se quita.
+     * Las fechas de cada póliza. No se agendan pagos: la empresarial
+     * vehicular, el cierre de cada semestre (vigencia 1 y 2, cada uno en el
+     * lugar de su pago); las que no tienen semestres, solo su fin. El lugar
+     * del segundo pago queda sin fecha: si tenía evento, se quita.
      *
      * @return array<int, array{label: string, date: ?string, event: string}>
      */
     public static function entriesFor(UnitPolicy $policy): array
     {
-        if ($policy->isConstruction()) {
-            return self::EVENTS;
-        }
-
         $semesters = $policy->first_payment_ends_on !== null;
 
         return [
@@ -121,8 +106,8 @@ class UnitCalendar
 
         $ok = true;
 
-        foreach (self::EVENTS as $entry) {
-            $ok = $this->forgetEvent($policy, $actor, $entry['event']) && $ok;
+        foreach (self::EVENT_COLUMNS as $column) {
+            $ok = $this->forgetEvent($policy, $actor, $column) && $ok;
         }
 
         return $ok;
@@ -255,8 +240,6 @@ class UnitCalendar
             "Póliza: {$policy->policy}",
             $policy->insurer ? "Aseguradora: {$policy->insurer}" : null,
             $policy->supplier ? "Beneficiario preferente: {$policy->supplier}" : null,
-            $policy->project ? "Obra: {$policy->project}" : null,
-            $policy->project_address ? "Dirección: {$policy->project_address}" : null,
             $unitName ? "Unidad: {$unitName}" : null,
             $unit?->plate ? "Placa: {$unit->plate}" : null,
             $unit?->economic_number ? "Económico: {$unit->economic_number}" : null,
@@ -267,8 +250,7 @@ class UnitCalendar
         $day = $date->copy()->startOfDay();
 
         return [
-            // En la de obra, la obra va donde iría la unidad.
-            'title' => collect([$label, "Póliza {$policy->policy}", $policy->isConstruction() ? $policy->project : $unitName])->filter()->implode(' · '),
+            'title' => collect([$label, "Póliza {$policy->policy}", $unitName])->filter()->implode(' · '),
             'description' => implode("\n", $lines),
             // La unidad de negocio va en la descripción: en «Ubicación» Outlook
             // la muestra como si fuera un lugar.

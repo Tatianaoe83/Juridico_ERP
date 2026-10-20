@@ -1,18 +1,33 @@
 <script setup>
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ChevronLeft, ChevronRight, Clock, Eye, FileCheck, Layers, Pencil, Plus, Search, ShieldAlert, ShieldCheck, Trash2, X } from 'lucide-vue-next';
+import {
+    ArrowRight,
+    ChevronLeft,
+    ChevronRight,
+    Clock,
+    Eye,
+    FileCheck,
+    Layers,
+    Pencil,
+    Plus,
+    Search,
+    ShieldAlert,
+    ShieldCheck,
+    Trash2,
+    X,
+} from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
-import FilterSelect from '@/components/app/FilterSelect.vue';
 import { usePermissions } from '@/composables/usePermissions';
-import { BOND_CATEGORIES, COVERAGE_STATUS, COVERAGE_TYPES, POLICY_COVERAGES, coverageStatus } from '@/lib/coverages';
+import { BOND_CATEGORIES, COVERAGE_STATUS, POLICY_COVERAGES, coverageStatus } from '@/lib/coverages';
+import { daysLeft, localDate, remainingLabel } from '@/lib/licenses';
 import { money, shortDate } from '@/lib/units';
 
 const props = defineProps({
-    /** { data: [{ key, type, kind, number, provider, subject, detail, valid_from, valid_until, amount, status, payments }], meta } */
+    /** { data: [{ key, type, number, provider, subject, detail, valid_from, valid_until, amount, status }], meta } */
     coverages: { type: Object, required: true },
-    /** { active, expiring, expired, warning_days } — de todo, sin filtros. */
+    /** { total, active, expiring, expired, warning_days } — de todo, sin filtros. */
     stats: { type: Object, required: true },
     /** { search, type } — lo que ya viene aplicado. */
     filters: { type: Object, default: () => ({}) },
@@ -33,7 +48,11 @@ const search = ref(props.filters.search ?? '');
 // Vacío = pólizas y fianzas.
 const type = ref(props.filters.type ?? '');
 
-const typeOptions = Object.entries(COVERAGE_TYPES).map(([value, meta]) => ({ value, label: meta.plural }));
+const TYPE_TABS = [
+    { value: '', label: 'Todas' },
+    { value: 'policy', label: 'Pólizas' },
+    { value: 'bond', label: 'Fianzas' },
+];
 
 function visit(params) {
     router.get(
@@ -127,44 +146,74 @@ onBeforeUnmount(() => {
 
 // Solo informan: son de todas las coberturas y no filtran la tabla.
 const cards = computed(() => [
-    {
-        key: 'active',
-        label: 'Vigentes',
-        value: props.stats.active,
-        hint: 'sin riesgo inmediato',
-        icon: ShieldCheck,
-        tone: COVERAGE_STATUS.active.tone,
-    },
-    {
-        key: 'expiring',
-        label: 'Por vencer',
-        value: props.stats.expiring,
-        hint: `en los próximos ${props.stats.warning_days} días`,
-        icon: Clock,
-        tone: COVERAGE_STATUS.expiring.tone,
-    },
-    {
-        key: 'expired',
-        label: 'Vencidas',
-        value: props.stats.expired,
-        hint: 'requieren atención',
-        icon: ShieldAlert,
-        tone: COVERAGE_STATUS.expired.tone,
-    },
+    { key: '', label: 'Todas', value: props.stats.total, hint: 'pólizas y fianzas', icon: Layers, tone: 'bg-brand/[0.07] text-brand ring-brand/15 dark:bg-white/10 dark:text-white dark:ring-white/15' },
+    { key: 'active', label: 'Vigentes', value: props.stats.active, hint: 'sin riesgo inmediato', icon: ShieldCheck, tone: COVERAGE_STATUS.active.tone },
+    { key: 'expiring', label: 'Por vencer', value: props.stats.expiring, hint: `en ${props.stats.warning_days} días o menos`, icon: Clock, tone: COVERAGE_STATUS.expiring.tone },
+    { key: 'expired', label: 'Vencidas', value: props.stats.expired, hint: 'requieren atención', icon: ShieldAlert, tone: COVERAGE_STATUS.expired.tone },
 ]);
 
 /* ---------- Presentación ---------- */
 
-const PAYMENT_LABEL = { first: '1 de 2', second: '2 de 2' };
+/** Cada tipo con su icono y su color: se distinguen sin leer. */
+const TYPE_META = {
+    policy: {
+        label: 'Póliza de obra',
+        icon: FileCheck,
+        tile: 'bg-brand/[0.07] text-brand ring-brand/15 dark:bg-white/10 dark:text-white dark:ring-white/15',
+    },
+    bond: {
+        label: 'Fianza',
+        icon: ShieldCheck,
+        tile: 'bg-violet-50 text-violet-700 ring-violet-600/15 dark:bg-violet-400/10 dark:text-violet-300 dark:ring-violet-400/20',
+    },
+};
 
 /** La categoría: en pólizas, su cobertura; en fianzas, su categoría. */
 function category(row) {
-    if (row.type === 'policy') return POLICY_COVERAGES[row.coverage] ?? 'SIN COBERTURA';
+    if (row.type === 'policy') return POLICY_COVERAGES[row.coverage] ?? 'Sin cobertura';
 
-    return BOND_CATEGORIES[row.category] ?? 'SIN CATEGORÍA';
+    return BOND_CATEGORIES[row.category] ?? 'Sin categoría';
 }
 
-/** Cada tipo tiene su propio detalle. */
+/** El color de la barra y del texto de lo que falta, según cómo va la vigencia. */
+const VALIDITY_TONE = {
+    active: { bar: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-300' },
+    expiring: { bar: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-300' },
+    expired: { bar: 'bg-red-500', text: 'text-red-600 dark:text-red-400' },
+    cancelling: { bar: 'bg-orange-500', text: 'text-orange-700 dark:text-orange-300' },
+    cancelled: { bar: 'bg-slate-300 dark:bg-white/20', text: 'text-slate-500 dark:text-brand-gray' },
+    unknown: { bar: 'bg-slate-300 dark:bg-white/20', text: 'text-slate-500 dark:text-brand-gray' },
+};
+
+/**
+ * La vigencia de una fila: sus fechas, cuánto lleva transcurrido (0 a 100) y
+ * cuánto le falta. Sin inicio no hay barra; sin fin no hay nada que medir.
+ */
+function validity(row) {
+    const tone = VALIDITY_TONE[row.status] ?? VALIDITY_TONE.unknown;
+
+    if (!row.valid_until) {
+        return { from: shortDate(row.valid_from), to: null, progress: null, remaining: 'Sin fin de vigencia', tone };
+    }
+
+    let progress = null;
+
+    if (row.valid_from) {
+        const total = localDate(row.valid_until) - localDate(row.valid_from);
+        const left = daysLeft(row.valid_until) * 86_400_000;
+
+        progress = total > 0 ? Math.min(100, Math.max(0, Math.round(((total - left) / total) * 100))) : 100;
+    }
+
+    return {
+        from: shortDate(row.valid_from),
+        to: shortDate(row.valid_until),
+        progress,
+        remaining: row.status === 'cancelled' ? 'Cancelada' : remainingLabel(row.valid_until),
+        tone,
+    };
+}
+
 /* ---------- Eliminar ---------- */
 
 // El modal de confirmación es el mismo de toda la app.
@@ -189,50 +238,21 @@ function destroy() {
     });
 }
 
-/** La póliza se lleva sus comprobantes de pago: se avisa antes. */
+/** La póliza se lleva sus documentos y endosos: se avisa antes. */
 const deleteText = computed(() => {
     const row = toDelete.value;
 
     if (!row) return '';
 
     return row.type === 'policy'
-        ? `¿Seguro que quieres eliminar la póliza «${row.number}»? También se borran sus comprobantes de pago.`
+        ? `¿Seguro que quieres eliminar la póliza «${row.number}»? También se borran sus documentos y endosos.`
         : `¿Seguro que quieres eliminar la fianza «${row.number}»?`;
 });
 
 const showUrl = (row) => (row.type === 'bond' ? `/polizas/fianzas/${row.id}` : `/polizas/${row.id}`);
 
-/** Inicio y fin de la vigencia; con una sola fecha, esa. */
-function validity(row) {
-    const from = shortDate(row.valid_from);
-    const to = shortDate(row.valid_until);
-
-    if (!from && !to) return null;
-
-    return from && to ? { from, to } : { from: from ?? to, to: null };
-}
-
-/**
- * Las dos cuotas de una póliza: un segmento por pago. Pagado en verde; el que
- * sigue, rojo si ya pasó su fecha límite y ámbar si no; el de después, gris.
- */
-function installments(payments) {
-    const steps = ['first', 'second'].map((payment) => {
-        if (payments.paid?.[payment]) return 'bg-emerald-500';
-        if (payments.due?.payment === payment) return payments.due.status === 'overdue' ? 'bg-red-500' : 'bg-amber-400';
-
-        return 'bg-slate-200 dark:bg-white/10';
-    });
-
-    return {
-        steps,
-        label: payments.due ? PAYMENT_LABEL[payments.due.payment] : 'Pagadas',
-        dueOn: payments.due ? (shortDate(payments.due.due_on) ?? 'Sin fecha límite') : null,
-    };
-}
-
 const TH = 'px-3 py-2 text-left text-[0.62rem] font-bold uppercase tracking-[0.14em] whitespace-nowrap tall:py-2.5 @2xl:px-4 @6xl:px-6';
-const TD = 'px-3 py-1.5 tall:py-2 @2xl:px-4 @6xl:px-6';
+const TD = 'px-3 py-2 @2xl:px-4 @6xl:px-6';
 
 const ACTION =
     'grid size-7 cursor-pointer place-content-center rounded-lg transition-colors duration-150 ' +
@@ -277,21 +297,20 @@ const PAGE_BTN =
             </div>
 
             <!-- Resumen: de todas las coberturas, no cambia con los filtros de la tabla -->
-            <section aria-label="Resumen" class="mb-3 grid shrink-0 grid-cols-2 gap-2.5 tall:mb-4 sm:grid-cols-3 tall:gap-3">
+            <section aria-label="Resumen por estado" class="mb-3 grid shrink-0 grid-cols-2 gap-2.5 tall:mb-4 lg:grid-cols-4 tall:gap-3">
                 <article
-                    v-for="(card, i) in cards"
-                    :key="card.key"
+                    v-for="card in cards"
+                    :key="card.key || 'all'"
                     class="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-3.5 py-3 shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none"
-                    :class="i === cards.length - 1 && cards.length % 2 ? 'col-span-2 sm:col-span-1' : ''"
                 >
-                    <span class="grid size-9 shrink-0 place-content-center rounded-xl ring-1 ring-inset" :class="card.tone">
-                        <component :is="card.icon" class="size-4" />
+                    <span class="grid size-10 shrink-0 place-content-center rounded-xl ring-1 ring-inset" :class="card.tone">
+                        <component :is="card.icon" class="size-[1.1rem]" />
                     </span>
-                    <div class="min-w-0">
-                        <p class="truncate text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">{{ card.label }}</p>
-                        <p class="text-xl leading-tight font-bold text-slate-800 tabular-nums dark:text-white">{{ card.value }}</p>
-                        <p class="truncate text-[0.68rem] text-slate-400 dark:text-brand-gray/70">{{ card.hint }}</p>
-                    </div>
+                    <span class="min-w-0">
+                        <span class="block truncate text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">{{ card.label }}</span>
+                        <span class="block text-2xl leading-tight font-bold tabular-nums text-slate-800 dark:text-white">{{ card.value }}</span>
+                        <span class="block truncate text-[0.68rem] text-slate-400 dark:text-brand-gray/70">{{ card.hint }}</span>
+                    </span>
                 </article>
             </section>
 
@@ -306,7 +325,7 @@ const PAGE_BTN =
                             <input
                                 v-model="search"
                                 type="search"
-                                placeholder="Buscar por número, proveedor, unidad o beneficiario…"
+                                placeholder="Buscar por número, aseguradora, obra o beneficiario…"
                                 class="peer h-9 w-full rounded-lg border border-slate-200 bg-slate-50/70 pr-9 pl-9 text-[0.8rem] text-slate-900 outline-none transition-[border-color,background-color,box-shadow] duration-150 placeholder:text-slate-400 hover:border-slate-300 focus:border-brand/50 focus:bg-white focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/30 dark:hover:border-white/20 dark:focus:border-brand-gray/50 dark:focus:bg-white/[0.06] dark:focus:ring-white/10 [&::-webkit-search-cancel-button]:hidden"
                             />
                             <Search
@@ -323,31 +342,55 @@ const PAGE_BTN =
                             </button>
                         </label>
 
-                        <FilterSelect
-                            v-model="type"
-                            :options="typeOptions"
-                            :icon="Layers"
-                            placeholder="Pólizas y fianzas"
-                            label="Filtrar por tipo"
-                            width="@xl:w-48"
-                        />
+                        <!-- Tipo: control segmentado, se ve qué está elegido sin abrir nada -->
+                        <div
+                            class="inline-flex h-9 shrink-0 items-center gap-0.5 self-start rounded-lg bg-slate-100 p-0.5 ring-1 ring-inset ring-slate-200/70 @xl:self-auto dark:bg-white/[0.05] dark:ring-white/[0.06]"
+                            role="radiogroup"
+                            aria-label="Filtrar por tipo"
+                        >
+                            <button
+                                v-for="tab in TYPE_TABS"
+                                :key="tab.value || 'all'"
+                                type="button"
+                                role="radio"
+                                :aria-checked="type === tab.value"
+                                class="h-8 cursor-pointer rounded-md px-3 text-[0.75rem] font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25"
+                                :class="
+                                    type === tab.value
+                                        ? 'bg-white text-brand shadow-sm ring-1 ring-slate-900/5 dark:bg-white/15 dark:text-white dark:ring-white/10'
+                                        : 'text-slate-500 hover:text-slate-800 dark:text-brand-gray dark:hover:text-white'
+                                "
+                                @click="type = tab.value"
+                            >
+                                {{ tab.label }}
+                            </button>
+                        </div>
                     </div>
 
-                    <p class="text-xs text-slate-500 dark:text-brand-gray">
-                        <span class="font-bold text-slate-800 dark:text-white">{{ coverages.meta.total }}</span>
-                        {{ coverages.meta.total === 1 ? 'cobertura' : 'coberturas' }}
-                    </p>
+                    <div class="flex items-center gap-3 text-xs text-slate-500 dark:text-brand-gray">
+                        <button
+                            v-if="filtering"
+                            type="button"
+                            class="cursor-pointer font-semibold text-brand hover:underline dark:text-white"
+                            @click="clearFilters"
+                        >
+                            Limpiar filtros
+                        </button>
+                        <p>
+                            <span class="font-bold text-slate-800 dark:text-white">{{ coverages.meta.total }}</span>
+                            {{ coverages.meta.total === 1 ? 'cobertura' : 'coberturas' }}
+                        </p>
+                    </div>
                 </div>
 
                 <div ref="tableBox" class="overflow-x-auto border-t border-slate-100 md:min-h-0 md:flex-1 md:overflow-y-auto dark:border-white/[0.06]">
                     <table class="w-full text-[0.8rem]">
                         <thead class="sticky top-0 z-10 bg-slate-50 text-slate-500 dark:bg-brand-deep dark:text-brand-gray">
                             <tr>
-                                <th :class="TH">No. Póliza / Fianza</th>
-                                <th :class="[TH, 'hidden @2xl:table-cell']">Proveedor / Categoría</th>
-                                <th :class="[TH, 'hidden @4xl:table-cell']">Vigencia</th>
-                                <th :class="[TH, 'hidden text-right @xl:table-cell']">Suma asegurada</th>
-                                <th :class="[TH, 'hidden @3xl:table-cell']">Cuotas</th>
+                                <th :class="TH">Póliza / Fianza</th>
+                                <th :class="[TH, 'hidden @3xl:table-cell']">Aseguradora / Afianzadora</th>
+                                <th :class="[TH, 'hidden @2xl:table-cell']">Vigencia</th>
+                                <th :class="[TH, 'hidden text-right @xl:table-cell']">Monto</th>
                                 <th :class="TH">Estado</th>
                                 <th :class="[TH, 'text-right']">Acciones</th>
                             </tr>
@@ -357,76 +400,84 @@ const PAGE_BTN =
                             <tr
                                 v-for="row in coverages.data"
                                 :key="row.key"
-                                class="transition-colors duration-150 hover:bg-slate-50/80 dark:hover:bg-white/[0.025]"
+                                class="group transition-colors duration-150 hover:bg-slate-50/80 dark:hover:bg-white/[0.025]"
                                 :class="deleting === row.key && 'pointer-events-none opacity-40'"
                                 :style="rowHeight ? { height: `${rowHeight}px` } : null"
                             >
-                                <!-- Número y tipo -->
-                                <td :class="[TD, 'max-w-0 @2xl:w-1/5']">
-                                    <span class="block truncate font-semibold text-slate-800 dark:text-white" :title="row.number">{{ row.number }}</span>
-                                    <span class="mt-0.5 flex items-center gap-1.5">
-                                        <span class="rounded px-1.5 py-px text-[0.58rem] font-bold uppercase tracking-wider" :class="COVERAGE_TYPES[row.type].tone">
-                                            {{ COVERAGE_TYPES[row.type].label }}{{ row.kind === 'construction' ? ' de obra' : '' }}
+                                <!-- Qué es, su número y sobre qué: la obra o el beneficiario -->
+                                <td :class="[TD, 'max-w-0 @3xl:w-[30%]']">
+                                    <div class="flex items-center gap-2.5">
+                                        <span
+                                            class="grid size-8 shrink-0 place-content-center rounded-lg ring-1 ring-inset"
+                                            :class="TYPE_META[row.type].tile"
+                                            :title="TYPE_META[row.type].label"
+                                        >
+                                            <component :is="TYPE_META[row.type].icon" class="size-4" />
                                         </span>
-                                        <!-- En cards angostos el proveedor baja aquí -->
-                                        <span class="truncate text-[0.7rem] text-slate-400 @2xl:hidden dark:text-brand-gray/80">{{ row.provider }}</span>
-                                    </span>
+                                        <div class="min-w-0">
+                                            <p class="flex items-center gap-1.5">
+                                                <Link
+                                                    :href="showUrl(row)"
+                                                    class="truncate font-semibold text-slate-800 hover:text-brand hover:underline dark:text-white"
+                                                    :title="row.number"
+                                                >
+                                                    {{ row.number }}
+                                                </Link>
+                                                <span class="shrink-0 text-[0.58rem] font-bold uppercase tracking-wider text-slate-400 dark:text-brand-gray/70">
+                                                    {{ TYPE_META[row.type].label }}
+                                                </span>
+                                            </p>
+                                            <p class="truncate text-[0.72rem] text-slate-500 dark:text-brand-gray" :title="row.subject ?? undefined">
+                                                {{ row.subject ?? '—' }}
+                                            </p>
+                                        </div>
+                                    </div>
                                 </td>
 
-                                <!-- Proveedor y categoría: la cobertura de la póliza o la categoría de la fianza -->
-                                <td :class="[TD, 'hidden max-w-0 @2xl:table-cell @2xl:w-1/4']">
-                                    <span
-                                        class="block truncate"
-                                        :class="row.provider ? 'font-semibold text-slate-800 dark:text-white' : 'text-slate-400 dark:text-brand-gray/70'"
+                                <!-- Quién la da y qué cubre -->
+                                <td :class="[TD, 'hidden max-w-0 @3xl:table-cell @3xl:w-[22%]']">
+                                    <p
+                                        class="truncate"
+                                        :class="row.provider ? 'font-semibold text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-brand-gray/70'"
                                     >
                                         {{ row.provider ?? 'Sin proveedor' }}
-                                    </span>
-                                    <span class="block truncate text-[0.7rem] text-slate-500 dark:text-brand-gray/80">
-                                        {{ category(row) }}
-                                    </span>
+                                    </p>
+                                    <p class="truncate text-[0.68rem] font-medium uppercase tracking-wide text-slate-400 dark:text-brand-gray/70">{{ category(row) }}</p>
                                 </td>
 
-                                <!-- Vigencia -->
-                                <td :class="[TD, 'hidden whitespace-nowrap tabular-nums text-slate-600 @4xl:table-cell dark:text-slate-300']">
-                                    <template v-if="validity(row)">
-                                        <span class="block">{{ validity(row).from }}</span>
-                                        <span v-if="validity(row).to" class="block text-[0.7rem] text-slate-400 dark:text-brand-gray/80">al {{ validity(row).to }}</span>
+                                <!-- Vigencia: fechas, barra de lo transcurrido y cuánto falta -->
+                                <td :class="[TD, 'hidden @2xl:table-cell @2xl:w-56']">
+                                    <template v-for="v in [validity(row)]" :key="row.key">
+                                        <p class="flex items-center gap-1 text-[0.72rem] tabular-nums whitespace-nowrap text-slate-600 dark:text-slate-300">
+                                            <span>{{ v.from ?? '—' }}</span>
+                                            <ArrowRight class="size-3 shrink-0 text-slate-300 dark:text-white/25" />
+                                            <span class="font-semibold text-slate-800 dark:text-white">{{ v.to ?? '—' }}</span>
+                                        </p>
+                                        <div
+                                            v-if="v.progress !== null"
+                                            class="mt-1 h-1 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/[0.08]"
+                                            role="progressbar"
+                                            :aria-valuenow="v.progress"
+                                            aria-valuemin="0"
+                                            aria-valuemax="100"
+                                            :aria-label="`Vigencia transcurrida: ${v.progress}%`"
+                                        >
+                                            <div class="h-full rounded-full transition-[width] duration-300" :class="v.tone.bar" :style="{ width: `${v.progress}%` }" />
+                                        </div>
+                                        <p class="mt-0.5 text-[0.66rem] font-semibold" :class="v.tone.text">{{ v.remaining }}</p>
                                     </template>
-                                    <span v-else class="text-slate-400 dark:text-brand-gray/70">—</span>
                                 </td>
 
-                                <!-- Suma: costo anual con IVA en pólizas, monto en fianzas -->
-                                <td :class="[TD, 'hidden text-right font-semibold whitespace-nowrap tabular-nums text-slate-800 @xl:table-cell dark:text-white']">
-                                    {{ money(row.amount) }}
-                                </td>
-
-                                <!-- Cuotas: solo las pólizas pagan en dos -->
-                                <td :class="[TD, 'hidden whitespace-nowrap @3xl:table-cell']">
-                                    <div v-if="row.payments" class="flex flex-col items-start gap-1">
-                                        <span class="flex items-center gap-2">
-                                            <span class="flex gap-1" aria-hidden="true">
-                                                <span
-                                                    v-for="(step, index) in installments(row.payments).steps"
-                                                    :key="index"
-                                                    class="h-1.5 w-5 rounded-full"
-                                                    :class="step"
-                                                />
-                                            </span>
-                                            <span class="text-[0.72rem] font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                                                {{ installments(row.payments).label }}
-                                            </span>
-                                        </span>
-                                        <span v-if="installments(row.payments).dueOn" class="text-[0.68rem] tabular-nums text-slate-400 dark:text-brand-gray/80">
-                                            Límite: {{ installments(row.payments).dueOn }}
-                                        </span>
-                                    </div>
+                                <!-- Monto: lo que se paga en pólizas (IVA incluido), lo afianzado en fianzas -->
+                                <td :class="[TD, 'hidden text-right whitespace-nowrap @xl:table-cell']">
+                                    <span v-if="row.amount !== null" class="font-semibold tabular-nums text-slate-800 dark:text-white">{{ money(row.amount) }}</span>
                                     <span v-else class="text-slate-400 dark:text-brand-gray/70">—</span>
                                 </td>
 
                                 <!-- Estado de la vigencia -->
                                 <td :class="[TD, 'whitespace-nowrap']">
                                     <span
-                                        class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.65rem] font-bold ring-1 ring-inset"
+                                        class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.65rem] font-bold ring-1 ring-inset"
                                         :class="coverageStatus(row.status).tone"
                                     >
                                         <component :is="coverageStatus(row.status).icon" class="size-3" />
@@ -465,7 +516,7 @@ const PAGE_BTN =
                             </tr>
 
                             <tr v-if="!coverages.data.length">
-                                <td colspan="7" class="px-6 py-8 text-center tall:py-14">
+                                <td colspan="6" class="px-6 py-8 text-center tall:py-14">
                                     <span
                                         class="mx-auto mb-2.5 grid size-10 place-content-center rounded-xl bg-slate-100 text-slate-400 dark:bg-white/[0.05] dark:text-brand-gray"
                                     >
@@ -473,7 +524,7 @@ const PAGE_BTN =
                                     </span>
                                     <p class="text-sm font-bold text-slate-800 dark:text-white">Sin resultados</p>
                                     <p class="mt-1 text-xs text-slate-500 dark:text-brand-gray">
-                                        {{ filtering ? 'Ninguna póliza o fianza coincide con la búsqueda.' : 'Aún no hay pólizas ni fianzas registradas.' }}
+                                        {{ filtering ? 'Ninguna póliza o fianza coincide con los filtros.' : 'Aún no hay pólizas ni fianzas registradas.' }}
                                     </p>
                                     <button
                                         v-if="filtering"

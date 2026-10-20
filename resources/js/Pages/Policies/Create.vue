@@ -14,16 +14,12 @@ import PolicyForm from '@/components/app/PolicyForm.vue';
 const props = defineProps({
     /** 'policy' | 'bond': con cuál abre. */
     type: { type: String, default: 'policy' },
-    /** [{ value, label, type }] */
-    units: { type: Array, default: () => [] },
-    /** Valores del enum `coverage` por tipo de póliza. */
-    coverages: { type: Object, default: () => ({}) },
+    /** Valores del enum `coverage` de la póliza de obra. */
+    coverages: { type: Array, default: () => [] },
     /** Catálogo: [{ id, name }], para la póliza de obra y la fianza. */
     businessUnits: { type: Array, default: () => [] },
     /** Valores del enum `category` de la fianza. */
     categories: { type: Array, default: () => [] },
-    /** La unidad que ya viene elegida, si llegó desde su ficha. */
-    unitId: { type: Number, default: null },
 });
 
 /** Las dos opciones del selector. */
@@ -112,7 +108,7 @@ const breadcrumbs = computed(() => [
             >
                 <KeepAlive>
                     <BondForm v-if="current === 'bond'" key="bond" :business-units="businessUnits" :categories="categories" />
-                    <PolicyForm v-else key="policy" :units="units" :coverages="coverages" :business-units="businessUnits" :unit-id="unitId" />
+                    <PolicyForm v-else key="policy" :coverages="coverages" :business-units="businessUnits" />
                 </KeepAlive>
             </Transition>
         </div>

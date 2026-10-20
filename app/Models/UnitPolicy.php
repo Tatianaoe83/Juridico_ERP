@@ -10,8 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 /**
- * Un periodo de póliza: su número y sus dos pagos semestrales. Asegura una
- * unidad (vehicular) o una obra; todo lo demás es igual en las dos.
+ * Un periodo de póliza de Flotillas: su número y sus dos pagos semestrales.
+ * Asegura una unidad (vehicular). Las de obra van aparte: ConstructionPolicy.
  *
  * La de maquinaria es distinta: cubre varias máquinas, tiene un solo pago y
  * su vigencia se captura completa. Guarda el inicio en first_payment_starts_on,
@@ -28,22 +28,18 @@ class UnitPolicy extends Model
     /** Los mismos valores que el enum de la columna `kind`. */
     public const VEHICLE = 'vehicle';
 
-    public const CONSTRUCTION = 'construction';
-
     public const MACHINERY = 'machinery';
 
-    public const KINDS = [self::VEHICLE, self::CONSTRUCTION, self::MACHINERY];
+    public const KINDS = [self::VEHICLE, self::MACHINERY];
 
     /**
      * Las coberturas de cada tipo, las mismas que el enum de la columna
      * `coverage`. Vehicular: responsabilidad civil, limitada, amplia y amplia
-     * plus, igual para vehículos y maquinaria. Obra: obra civil, responsabilidad
-     * civil de construcción, montaje y maquinaria y equipo. Maquinaria: EC
-     * (equipo de contratistas) y RC (responsabilidad civil).
+     * plus, igual para vehículos y maquinaria. Maquinaria: EC (equipo de
+     * contratistas) y RC (responsabilidad civil).
      */
     public const COVERAGES = [
         self::VEHICLE => ['civil_liability', 'limited', 'broad', 'broad_plus'],
-        self::CONSTRUCTION => ['civil_works', 'construction_liability', 'erection', 'machinery_equipment'],
         self::MACHINERY => ['contractors_equipment', 'civil_liability'],
     ];
 
@@ -80,11 +76,6 @@ class UnitPolicy extends Model
 
     protected $guarded = [];
 
-    public function isConstruction(): bool
-    {
-        return $this->kind === self::CONSTRUCTION;
-    }
-
     public function isMachinery(): bool
     {
         return $this->kind === self::MACHINERY;
@@ -116,7 +107,7 @@ class UnitPolicy extends Model
     }
 
     /**
-     * La unidad de negocio: la de obra y la de maquinaria traen la suya; la
+     * La unidad de negocio: la de maquinaria trae la suya; la
      * vehicular la toma de su unidad.
      */
     public function businessUnitName(): ?string
@@ -254,7 +245,7 @@ class UnitPolicy extends Model
         return $this->hasMany(Unit::class, 'unit_policy_id')->orderBy('economic_number')->orderBy('id');
     }
 
-    /** En las de obra y maquinaria: la vehicular usa la de su unidad. */
+    /** En las de maquinaria: la vehicular usa la de su unidad. */
     public function businessUnit(): BelongsTo
     {
         return $this->belongsTo(BusinessUnit::class);

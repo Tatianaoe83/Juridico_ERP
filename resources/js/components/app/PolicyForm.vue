@@ -1,63 +1,73 @@
 <script setup>
 import { Link, useForm } from '@inertiajs/vue3';
-import { Ban, Building2, CalendarClock, CalendarDays, CircleDollarSign, FileCheck, Hash, HardHat, Landmark, Loader2, MapPin, MessageSquareText, Save, ShieldCheck, Truck } from 'lucide-vue-next';
-import { computed, nextTick } from 'vue';
+import {
+    Building2,
+    CalendarCheck,
+    CalendarDays,
+    CircleDollarSign,
+    FileCheck,
+    HardHat,
+    Landmark,
+    Loader2,
+    MapPin,
+    MessageSquareText,
+    Paperclip,
+    RotateCcw,
+    Save,
+    ShieldCheck,
+    X,
+} from 'lucide-vue-next';
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
+import FilePreviewDialog from '@/components/app/FilePreviewDialog.vue';
 import FormSelect from '@/components/app/FormSelect.vue';
-import { POLICY_COVERAGES, POLICY_KINDS } from '@/lib/coverages';
-import { SEMESTER_MONTHS, UNIT_TYPES, addMonths, money, periodLabel } from '@/lib/units';
+import { POLICY_COVERAGES } from '@/lib/coverages';
+import { ACCEPT, FILE_KINDS, extensionOf, fileSize, kindOf } from '@/lib/files';
+import { money } from '@/lib/units';
 
 /**
- * El formulario de la póliza, el mismo para el alta y la edición. La vigencia
- * se captura con su inicio: los dos semestres salen de ahí, seis meses cada
- * uno, igual que en el servidor.
+ * El formulario de la póliza de obra, el mismo para el alta y la edición. La
+ * vigencia se captura completa: el fin es la terminación de la obra o, en
+ * algunos casos, un año exacto. Con endosos el fin solo se ve: lo mueve el
+ * último endoso.
  *
- * La póliza asegura una unidad (vehicular) o una obra; se elige al darla de
- * alta y ya no cambia. La de obra no lleva unidad ni endoso.
+ * Las vehiculares y las de maquinaria no se capturan aquí: van en Flotillas.
  */
 const props = defineProps({
     /** null = alta · póliza cargada = edición. */
     policy: { type: Object, default: null },
-    /** [{ value, label, type }] */
-    units: { type: Array, default: () => [] },
-    /** Valores del enum `coverage` por tipo: { vehicle: [...], construction: [...] }. */
-    coverages: { type: Object, default: () => ({}) },
-    /** Catálogo: [{ id, name }], para la de obra. */
+    /** Valores del enum `coverage` de las de obra. */
+    coverages: { type: Array, default: () => [] },
+    /** Catálogo: [{ id, name }]. */
     businessUnits: { type: Array, default: () => [] },
-    /** En el alta, la unidad que ya viene elegida. */
-    unitId: { type: Number, default: null },
 });
 
-/** IVA incluido en los importes. Igual que UnitPolicy::TAX_RATE. */
+/** IVA incluido en el monto. Igual que ConstructionPolicy::TAX_RATE. */
 const TAX_RATE = 0.16;
 
 const editing = computed(() => props.policy !== null);
 
+/** Con endosos, el fin de vigencia no se edita aquí. */
+const endorsed = computed(() => Boolean(props.policy?.endorsed));
+
 const form = useForm({
-    kind: props.policy?.kind ?? 'vehicle',
-    unit_id: props.policy?.unit_id ?? props.unitId ?? '',
     project: (props.policy?.project ?? '').toUpperCase(),
     project_address: (props.policy?.project_address ?? '').toUpperCase(),
     business_unit_id: props.policy?.business_unit_id ?? '',
     policy: (props.policy?.policy ?? '').toUpperCase(),
-    certificate: (props.policy?.certificate ?? '').toUpperCase(),
     insurer: (props.policy?.insurer ?? '').toUpperCase(),
     coverage: props.policy?.coverage ?? '',
-    endorsement: props.policy?.endorsement ?? false,
     valid_from: props.policy?.valid_from ?? '',
-    first_payment_amount: props.policy?.first_payment_amount ?? '',
-    first_payment_due_on: props.policy?.first_payment_due_on ?? '',
-    second_payment_amount: props.policy?.second_payment_amount ?? '',
-    second_payment_due_on: props.policy?.second_payment_due_on ?? '',
-    // Solo se muestra: no viaja al guardar.
-    cancellation_requested_on: props.policy?.cancellation_requested_on ?? '',
-    cancelled_on: props.policy?.cancelled_on ?? '',
+    valid_until: props.policy?.valid_until ?? '',
+    amount: props.policy?.amount ?? '',
     comments: (props.policy?.comments ?? '').toUpperCase(),
+    documents: [],
+    remove_documents: [],
 });
 
 /* ---------- Mayúsculas ---------- */
 
 /**
- * Póliza, certificado, aseguradora, obra, dirección y comentarios van siempre en mayúsculas: se convierten
+ * Póliza, aseguradora, obra, dirección y comentarios van siempre en mayúsculas: se convierten
  * mientras escribe. El cursor se deja donde estaba para que corregir a media
  * palabra no lo mande al final.
  */
@@ -71,77 +81,147 @@ function toUpper(field, event) {
 
 /* ---------- Opciones ---------- */
 
-const unitOptions = computed(() => props.units.map(({ value, label }) => ({ value, label })));
+const coverageOptions = computed(() => props.coverages.map((value) => ({ value, label: POLICY_COVERAGES[value] ?? value })));
 
-const selectedUnit = computed(() => props.units.find((unit) => String(unit.value) === String(form.unit_id)) ?? null);
+const businessUnitOptions = computed(() => props.businessUnits.map(({ id, name }) => ({ value: id, label: name.toUpperCase() })));
 
-const construction = computed(() => form.kind === 'construction');
+/* ---------- Vigencia y monto ---------- */
 
-const KIND_OPTIONS = [
-    { value: 'vehicle', label: POLICY_KINDS.vehicle.label, icon: Truck },
-    { value: 'construction', label: POLICY_KINDS.construction.label, icon: HardHat },
-];
-
-/**
- * Al cambiar de tipo, la cobertura de uno no vale en el otro y el endoso es
- * solo de las vehiculares: se limpian.
- */
-function chooseKind(kind) {
-    if (form.kind === kind) return;
-
-    form.kind = kind;
-    form.coverage = '';
-    form.endorsement = false;
-}
-
-const coverageOptions = computed(() => (props.coverages[form.kind] ?? []).map((value) => ({ value, label: POLICY_COVERAGES[value] ?? value })));
-
-const businessUnitOptions = computed(() => props.businessUnits.map(({ id, name }) => ({ value: id, label: name })));
-
-/* ---------- Vigencia y costo ---------- */
-
-/** Los dos semestres, como los calcula el servidor. */
-const semesters = computed(() => {
-    if (!form.valid_from) return null;
-
-    const middle = addMonths(form.valid_from, SEMESTER_MONTHS);
-
-    return {
-        first: { starts_on: form.valid_from, ends_on: middle },
-        second: { starts_on: middle, ends_on: addMonths(middle, SEMESTER_MONTHS) },
-    };
-});
-
-const total = computed(() => (Number(form.first_payment_amount) || 0) + (Number(form.second_payment_amount) || 0));
+const total = computed(() => Number(form.amount) || 0);
 
 const tax = computed(() => Math.round(((total.value * TAX_RATE) / (1 + TAX_RATE)) * 100) / 100);
 
-const INSTALLMENTS = [
-    { key: 'first', title: 'Primer pago' },
-    { key: 'second', title: 'Segundo pago' },
-];
+/* ---------- Documentos (igual que en Flotillas) ---------- */
+
+const fileInput = ref(null);
+
+/** Miniatura de las imágenes nuevas; se liberan al quitarlas o al salir. */
+const previews = new Map();
+
+onBeforeUnmount(() => previews.forEach((url) => URL.revokeObjectURL(url)));
+
+/** Los que el selector dejó pasar («Todos los archivos») pero no se aceptan. */
+const rejected = ref([]);
+
+/** Los que ya estaban en la lista y no se volvieron a sumar. */
+const duplicated = ref([]);
+
+/** El mismo archivo es el mismo nombre con el mismo peso. */
+function fingerprint(name, size) {
+    return `${name.toLowerCase()}|${size}`;
+}
+
+function addFiles(event) {
+    const picked = Array.from(event.target.files);
+    const taken = new Set([
+        ...(props.policy?.documents ?? [])
+            .filter((document) => !form.remove_documents.includes(document.id))
+            .map((document) => fingerprint(document.name, document.size ?? 0)),
+        ...form.documents.map((file) => fingerprint(file.name, file.size)),
+    ]);
+
+    const accepted = [];
+    rejected.value = [];
+    duplicated.value = [];
+
+    for (const file of picked) {
+        const key = fingerprint(file.name, file.size);
+
+        if (!kindOf(file.name)) {
+            rejected.value.push(file.name);
+        } else if (taken.has(key)) {
+            duplicated.value.push(file.name);
+        } else {
+            taken.add(key);
+            accepted.push(file);
+        }
+    }
+
+    accepted
+        .filter((file) => kindOf(file.name) === 'image')
+        .forEach((file) => previews.set(file, URL.createObjectURL(file)));
+
+    // Se suman a los que ya eligió: abrir el selector otra vez no borra lo anterior.
+    form.documents = [...form.documents, ...accepted];
+
+    // El input se limpia para poder volver a elegir el mismo archivo.
+    event.target.value = '';
+}
+
+function removeFile(index) {
+    const file = form.documents[index];
+
+    if (previews.has(file)) {
+        URL.revokeObjectURL(previews.get(file));
+        previews.delete(file);
+    }
+
+    form.documents = form.documents.filter((_, i) => i !== index);
+}
+
+/**
+ * Guardados y nuevos en una sola fila de tarjetas. Los guardados que se
+ * marcaron para quitar siguen ahí, apagados, para poder deshacerlo: nada se
+ * borra en el servidor hasta guardar.
+ */
+const fileCards = computed(() =>
+    [
+        ...(props.policy?.documents ?? []).map((document) => ({
+            key: `saved-${document.id}`,
+            saved: true,
+            id: document.id,
+            name: document.name,
+            size: document.size ?? 0,
+            removed: form.remove_documents.includes(document.id),
+        })),
+        ...form.documents.map((file, index) => ({
+            key: `new-${index}-${file.name}`,
+            saved: false,
+            index,
+            name: file.name,
+            size: file.size,
+            preview: previews.get(file),
+            // Los errores llegan por archivo: documents.0, documents.1…
+            error: Boolean(form.errors[`documents.${index}`]),
+        })),
+    ].map((card) => ({ ...card, extension: extensionOf(card.name).toUpperCase(), kind: FILE_KINDS[kindOf(card.name)] ?? FILE_KINDS.pdf })),
+);
+
+function toggleCard(card) {
+    if (!card.saved) return removeFile(card.index);
+
+    form.remove_documents = card.removed ? form.remove_documents.filter((id) => id !== card.id) : [...form.remove_documents, card.id];
+}
+
+const previewOpen = ref(false);
+const previewFile = ref(null);
+
+/** El nuevo se ve desde memoria; el guardado se trae de su ruta de descarga. */
+function openPreview(card) {
+    previewFile.value = {
+        name: card.name,
+        size: card.size,
+        source: card.saved ? `/polizas/${props.policy.id}/documentos/${card.id}` : form.documents[card.index],
+    };
+    previewOpen.value = true;
+}
 
 /* ---------- Envío ---------- */
 
 function submit() {
-    // Vacío viaja como null para que la base guarde «sin dato».
-    // La solicitud de cancelación no se manda: no se captura aquí.
-    // Lo del otro tipo tampoco: la unidad en la de obra, la obra en la vehicular.
-    const other = construction.value ? ['unit_id', 'endorsement'] : ['project', 'project_address', 'business_unit_id'];
-
-    form.transform(({ cancellation_requested_on, ...data }) =>
-        Object.fromEntries(
-            Object.entries(data)
-                .filter(([key]) => !other.includes(key))
-                .map(([key, value]) => [key, value === '' ? null : value]),
+    // Vacío viaja como null para que la base guarde «sin dato». Con endosos
+    // el fin no se manda: lo mueve el último endoso.
+    form.transform(({ valid_until, documents, remove_documents, ...data }) => ({
+        ...Object.fromEntries(
+            Object.entries(endorsed.value ? data : { ...data, valid_until }).map(([key, value]) => [key, value === '' ? null : value]),
         ),
-    );
+        documents,
+        remove_documents,
+        // Con archivos la petición va como POST; el método real viaja aquí.
+        ...(editing.value ? { _method: 'patch' } : {}),
+    }));
 
-    if (editing.value) {
-        form.patch(`/polizas/${props.policy.id}`, { preserveScroll: true });
-    } else {
-        form.post('/polizas', { preserveScroll: true });
-    }
+    form.post(editing.value ? `/polizas/${props.policy.id}` : '/polizas', { preserveScroll: true, forceFormData: true });
 }
 
 const FIELD =
@@ -174,107 +254,47 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
     <form id="policy-form" class="flex flex-col gap-2.5" novalidate @submit.prevent="submit">
         <!-- Póliza -->
         <section :class="CARD">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-                <p :class="SECTION_TITLE">{{ editing ? `Póliza ${POLICY_KINDS[form.kind].label.toLowerCase()}` : 'Póliza' }}</p>
-
-                <!-- Qué asegura: solo al darla de alta, después ya no cambia -->
-                <div
-                    v-if="!editing"
-                    class="relative grid w-full grid-cols-2 gap-1 rounded-lg bg-slate-100 p-0.5 ring-1 ring-inset ring-slate-200/70 sm:w-64 dark:bg-white/[0.05] dark:ring-white/[0.06]"
-                    role="radiogroup"
-                    aria-label="Tipo de póliza"
-                >
-                    <span
-                        aria-hidden="true"
-                        class="pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-0.375rem)] rounded-md bg-white shadow-sm ring-1 ring-slate-900/5 transition-transform duration-200 ease-out motion-reduce:transition-none dark:bg-white/15 dark:ring-white/10"
-                        :class="construction ? 'translate-x-[calc(100%+0.25rem)]' : 'translate-x-0'"
-                    />
-                    <button
-                        v-for="option in KIND_OPTIONS"
-                        :key="option.value"
-                        type="button"
-                        role="radio"
-                        :aria-checked="form.kind === option.value"
-                        class="relative z-[1] inline-flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-md text-[0.75rem] font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25"
-                        :class="form.kind === option.value ? 'text-brand dark:text-white' : 'text-slate-500 hover:text-slate-800 dark:text-brand-gray dark:hover:text-white'"
-                        @click="chooseKind(option.value)"
-                    >
-                        <component :is="option.icon" class="size-3.5" />
-                        {{ option.label }}
-                    </button>
-                </div>
-            </div>
-            <p v-if="form.errors.kind" :class="ERROR">{{ form.errors.kind }}</p>
+            <p :class="SECTION_TITLE">Póliza de obra</p>
 
             <div class="mt-2 grid gap-x-4 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
                 <!-- Obra: por ahora a mano, mientras no haya catálogo de obras -->
-                <template v-if="construction">
-                    <div>
-                        <label for="policy-project" :class="LABEL">
-                            Obra
-                            <span :class="REQUIRED">*</span>
-                        </label>
-                        <div class="relative">
-                            <input
-                                id="policy-project"
-                                :value="form.project"
-                                @input="toUpper('project', $event)"
-                                type="text"
-                                required
-                                autocomplete="off"
-                                placeholder="Nombre de la obra"
-                                :class="FIELD"
-                                :aria-invalid="Boolean(form.errors.project)"
-                            />
-                            <HardHat :class="ICON" />
-                        </div>
-                        <p v-if="form.errors.project" :class="ERROR">{{ form.errors.project }}</p>
-                    </div>
-
-                    <div>
-                        <label for="policy-project-address" :class="LABEL">Dirección</label>
-                        <div class="relative">
-                            <input
-                                id="policy-project-address"
-                                :value="form.project_address"
-                                @input="toUpper('project_address', $event)"
-                                type="text"
-                                autocomplete="off"
-                                :class="FIELD"
-                                :aria-invalid="Boolean(form.errors.project_address)"
-                            />
-                            <MapPin :class="ICON" />
-                        </div>
-                        <p v-if="form.errors.project_address" :class="ERROR">{{ form.errors.project_address }}</p>
-                    </div>
-
-                </template>
-
-                <!-- Unidad: al editar ya no cambia, sus comprobantes van con ella -->
-                <div v-else class="sm:col-span-2 lg:col-span-1">
-                    <label for="policy-unit" :class="LABEL">
-                        Unidad
-                        <span v-if="!editing" :class="REQUIRED">*</span>
+                <div>
+                    <label for="policy-project" :class="LABEL">
+                        Obra
+                        <span :class="REQUIRED">*</span>
                     </label>
-                    <div
-                        v-if="editing"
-                        class="flex h-8 items-center gap-2 rounded-lg border border-slate-200 bg-slate-100/70 px-3 text-[0.8rem] text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200"
-                    >
-                        <component :is="UNIT_TYPES[selectedUnit?.type]?.icon ?? Truck" class="size-3.5 shrink-0 text-slate-400 dark:text-brand-gray" />
-                        <span class="truncate">{{ selectedUnit?.label ?? '—' }}</span>
+                    <div class="relative">
+                        <input
+                            id="policy-project"
+                            :value="form.project"
+                            @input="toUpper('project', $event)"
+                            type="text"
+                            required
+                            autocomplete="off"
+                            placeholder="Nombre de la obra"
+                            :class="FIELD"
+                            :aria-invalid="Boolean(form.errors.project)"
+                        />
+                        <HardHat :class="ICON" />
                     </div>
-                    <FormSelect
-                        compact
-                        v-else
-                        id="policy-unit"
-                        v-model="form.unit_id"
-                        :options="unitOptions"
-                        :icon="Truck"
-                        placeholder="Selecciona una unidad"
-                        :invalid="Boolean(form.errors.unit_id)"
-                    />
-                    <p v-if="!editing && !units.length" class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">Todavía no hay unidades en flotillas.</p>
-                    <p v-if="form.errors.unit_id" :class="ERROR">{{ form.errors.unit_id }}</p>
+                    <p v-if="form.errors.project" :class="ERROR">{{ form.errors.project }}</p>
+                </div>
+
+                <div>
+                    <label for="policy-project-address" :class="LABEL">Dirección</label>
+                    <div class="relative">
+                        <input
+                            id="policy-project-address"
+                            :value="form.project_address"
+                            @input="toUpper('project_address', $event)"
+                            type="text"
+                            autocomplete="off"
+                            :class="FIELD"
+                            :aria-invalid="Boolean(form.errors.project_address)"
+                        />
+                        <MapPin :class="ICON" />
+                    </div>
+                    <p v-if="form.errors.project_address" :class="ERROR">{{ form.errors.project_address }}</p>
                 </div>
 
                 <div>
@@ -297,23 +317,6 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                         <FileCheck :class="ICON" />
                     </div>
                     <p v-if="form.errors.policy" :class="ERROR">{{ form.errors.policy }}</p>
-                </div>
-
-                <div>
-                    <label for="policy-certificate" :class="LABEL">Certificado</label>
-                    <div class="relative">
-                        <input
-                            id="policy-certificate"
-                            :value="form.certificate"
-                            @input="toUpper('certificate', $event)"
-                            type="text"
-                            autocomplete="off"
-                            :class="FIELD"
-                            :aria-invalid="Boolean(form.errors.certificate)"
-                        />
-                        <Hash :class="ICON" />
-                    </div>
-                    <p v-if="form.errors.certificate" :class="ERROR">{{ form.errors.certificate }}</p>
                 </div>
 
                 <div>
@@ -351,8 +354,7 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                     <p v-if="form.errors.coverage" :class="ERROR">{{ form.errors.coverage }}</p>
                 </div>
 
-                <!-- En la de obra, en lugar del endoso: el endoso USA/Canadá es para circular allá -->
-                <div v-if="construction">
+                <div>
                     <label for="policy-business" :class="LABEL">
                         Unidad de negocio
                         <span :class="REQUIRED">*</span>
@@ -371,58 +373,14 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                     </p>
                     <p v-if="form.errors.business_unit_id" :class="ERROR">{{ form.errors.business_unit_id }}</p>
                 </div>
-
-                <div v-else>
-                    <span id="policy-endorsement-label" :class="LABEL">Endoso</span>
-                    <!-- Interruptor: la perilla se desliza y el texto cambia con un fundido corto -->
-                    <button
-                        type="button"
-                        role="switch"
-                        :aria-checked="form.endorsement"
-                        aria-labelledby="policy-endorsement-label"
-                        class="group flex h-8 w-full cursor-pointer items-center gap-3 rounded-lg border px-3 text-left transition-[border-color,background-color] duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/15"
-                        :class="
-                            form.endorsement
-                                ? 'border-brand/30 bg-brand/[0.05] dark:border-white/25 dark:bg-white/[0.07]'
-                                : 'border-slate-200 bg-slate-50/70 hover:border-slate-300 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20'
-                        "
-                        @click="form.endorsement = !form.endorsement"
-                    >
-                        <span
-                            class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ease-out motion-reduce:transition-none"
-                            :class="form.endorsement ? 'bg-brand dark:bg-brand-light' : 'bg-slate-300 dark:bg-white/20'"
-                        >
-                            <span
-                                class="absolute left-0.5 size-4 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out motion-reduce:transition-none"
-                                :class="form.endorsement ? 'translate-x-4' : 'translate-x-0'"
-                            />
-                        </span>
-                        <Transition
-                            mode="out-in"
-                            enter-active-class="transition-opacity duration-150 ease-out motion-reduce:transition-none"
-                            enter-from-class="opacity-0"
-                            leave-active-class="transition-opacity duration-100 ease-in motion-reduce:transition-none"
-                            leave-to-class="opacity-0"
-                        >
-                            <span
-                                :key="String(form.endorsement)"
-                                class="text-[0.8rem] font-semibold"
-                                :class="form.endorsement ? 'text-brand dark:text-white' : 'text-slate-500 dark:text-brand-gray'"
-                            >
-                                {{ form.endorsement ? 'Con endoso USA/Canada' : 'Sin endoso USA/Canada' }}
-                            </span>
-                        </Transition>
-                    </button>
-                    <p v-if="form.errors.endorsement" :class="ERROR">{{ form.errors.endorsement }}</p>
-                </div>
             </div>
         </section>
 
-        <!-- Vigencia y cuotas -->
+        <!-- Vigencia y monto -->
         <section :class="CARD">
-            <p :class="SECTION_TITLE">Vigencia y cuotas</p>
+            <p :class="SECTION_TITLE">Vigencia y monto</p>
 
-            <div class="mt-2 grid gap-x-4 gap-y-2.5 lg:grid-cols-3">
+            <div class="mt-2 grid gap-x-4 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
                 <div>
                     <label for="policy-valid-from" :class="LABEL">
                         Inicio de vigencia
@@ -440,105 +398,157 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                         <CalendarDays :class="ICON" />
                     </div>
                     <p v-if="form.errors.valid_from" :class="ERROR">{{ form.errors.valid_from }}</p>
-                    <p v-else class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">
-                        {{ semesters ? `Vigencia: ${periodLabel({ starts_on: semesters.first.starts_on, ends_on: semesters.second.ends_on })}` : 'Dura un año, en dos semestres.' }}
-                    </p>
                 </div>
 
-                <!-- El costo se calcula de las dos cuotas, con IVA incluido -->
-                <div class="flex flex-col justify-center rounded-xl bg-slate-50/70 px-3.5 py-1.5 ring-1 ring-inset ring-slate-200/70 lg:col-span-2 dark:bg-white/[0.03] dark:ring-white/[0.06]">
-                    <p class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">Costo anual (IVA incluido)</p>
+                <!-- El fin se captura a mano. Con endosos lo mueve el último. -->
+                <div>
+                    <label for="policy-valid-until" :class="LABEL">
+                        Fin de vigencia
+                        <span :class="REQUIRED">*</span>
+                    </label>
+                    <div class="relative">
+                        <input
+                            id="policy-valid-until"
+                            v-model="form.valid_until"
+                            type="date"
+                            required
+                            :min="form.valid_from || undefined"
+                            :disabled="endorsed"
+                            :class="FIELD"
+                            :aria-invalid="Boolean(form.errors.valid_until)"
+                        />
+                        <CalendarCheck :class="ICON" />
+                    </div>
+                    <p v-if="form.errors.valid_until" :class="ERROR">{{ form.errors.valid_until }}</p>
+                    <p v-else-if="endorsed" class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">Lo marca el último endoso.</p>
+                </div>
+
+                <div>
+                    <label for="policy-amount" :class="LABEL">Monto (IVA incluido)</label>
+                    <div class="relative">
+                        <input
+                            id="policy-amount"
+                            v-model="form.amount"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            :class="[FIELD, 'tabular-nums']"
+                            :aria-invalid="Boolean(form.errors.amount)"
+                        />
+                        <CircleDollarSign :class="ICON" />
+                    </div>
+                    <p v-if="form.errors.amount" :class="ERROR">{{ form.errors.amount }}</p>
+                </div>
+
+                <!-- El desglose del monto: ya trae el IVA, no se le suma -->
+                <div class="flex flex-col justify-center rounded-xl bg-slate-50/70 px-3.5 py-1.5 ring-1 ring-inset ring-slate-200/70 dark:bg-white/[0.03] dark:ring-white/[0.06]">
+                    <p class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">Total a pagar</p>
                     <p class="text-lg leading-tight font-bold tabular-nums text-brand dark:text-white">{{ money(total) }}</p>
-                    <p class="text-[0.7rem] tabular-nums text-slate-500 dark:text-brand-gray">IVA {{ Math.round(TAX_RATE * 100) }}%: {{ money(tax) }} · Subtotal: {{ money(total - tax) }}</p>
+                    <p class="text-[0.7rem] tabular-nums text-slate-500 dark:text-brand-gray">Subtotal: {{ money(total - tax) }} · IVA {{ Math.round(TAX_RATE * 100) }}%: {{ money(tax) }}</p>
                 </div>
-            </div>
-
-            <div class="mt-2.5 grid gap-3 sm:grid-cols-2">
-                <article
-                    v-for="installment in INSTALLMENTS"
-                    :key="installment.key"
-                    class="rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.02]"
-                >
-                    <div class="mb-2 flex items-center justify-between gap-2">
-                        <p class="text-[0.8rem] font-bold text-slate-800 dark:text-white">{{ installment.title }}</p>
-                        <p class="text-[0.7rem] tabular-nums text-slate-500 dark:text-brand-gray">{{ semesters ? periodLabel(semesters[installment.key]) : '—' }}</p>
-                    </div>
-
-                    <div class="grid gap-x-3 gap-y-2.5 sm:grid-cols-2">
-                        <div>
-                            <label :for="`policy-${installment.key}-amount`" :class="LABEL">Importe</label>
-                            <div class="relative">
-                                <input
-                                    :id="`policy-${installment.key}-amount`"
-                                    v-model="form[`${installment.key}_payment_amount`]"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    placeholder="0.00"
-                                    :class="[FIELD, 'tabular-nums']"
-                                    :aria-invalid="Boolean(form.errors[`${installment.key}_payment_amount`])"
-                                />
-                                <CircleDollarSign :class="ICON" />
-                            </div>
-                            <p v-if="form.errors[`${installment.key}_payment_amount`]" :class="ERROR">{{ form.errors[`${installment.key}_payment_amount`] }}</p>
-                        </div>
-
-                        <div>
-                            <label :for="`policy-${installment.key}-due`" :class="LABEL">Fecha límite de pago</label>
-                            <div class="relative">
-                                <input
-                                    :id="`policy-${installment.key}-due`"
-                                    v-model="form[`${installment.key}_payment_due_on`]"
-                                    type="date"
-                                    :class="FIELD"
-                                    :aria-invalid="Boolean(form.errors[`${installment.key}_payment_due_on`])"
-                                />
-                                <CalendarClock :class="ICON" />
-                            </div>
-                            <p v-if="form.errors[`${installment.key}_payment_due_on`]" :class="ERROR">{{ form.errors[`${installment.key}_payment_due_on`] }}</p>
-                        </div>
-                    </div>
-                </article>
             </div>
         </section>
 
-        <!-- Cancelación y comentarios: una póliza nueva no llega cancelada, la cancelación solo al editar -->
+        <!-- Documentos y comentarios -->
         <section :class="CARD">
-            <p :class="SECTION_TITLE">{{ editing ? 'Cancelación y comentarios' : 'Comentarios' }}</p>
+            <p :class="SECTION_TITLE">Documentos y comentarios</p>
 
-            <div :class="['mt-2 grid gap-x-4 gap-y-2.5', editing && 'lg:grid-cols-2']">
-                <div v-if="editing" class="grid content-start gap-x-4 gap-y-2.5 sm:grid-cols-2">
-                    <div>
-                        <label for="policy-cancel-requested" :class="LABEL">Solicitud de cancelación</label>
-                        <!-- No se captura a mano: la llenará el flujo de solicitar cancelación -->
-                        <div class="relative">
-                            <input
-                                id="policy-cancel-requested"
-                                :value="form.cancellation_requested_on"
-                                type="date"
-                                disabled
-                                :class="FIELD"
+            <div class="mt-2 grid gap-4 lg:grid-cols-2">
+                <div>
+                    <span :class="LABEL">Documentos</span>
+
+                    <button
+                        type="button"
+                        class="flex h-24 w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 bg-slate-50/70 px-4 text-center transition-colors duration-150 hover:border-brand/40 hover:bg-brand/[0.03] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/15 dark:border-white/15 dark:bg-white/[0.03] dark:hover:border-white/30 dark:hover:bg-white/[0.06]"
+                        @click="fileInput?.click()"
+                    >
+                        <Paperclip class="size-4 text-slate-400 dark:text-brand-gray" />
+                        <span class="text-[0.78rem] font-semibold text-slate-700 dark:text-slate-200">Elegir archivos</span>
+                        <span class="text-[0.7rem] text-slate-400 dark:text-brand-gray/70">
+                            PDF, Word, Excel, imágenes o XML · hasta 10 archivos de 10 MB
+                            <template v-if="editing"> · se suman a los que ya tiene</template>
+                        </span>
+                    </button>
+
+                    <input ref="fileInput" type="file" multiple :accept="ACCEPT" class="hidden" @change="addFiles" />
+
+                    <!-- Una tarjeta por archivo, en fila; las que no caben bajan a la siguiente -->
+                    <ul v-if="fileCards.length" class="mt-2 flex flex-wrap gap-2">
+                        <li
+                            v-for="card in fileCards"
+                            :key="card.key"
+                            class="relative flex h-28 w-24 flex-col items-center gap-1.5 rounded-xl border px-2 pt-3 pb-2 text-center transition-opacity duration-150"
+                            :class="[
+                                card.removed
+                                    ? 'border-dashed border-red-300 bg-red-50/60 opacity-60 dark:border-red-500/30 dark:bg-red-500/[0.06]'
+                                    : card.error
+                                      ? 'border-red-400 bg-white ring-2 ring-red-500/15 dark:border-red-400/60 dark:bg-white/[0.03]'
+                                      : 'border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.03]',
+                            ]"
+                            :title="card.name"
+                        >
+                            <!-- Toda la tarjeta abre la vista previa; la X queda encima -->
+                            <button
+                                type="button"
+                                class="absolute inset-0 cursor-pointer rounded-xl transition-colors hover:bg-slate-900/[0.03] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/15 dark:hover:bg-white/[0.04]"
+                                :aria-label="`Ver ${card.name}`"
+                                @click="openPreview(card)"
                             />
-                            <CalendarClock :class="ICON" />
-                        </div>
-                    </div>
 
-                    <div>
-                        <label for="policy-cancelled" :class="LABEL">Fecha de cancelación</label>
-                        <div class="relative">
-                            <input
-                                id="policy-cancelled"
-                                v-model="form.cancelled_on"
-                                type="date"
-                                :class="FIELD"
-                                :aria-invalid="Boolean(form.errors.cancelled_on)"
+                            <!-- Punto de marca: todavía no se sube -->
+                            <span
+                                v-if="!card.saved"
+                                class="pointer-events-none absolute top-1.5 left-1.5 size-1.5 rounded-full bg-brand dark:bg-brand-gray"
+                                title="Por subir"
                             />
-                            <Ban :class="ICON" />
-                        </div>
-                        <p v-if="form.errors.cancelled_on" :class="ERROR">{{ form.errors.cancelled_on }}</p>
-                    </div>
 
-                    <p class="text-[0.7rem] text-slate-400 sm:col-span-2 dark:text-brand-gray/70">Solo si se pidió cancelarla. Cancelada ya no se cobran las cuotas pendientes.</p>
+                            <img
+                                v-if="card.preview"
+                                :src="card.preview"
+                                alt=""
+                                class="size-10 shrink-0 rounded-lg object-cover ring-1 ring-slate-200 dark:ring-white/10"
+                            />
+                            <span v-else class="grid size-10 shrink-0 place-content-center rounded-lg" :class="card.kind.tile">
+                                <component :is="card.kind.icon" class="size-5" />
+                            </span>
+
+                            <span
+                                class="line-clamp-2 w-full text-[0.66rem] leading-tight font-medium break-all text-slate-700 dark:text-slate-200"
+                                :class="{ 'line-through': card.removed }"
+                            >
+                                {{ card.name }}
+                            </span>
+
+                            <span class="mt-auto text-[0.6rem] tabular-nums text-slate-400 dark:text-brand-gray/70">
+                                <span class="font-bold">{{ card.extension }}</span> · {{ fileSize(card.size) }}
+                            </span>
+
+                            <button
+                                type="button"
+                                class="absolute top-1 right-1 z-[1] grid size-5 cursor-pointer place-content-center rounded text-slate-400 transition-colors"
+                                :class="
+                                    card.removed
+                                        ? 'hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white'
+                                        : 'hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-300'
+                                "
+                                :aria-label="card.removed ? `Conservar ${card.name}` : `Quitar ${card.name}`"
+                                @click="toggleCard(card)"
+                            >
+                                <RotateCcw v-if="card.removed" class="size-3.5" />
+                                <X v-else class="size-3.5" />
+                            </button>
+                        </li>
+                    </ul>
+
+                    <p v-if="rejected.length" :class="ERROR">
+                        No se agregó {{ rejected.join(', ') }}: solo PDF, Word, Excel, imágenes (JPG, PNG, WEBP) o XML.
+                    </p>
+                    <p v-if="duplicated.length" :class="ERROR">Ya está en la lista: {{ duplicated.join(', ') }}.</p>
+
+                    <template v-for="(error, key) in form.errors" :key="key">
+                        <p v-if="String(key).startsWith('documents')" :class="ERROR">{{ error }}</p>
+                    </template>
                 </div>
 
                 <div>
@@ -548,7 +558,7 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                             id="policy-comments"
                             :value="form.comments"
                             @input="toUpper('comments', $event)"
-                            rows="2"
+                            rows="5"
                             placeholder="Observaciones de la póliza…"
                             :class="[FIELD, 'h-auto resize-y py-2 leading-relaxed']"
                             :aria-invalid="Boolean(form.errors.comments)"
@@ -578,5 +588,8 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                 {{ editing ? 'Guardar cambios' : 'Guardar póliza' }}
             </button>
         </div>
+
+        <!-- Vive en un portal: dentro del form solo para que el componente tenga una sola raíz -->
+        <FilePreviewDialog v-model:open="previewOpen" :file="previewFile" />
     </form>
 </template>

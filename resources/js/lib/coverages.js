@@ -6,15 +6,10 @@ export const COVERAGE_TYPES = {
     bond: { label: 'Fianza', plural: 'Fianzas', tone: 'bg-violet-50 text-violet-700 dark:bg-violet-400/10 dark:text-violet-300' },
 };
 
-/** Qué asegura la póliza: una unidad o una obra. Igual que UnitPolicy::KINDS. */
-export const POLICY_KINDS = {
-    vehicle: { label: 'Vehicular' },
-    construction: { label: 'De obra' },
-};
-
 /**
- * Qué cubre la póliza. Igual que UnitPolicy::COVERAGES: las cuatro primeras son
- * de las vehiculares (las mismas para vehículos y maquinaria), las otras de obra.
+ * Qué cubre la póliza. Las cuatro primeras son de las vehiculares (las mismas
+ * para vehículos y maquinaria, UnitPolicy::COVERAGES), las cuatro siguientes
+ * de obra (ConstructionPolicy::COVERAGES) y la última de maquinaria.
  */
 export const POLICY_COVERAGES = {
     civil_liability: 'RESPONSABILIDAD CIVIL',
