@@ -25,6 +25,7 @@ export const POLICY_COVERAGES = {
     construction_liability: 'RESPONSABILIDAD CIVIL DE CONSTRUCCIÓN',
     erection: 'SEGURO DE MONTAJE',
     machinery_equipment: 'MAQUINARIA Y EQUIPO',
+    contractors_equipment: 'EQUIPO DE CONTRATISTAS',
 };
 
 /** Categoría de la fianza. Igual que Bond::CATEGORIES. */

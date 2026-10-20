@@ -1,31 +1,62 @@
 <script setup>
 import { Link, useForm } from '@inertiajs/vue3';
-import { Building2, Hash, Loader2, MessageSquareText, Paperclip, RotateCcw, Save, ScanLine, Truck, User, X } from 'lucide-vue-next';
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
+import {
+    Building2,
+    CalendarDays,
+    CircleDollarSign,
+    FileCheck,
+    Hash,
+    Landmark,
+    Loader2,
+    MessageSquareText,
+    Paperclip,
+    RotateCcw,
+    Save,
+    ScanLine,
+    ShieldCheck,
+    Truck,
+    User,
+    X,
+} from 'lucide-vue-next';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import FilePreviewDialog from '@/components/app/FilePreviewDialog.vue';
 import FormSelect from '@/components/app/FormSelect.vue';
+import FormSwitch from '@/components/app/FormSwitch.vue';
+import PolicySourceFields from '@/components/app/PolicySourceFields.vue';
+import { POLICY_COVERAGES } from '@/lib/coverages';
 import { ACCEPT, FILE_KINDS, extensionOf, fileSize, kindOf } from '@/lib/files';
-import { UNIT_STATUS, UNIT_TYPES } from '@/lib/units';
+import { SEMESTER_MONTHS, UNIT_STATUS, addMonths, fleetListUrl, money, periodLabel } from '@/lib/units';
 
 /**
- * El formulario de la unidad, el mismo para el alta y la edición: solo cambia
- * de dónde salen los valores iniciales y a qué ruta se envía.
+ * El formulario de la unidad con su póliza vehicular, el mismo para el alta y
+ * la edición: solo cambia de dónde salen los valores iniciales y a qué ruta se
+ * envía. La póliza es obligatoria; aquí no se registran pagos.
+ *
+ * La empresarial dura un año en dos semestres; la del proveedor trae su
+ * propia vigencia y un pago único anual (en los campos del primer pago).
  */
 const props = defineProps({
-    /** null = alta · unidad cargada = edición. */
+    /** null = alta · unidad cargada (con su póliza vigente) = edición. */
     unit: { type: Object, default: null },
     /** Catálogo: [{ id, name }]. Puede venir vacío si nadie lo ha llenado. */
     businessUnits: { type: Array, default: () => [] },
     /** Valores del enum `status`, tal como los acepta el servidor. */
     statuses: { type: Array, default: () => [] },
-    /** Valores del enum `type`: vehículo o maquinaria. */
-    types: { type: Array, default: () => [] },
+    /** Coberturas de la póliza vehicular, del enum `coverage`. */
+    coverages: { type: Array, default: () => [] },
+    /** En el alta: con qué origen abre la póliza. */
+    initialSource: { type: String, default: 'corporate' },
 });
+
+/** IVA incluido en los importes. Igual que UnitPolicy::TAX_RATE. */
+const TAX_RATE = 0.16;
 
 const editing = computed(() => props.unit !== null);
 
 const form = useForm({
     business_unit_id: props.unit?.business_unit_id ?? '',
+    // El tipo se elige antes de abrir el formulario: aquí siempre es automóvil,
+    // salvo las máquinas que se capturaron antes con este formulario.
     type: props.unit?.type ?? 'vehicle',
     brand: (props.unit?.brand ?? '').toUpperCase(),
     model: (props.unit?.model ?? '').toUpperCase(),
@@ -35,17 +66,112 @@ const form = useForm({
     responsible: (props.unit?.responsible ?? '').toUpperCase(),
     status: props.unit?.status ?? 'active',
     comments: props.unit?.comments ?? '',
+    // La póliza vigente.
+    policy: (props.unit?.policy ?? '').toUpperCase(),
+    certificate: (props.unit?.certificate ?? '').toUpperCase(),
+    // Por ahora todas las vehiculares son con Zurich; se puede cambiar.
+    insurer: (props.unit?.insurer ?? (props.initialSource === 'supplier' ? '' : 'ZURICH')).toUpperCase(),
+    coverage: props.unit?.coverage ?? '',
+    endorsement: props.unit?.endorsement ?? false,
+    financing: props.unit?.financing ?? props.initialSource === 'supplier',
+    valid_from: props.unit?.valid_from ?? '',
+    valid_until: props.unit?.source === 'supplier' ? (props.unit?.valid_until ?? '') : '',
+    source: props.unit?.source ?? props.initialSource,
+    supplier: (props.unit?.supplier ?? '').toUpperCase(),
+    first_payment_amount: props.unit?.first_payment_amount ?? '',
+    second_payment_amount: props.unit?.second_payment_amount ?? '',
     evidences: [],
     // Ids de las evidencias que ya estaban y se quitan al guardar.
     remove_evidences: [],
 });
 
+/* ---------- Póliza ---------- */
+
+const coverageOptions = computed(() => props.coverages.map((value) => ({ value, label: POLICY_COVERAGES[value] ?? value })));
+
+const fromSupplier = computed(() => form.source === 'supplier');
+
+/**
+ * Zurich es la aseguradora de las empresariales; con beneficiario preferente
+ * la elige el proveedor. Al prender el beneficiario se deja libre; al apagarlo
+ * vuelve a Zurich, aunque se haya escrito otra. Después se puede cambiar.
+ */
+watch(
+    () => form.source,
+    (source) => {
+        if (source === 'supplier' && form.insurer === 'ZURICH') form.insurer = '';
+        if (source === 'corporate') form.insurer = 'ZURICH';
+    },
+);
+
+/** Pesos con centavos, sin arrastrar decimales de la división. */
+const cents = (amount) => Math.round(amount * 100) / 100;
+
+/**
+ * Al cambiar de origen se pasa lo capturado al otro esquema:
+ *  - A preferente: la vigencia corre del inicio del primer semestre al fin del
+ *    segundo y el pago único es la suma de los dos semestres.
+ *  - A empresarial: los semestres se calculan desde el inicio (un año, aunque
+ *    la preferente durara más) y el pago único se parte en dos.
+ */
+watch(
+    () => form.source,
+    (source) => {
+        const first = Number(form.first_payment_amount) || 0;
+        const second = Number(form.second_payment_amount) || 0;
+
+        if (source === 'supplier') {
+            form.valid_until = semesters.value ? semesters.value.second.ends_on : '';
+            form.first_payment_amount = first || second ? cents(first + second) : '';
+            form.second_payment_amount = '';
+
+            return;
+        }
+
+        form.valid_until = '';
+
+        if (first) {
+            form.first_payment_amount = cents(first / 2);
+            form.second_payment_amount = cents(first - cents(first / 2));
+        }
+    },
+);
+
+/** Los dos interruptores de la póliza: se capturan igual. */
+const SWITCHES = {
+    financing: { label: 'Financiamiento', on: 'Con financiamiento', off: 'Sin financiamiento' },
+    endorsement: { label: 'Endoso', on: 'Con endoso USA/Canada', off: 'Sin endoso USA/Canada' },
+};
+
+/** Los dos semestres, como los calcula el servidor. */
+const semesters = computed(() => {
+    if (!form.valid_from) return null;
+
+    const middle = addMonths(form.valid_from, SEMESTER_MONTHS);
+
+    return {
+        first: { starts_on: form.valid_from, ends_on: middle },
+        second: { starts_on: middle, ends_on: addMonths(middle, SEMESTER_MONTHS) },
+    };
+});
+
+/** Costo anual: los dos semestres, o en la del proveedor su pago único (en el primero). */
+const total = computed(() => (Number(form.first_payment_amount) || 0) + (fromSupplier.value ? 0 : Number(form.second_payment_amount) || 0));
+
+const tax = computed(() => Math.round(((total.value * TAX_RATE) / (1 + TAX_RATE)) * 100) / 100);
+
+const SEMESTERS = [
+    { key: 'first', title: 'Primer semestre' },
+    { key: 'second', title: 'Segundo semestre' },
+];
+
 /* ---------- Mayúsculas ---------- */
 
 /**
- * Marca, modelo, placa y responsable van siempre en mayúsculas, tenga o no
- * activo el bloq mayús: se convierten mientras escribe. El cursor se deja
- * donde estaba para que corregir a media palabra no lo mande al final.
+ * Marca, modelo, placa, asignación, póliza, certificado y aseguradora van
+ * siempre en mayúsculas, tenga o no activo el bloq mayús: se convierten
+ * mientras escribe. El cursor se deja donde estaba para que corregir a media
+ * palabra no lo mande al final.
  */
 function toUpper(field, event) {
     const input = event.target;
@@ -193,10 +319,10 @@ function openPreview(card) {
 
 // Con su punto de color: el estado se reconoce antes de leerlo.
 const statusOptions = computed(() =>
-    props.statuses.map((value) => ({ value, label: UNIT_STATUS[value]?.label ?? value, dot: UNIT_STATUS[value]?.dot })),
+    props.statuses.map((value) => ({ value, label: (UNIT_STATUS[value]?.label ?? value).toUpperCase(), dot: UNIT_STATUS[value]?.dot })),
 );
 
-const businessUnitOptions = computed(() => props.businessUnits.map(({ id, name }) => ({ value: id, label: name })));
+const businessUnitOptions = computed(() => props.businessUnits.map(({ id, name }) => ({ value: id, label: name.toUpperCase() })));
 
 function submit() {
     // Vacío viaja como null para que la base guarde «sin dato» y no una cadena
@@ -238,37 +364,7 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
     <form id="unit-form" class="flex flex-col gap-3 tall:gap-4" novalidate @submit.prevent="submit">
         <!-- Vehículo -->
         <section :class="CARD">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <p :class="SECTION_TITLE">Unidad</p>
-
-                <!-- Tipo de unidad: se elige, no se escribe -->
-                <div>
-                    <div
-                        class="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/[0.05]"
-                        role="radiogroup"
-                        aria-label="Tipo de unidad"
-                    >
-                        <button
-                            v-for="value in types"
-                            :key="value"
-                            type="button"
-                            role="radio"
-                            :aria-checked="form.type === value"
-                            class="inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3 text-[0.75rem] font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25"
-                            :class="
-                                form.type === value
-                                    ? 'bg-white text-brand shadow-sm dark:bg-white/15 dark:text-white'
-                                    : 'text-slate-500 hover:text-slate-800 dark:text-brand-gray dark:hover:text-white'
-                            "
-                            @click="form.type = value"
-                        >
-                            <component :is="UNIT_TYPES[value]?.icon" class="size-3.5" />
-                            {{ UNIT_TYPES[value]?.label ?? value }}
-                        </button>
-                    </div>
-                    <p v-if="form.errors.type" :class="ERROR">{{ form.errors.type }}</p>
-                </div>
-            </div>
+            <p :class="SECTION_TITLE">Unidad</p>
 
             <div class="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
@@ -374,7 +470,7 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
 
                 <div>
                     <label for="unit-responsible" :class="LABEL">
-                        Responsable
+                        Asignación
                         <span class="font-normal text-red-500 dark:text-red-400">*</span>
                     </label>
                     <div class="relative">
@@ -427,6 +523,235 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                     </p>
                     <p v-if="form.errors.business_unit_id" :class="ERROR">{{ form.errors.business_unit_id }}</p>
                 </div>
+            </div>
+        </section>
+
+        <!-- Póliza vehicular: obligatoria, va con la unidad -->
+        <section :class="CARD">
+            <p :class="SECTION_TITLE">Póliza</p>
+
+            <!-- Primero quién manda en la póliza: el financiamiento y, con él, el beneficiario preferente y su proveedor -->
+            <PolicySourceFields :form="form" prefix="unit" vehicle class="mt-3">
+                <FormSwitch
+                    id="unit-financing"
+                    v-model="form.financing"
+                    :label="SWITCHES.financing.label"
+                    :on="SWITCHES.financing.on"
+                    :off="SWITCHES.financing.off"
+                    :error="form.errors.financing"
+                />
+            </PolicySourceFields>
+
+            <!-- Luego la póliza: con quién, su número y qué cubre -->
+            <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                    <label for="unit-insurer" :class="LABEL">Aseguradora</label>
+                    <div class="relative">
+                        <input
+                            id="unit-insurer"
+                            :value="form.insurer"
+                            @input="toUpper('insurer', $event)"
+                            type="text"
+                            autocomplete="off"
+                            placeholder="Ej. QUALITAS"
+                            :class="FIELD"
+                            :aria-invalid="Boolean(form.errors.insurer)"
+                        />
+                        <Landmark :class="ICON" />
+                    </div>
+                    <p v-if="form.errors.insurer" :class="ERROR">{{ form.errors.insurer }}</p>
+                </div>
+
+                <div>
+                    <label for="unit-policy" :class="LABEL">
+                        Número de póliza
+                        <span class="font-normal text-red-500 dark:text-red-400">*</span>
+                    </label>
+                    <div class="relative">
+                        <input
+                            id="unit-policy"
+                            :value="form.policy"
+                            @input="toUpper('policy', $event)"
+                            type="text"
+                            required
+                            autocomplete="off"
+                            placeholder="Ej. POL-2026-0148"
+                            :class="FIELD"
+                            :aria-invalid="Boolean(form.errors.policy)"
+                        />
+                        <FileCheck :class="ICON" />
+                    </div>
+                    <p v-if="form.errors.policy" :class="ERROR">{{ form.errors.policy }}</p>
+                </div>
+
+                <div>
+                    <label for="unit-certificate" :class="LABEL">Certificado</label>
+                    <div class="relative">
+                        <input
+                            id="unit-certificate"
+                            :value="form.certificate"
+                            @input="toUpper('certificate', $event)"
+                            type="text"
+                            autocomplete="off"
+                            :class="FIELD"
+                            :aria-invalid="Boolean(form.errors.certificate)"
+                        />
+                        <Hash :class="ICON" />
+                    </div>
+                    <p v-if="form.errors.certificate" :class="ERROR">{{ form.errors.certificate }}</p>
+                </div>
+
+                <div>
+                    <label for="unit-coverage" :class="LABEL">
+                        Cobertura
+                        <span class="font-normal text-red-500 dark:text-red-400">*</span>
+                    </label>
+                    <FormSelect
+                        id="unit-coverage"
+                        v-model="form.coverage"
+                        :options="coverageOptions"
+                        :icon="ShieldCheck"
+                        placeholder="Selecciona la cobertura"
+                        :invalid="Boolean(form.errors.coverage)"
+                    />
+                    <p v-if="form.errors.coverage" :class="ERROR">{{ form.errors.coverage }}</p>
+                </div>
+
+                <FormSwitch
+                    id="unit-endorsement"
+                    v-model="form.endorsement"
+                    :label="SWITCHES.endorsement.label"
+                    :on="SWITCHES.endorsement.on"
+                    :off="SWITCHES.endorsement.off"
+                    :error="form.errors.endorsement"
+                />
+            </div>
+        </section>
+
+        <!-- Del proveedor: su vigencia tal cual, sin semestres, y un pago único anual -->
+        <section v-if="fromSupplier" :class="CARD">
+            <p :class="SECTION_TITLE">Vigencia y pago</p>
+
+            <div class="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                    <label for="unit-supplier-from" :class="LABEL">
+                        Inicio de vigencia
+                        <span class="font-normal text-red-500 dark:text-red-400">*</span>
+                    </label>
+                    <div class="relative">
+                        <input id="unit-supplier-from" v-model="form.valid_from" type="date" required :class="FIELD" :aria-invalid="Boolean(form.errors.valid_from)" />
+                        <CalendarDays :class="ICON" />
+                    </div>
+                    <p v-if="form.errors.valid_from" :class="ERROR">{{ form.errors.valid_from }}</p>
+                </div>
+
+                <div>
+                    <label for="unit-supplier-until" :class="LABEL">
+                        Fin de vigencia
+                        <span class="font-normal text-red-500 dark:text-red-400">*</span>
+                    </label>
+                    <div class="relative">
+                        <input
+                            id="unit-supplier-until"
+                            v-model="form.valid_until"
+                            type="date"
+                            required
+                            :min="form.valid_from || undefined"
+                            :class="FIELD"
+                            :aria-invalid="Boolean(form.errors.valid_until)"
+                        />
+                        <CalendarDays :class="ICON" />
+                    </div>
+                    <p v-if="form.errors.valid_until" :class="ERROR">{{ form.errors.valid_until }}</p>
+                    <p v-else class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">La que dé el proveedor: puede ser de más de un año.</p>
+                </div>
+
+                <div>
+                    <label for="unit-supplier-amount" :class="LABEL">Monto a pagar</label>
+                    <div class="relative">
+                        <input
+                            id="unit-supplier-amount"
+                            v-model="form.first_payment_amount"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            :class="[FIELD, 'tabular-nums']"
+                            :aria-invalid="Boolean(form.errors.first_payment_amount)"
+                        />
+                        <CircleDollarSign :class="ICON" />
+                    </div>
+                    <p v-if="form.errors.first_payment_amount" :class="ERROR">{{ form.errors.first_payment_amount }}</p>
+                    <p v-else class="mt-1 text-[0.7rem] tabular-nums text-slate-400 dark:text-brand-gray/70">
+                        <template v-if="total">IVA {{ Math.round(TAX_RATE * 100) }}%: {{ money(tax) }} · Subtotal: {{ money(total - tax) }}</template>
+                        <template v-else>Pago único anual, IVA incluido.</template>
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Vigencia semestral y costo anual -->
+        <section v-else :class="CARD">
+            <p :class="SECTION_TITLE">Vigencia y costo</p>
+
+            <div class="mt-3 grid gap-4 lg:grid-cols-3">
+                <div>
+                    <label for="unit-valid-from" :class="LABEL">
+                        Inicio de vigencia
+                        <span class="font-normal text-red-500 dark:text-red-400">*</span>
+                    </label>
+                    <div class="relative">
+                        <input
+                            id="unit-valid-from"
+                            v-model="form.valid_from"
+                            type="date"
+                            required
+                            :class="FIELD"
+                            :aria-invalid="Boolean(form.errors.valid_from)"
+                        />
+                        <CalendarDays :class="ICON" />
+                    </div>
+                    <p v-if="form.errors.valid_from" :class="ERROR">{{ form.errors.valid_from }}</p>
+                    <p v-else class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">
+                        {{ semesters ? `Vigencia: ${periodLabel({ starts_on: semesters.first.starts_on, ends_on: semesters.second.ends_on })}` : 'Dura un año, en dos semestres.' }}
+                    </p>
+                </div>
+
+                <!-- El costo se calcula de los dos semestres, con IVA incluido -->
+                <div class="flex flex-col justify-center rounded-xl bg-slate-50/70 px-3.5 py-2 ring-1 ring-inset ring-slate-200/70 lg:col-span-2 dark:bg-white/[0.03] dark:ring-white/[0.06]">
+                    <p class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">Costo anual (IVA incluido)</p>
+                    <p class="text-lg leading-tight font-bold tabular-nums text-brand dark:text-white">{{ money(total) }}</p>
+                    <p class="text-[0.7rem] tabular-nums text-slate-500 dark:text-brand-gray">IVA {{ Math.round(TAX_RATE * 100) }}%: {{ money(tax) }} · Subtotal: {{ money(total - tax) }}</p>
+                </div>
+            </div>
+
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                <article
+                    v-for="semester in SEMESTERS"
+                    :key="semester.key"
+                    class="rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.02]"
+                >
+                    <div class="mb-2 flex items-center justify-between gap-2">
+                        <p class="text-[0.8rem] font-bold text-slate-800 dark:text-white">{{ semester.title }}</p>
+                        <p class="text-[0.7rem] tabular-nums text-slate-500 dark:text-brand-gray">{{ semesters ? periodLabel(semesters[semester.key]) : '—' }}</p>
+                    </div>
+
+                    <label :for="`unit-${semester.key}-amount`" :class="LABEL">Importe</label>
+                    <div class="relative">
+                        <input
+                            :id="`unit-${semester.key}-amount`"
+                            v-model="form[`${semester.key}_payment_amount`]"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            :class="[FIELD, 'tabular-nums']"
+                            :aria-invalid="Boolean(form.errors[`${semester.key}_payment_amount`])"
+                        />
+                        <CircleDollarSign :class="ICON" />
+                    </div>
+                    <p v-if="form.errors[`${semester.key}_payment_amount`]" :class="ERROR">{{ form.errors[`${semester.key}_payment_amount`] }}</p>
+                </article>
             </div>
         </section>
 
@@ -535,13 +860,13 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                 </div>
 
                 <div>
-                    <label for="unit-comments" :class="LABEL">Comentarios / financiamiento</label>
+                    <label for="unit-comments" :class="LABEL">Comentarios</label>
                     <div class="relative">
                         <textarea
                             id="unit-comments"
                             v-model="form.comments"
                             rows="6"
-                            placeholder="Arrendadora, plazo, número de contrato, observaciones…"
+                            placeholder="Observaciones de la unidad y su póliza…"
                             :class="[FIELD, 'h-auto resize-y py-2 leading-relaxed']"
                             :aria-invalid="Boolean(form.errors.comments)"
                         />
@@ -555,7 +880,7 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
         <!-- Acciones: al final del formulario, no flotando -->
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Link
-                href="/flotillas"
+                :href="fleetListUrl(unit?.source ?? initialSource)"
                 class="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-[0.8rem] font-semibold text-slate-700 transition-colors duration-150 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-500/10 dark:border-white/10 dark:bg-transparent dark:text-brand-gray dark:hover:bg-white/[0.06] dark:hover:text-white"
             >
                 Cancelar

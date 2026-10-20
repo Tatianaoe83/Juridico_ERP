@@ -10,17 +10,27 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 /**
  * Unidad de la flotilla: el vehículo. La póliza y sus pagos van por periodo
  * en UnitPolicy, porque se renuevan cada año y la unidad sigue siendo la misma.
+ *
+ * La máquina es al revés: varias comparten una póliza de maquinaria, a la que
+ * apunta con unit_policy_id.
  */
 class Unit extends Model
 {
     /** Los mismos valores que el enum de la columna `status`. */
     public const STATUSES = ['active', 'maintenance', 'inactive'];
 
+    public const VEHICLE = 'vehicle';
+
+    public const MACHINERY = 'machinery';
+
     /** Los mismos valores que el enum de la columna `type`: vehículo o maquinaria. */
-    public const TYPES = ['vehicle', 'machinery'];
+    public const TYPES = [self::VEHICLE, self::MACHINERY];
 
     /** Campos que se guardan siempre en mayúsculas. */
     public const UPPERCASE = ['brand', 'model', 'plate', 'responsible'];
+
+    /** Los de la máquina que se guardan siempre en mayúsculas. */
+    public const MACHINE_UPPERCASE = ['machine_type', 'brand', 'model'];
 
     /** Días antes del pago en que la unidad entra en «por vencer». */
     public const WARNING_DAYS = 30;
@@ -49,6 +59,12 @@ class Unit extends Model
         return $this->hasOne(UnitPolicy::class)->ofMany(
             ['first_payment_starts_on' => 'max', 'id' => 'max'],
         );
+    }
+
+    /** Solo en máquinas: la póliza de maquinaria que la cubre. */
+    public function machineryPolicy(): BelongsTo
+    {
+        return $this->belongsTo(UnitPolicy::class, 'unit_policy_id');
     }
 
     /** A qué unidad de negocio pertenece. */

@@ -3,20 +3,22 @@ import { Head, Link } from '@inertiajs/vue3';
 import { ArrowLeft, Truck } from 'lucide-vue-next';
 import AppShell from '@/Layouts/AppShell.vue';
 import UnitForm from '@/components/app/UnitForm.vue';
-import { unitStatus } from '@/lib/units';
+import { fleetListUrl, unitStatus } from '@/lib/units';
 
 const props = defineProps({
     /** La unidad con sus valores tal como se capturan, más sus evidencias. */
     unit: { type: Object, required: true },
     businessUnits: { type: Array, default: () => [] },
     statuses: { type: Array, default: () => [] },
-    /** Valores del enum `type`: vehículo o maquinaria. */
-    types: { type: Array, default: () => [] },
+    /** Coberturas de la póliza vehicular. */
+    coverages: { type: Array, default: () => [] },
 });
+
+const listUrl = fleetListUrl(props.unit.source);
 
 const breadcrumbs = [
     { label: 'Inicio', href: '/calendario' },
-    { label: 'Flotillas', href: '/flotillas' },
+    { label: 'Flotillas', href: listUrl },
     { label: `${props.unit.brand} ${props.unit.model}` },
 ];
 </script>
@@ -49,7 +51,7 @@ const breadcrumbs = [
                 </div>
 
                 <Link
-                    href="/flotillas"
+                    :href="listUrl"
                     class="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[0.8rem] font-semibold text-slate-700 transition-colors duration-150 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-500/10 dark:border-white/10 dark:bg-transparent dark:text-brand-gray dark:hover:bg-white/[0.06] dark:hover:text-white"
                 >
                     <ArrowLeft class="size-4" />
@@ -57,7 +59,7 @@ const breadcrumbs = [
                 </Link>
             </div>
 
-            <UnitForm :unit="unit" :business-units="businessUnits" :statuses="statuses" :types="types" />
+            <UnitForm :unit="unit" :business-units="businessUnits" :statuses="statuses" :coverages="coverages" />
         </div>
     </AppShell>
 </template>

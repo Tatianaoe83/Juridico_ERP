@@ -9,6 +9,7 @@ use App\Http\Controllers\Web\EventController;
 use App\Http\Controllers\Web\FleetController;
 use App\Http\Controllers\Web\LicenseController;
 use App\Http\Controllers\Web\LicenseNotificationController;
+use App\Http\Controllers\Web\MachineryController;
 use App\Http\Controllers\Web\PermissionController;
 use App\Http\Controllers\Web\PolicyController;
 use App\Http\Controllers\Web\RoleController;
@@ -106,6 +107,23 @@ Route::middleware('auth')->group(function () {
     Route::post('/flotillas', [FleetController::class, 'store'])
         ->middleware('can:flotillas.create')
         ->name('fleets.store');
+    // Maquinaria: una póliza con varias máquinas. Van antes de /flotillas/{unit}
+    // para que «maquinaria» no entre como {unit}.
+    Route::post('/flotillas/maquinaria', [MachineryController::class, 'store'])
+        ->middleware('can:flotillas.create')
+        ->name('fleets.machinery.store');
+    Route::get('/flotillas/maquinaria/{policy}', [MachineryController::class, 'show'])
+        ->middleware('can:flotillas.view')
+        ->name('fleets.machinery.show');
+    Route::get('/flotillas/maquinaria/{policy}/editar', [MachineryController::class, 'edit'])
+        ->middleware('can:flotillas.update')
+        ->name('fleets.machinery.edit');
+    Route::patch('/flotillas/maquinaria/{policy}', [MachineryController::class, 'update'])
+        ->middleware('can:flotillas.update')
+        ->name('fleets.machinery.update');
+    Route::delete('/flotillas/maquinaria/{policy}', [MachineryController::class, 'destroy'])
+        ->middleware('can:flotillas.delete')
+        ->name('fleets.machinery.destroy');
     // Va después de /flotillas/crear: si no, «crear» entraría como {unit}.
     Route::get('/flotillas/{unit}', [FleetController::class, 'show'])
         ->middleware('can:flotillas.view')

@@ -1,4 +1,4 @@
-import { Car, CircleCheck, CircleSlash, Tractor, Wrench } from 'lucide-vue-next';
+import { Car, CircleCheck, CircleSlash, Tractor, UserCheck, Wrench } from 'lucide-vue-next';
 import { localDate } from '@/lib/licenses';
 
 /**
@@ -31,27 +31,11 @@ export const UNIT_STATUS = {
 
 /** Valores del enum `type` de units → etiqueta e icono. Igual que Unit::TYPES. */
 export const UNIT_TYPES = {
-    vehicle: { label: 'Vehículo', icon: Car },
+    vehicle: { label: 'Automóvil', icon: Car },
     machinery: { label: 'Maquinaria', icon: Tractor },
 };
 
 const NEUTRAL_TONE = 'bg-slate-50 text-slate-600 ring-slate-500/15 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10';
-
-/** Cómo va un pago. Igual que UnitPolicy::paymentStatus() y annualStatus(). */
-export const PAYMENT_STATUS = {
-    paid: {
-        label: 'Al día',
-        tone: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/25',
-    },
-    pending: {
-        label: 'Pendiente',
-        tone: 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/25',
-    },
-    overdue: {
-        label: 'Vencido',
-        tone: 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-400/10 dark:text-red-300 dark:ring-red-400/25',
-    },
-};
 
 /** Sin póliza no hay pagos que mostrar: la unidad queda por asignar. */
 export const UNASSIGNED = 'Por asignar';
@@ -144,7 +128,33 @@ export function paymentCountdown(iso) {
     };
 }
 
-/** Pesos mexicanos, siempre con centavos: los importes se comparan de un vistazo. */
-export function money(amount) {
-    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount ?? 0);
+/**
+ * Pesos mexicanos, siempre con centavos: los importes se comparan de un
+ * vistazo. La maquinaria EC se paga en dólares: ahí se dice la moneda.
+ */
+export function money(amount, currency = 'MXN') {
+    const label = new Intl.NumberFormat('es-MX', { style: 'currency', currency, currencyDisplay: 'narrowSymbol' }).format(amount ?? 0);
+
+    return currency === 'MXN' ? label : `${label} ${currency}`;
+}
+
+/** Coberturas de la póliza de maquinaria, con su sigla. Igual que UnitPolicy::COVERAGES. */
+export const MACHINERY_COVERAGES = {
+    contractors_equipment: { short: 'EC', label: 'EC · EQUIPO DE CONTRATISTAS' },
+    civil_liability: { short: 'RC', label: 'RC · RESPONSABILIDAD CIVIL' },
+};
+
+/**
+ * La ficha del beneficiario preferente para el detalle de la póliza: el
+ * proveedor si lo tiene (la del proveedor) o «NO».
+ */
+export function beneficiaryDetail(policy) {
+    return { label: 'Beneficiario preferente', value: policy.source === 'supplier' ? policy.supplier : 'NO', icon: UserCheck };
+}
+
+/** La pestaña de Flotillas a la que se vuelve: la del proveedor va aparte de las empresariales. */
+export function fleetListUrl(source, machinery = false) {
+    if (source === 'supplier') return '/flotillas?tab=supplier';
+
+    return machinery ? '/flotillas?tab=machinery' : '/flotillas';
 }

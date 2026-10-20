@@ -13,6 +13,10 @@ use Illuminate\Support\Carbon;
  * Un periodo de póliza: su número y sus dos pagos semestrales. Asegura una
  * unidad (vehicular) o una obra; todo lo demás es igual en las dos.
  *
+ * La de maquinaria es distinta: cubre varias máquinas, tiene un solo pago y
+ * su vigencia se captura completa. Guarda el inicio en first_payment_starts_on,
+ * el fin en second_payment_ends_on y el pago en first_payment_*.
+ *
  * Se renueva cada año con número nuevo. Al pagar el segundo semestre se crea
  * el siguiente periodo y este queda en el historial.
  */
@@ -26,17 +30,46 @@ class UnitPolicy extends Model
 
     public const CONSTRUCTION = 'construction';
 
-    public const KINDS = [self::VEHICLE, self::CONSTRUCTION];
+    public const MACHINERY = 'machinery';
+
+    public const KINDS = [self::VEHICLE, self::CONSTRUCTION, self::MACHINERY];
 
     /**
      * Las coberturas de cada tipo, las mismas que el enum de la columna
      * `coverage`. Vehicular: responsabilidad civil, limitada, amplia y amplia
      * plus, igual para vehículos y maquinaria. Obra: obra civil, responsabilidad
-     * civil de construcción, montaje y maquinaria y equipo.
+     * civil de construcción, montaje y maquinaria y equipo. Maquinaria: EC
+     * (equipo de contratistas) y RC (responsabilidad civil).
      */
     public const COVERAGES = [
         self::VEHICLE => ['civil_liability', 'limited', 'broad', 'broad_plus'],
         self::CONSTRUCTION => ['civil_works', 'construction_liability', 'erection', 'machinery_equipment'],
+        self::MACHINERY => ['contractors_equipment', 'civil_liability'],
+    ];
+
+    /**
+     * Origen de la póliza: la empresarial la contrata la empresa; la del
+     * proveedor es la que lleva beneficiario preferente, con la aseguradora
+     * que elige quien vende, financia o arrienda la unidad. La de maquinaria
+     * no lleva pagos y puede cubrir varias máquinas; la vehicular, un pago
+     * único anual en las columnas del primero.
+     */
+    public const CORPORATE = 'corporate';
+
+    public const SUPPLIER = 'supplier';
+
+    public const SOURCES = [self::CORPORATE, self::SUPPLIER];
+
+    /** Monedas en las que se puede pagar una póliza de maquinaria. */
+    public const CURRENCIES = ['MXN', 'USD'];
+
+    /**
+     * Moneda sugerida por cobertura: EC suele ir en dólares y RC en pesos, pero
+     * depende del contrato, así que solo es el valor inicial y se puede cambiar.
+     */
+    public const MACHINERY_CURRENCIES = [
+        'contractors_equipment' => 'USD',
+        'civil_liability' => 'MXN',
     ];
 
     /** IVA que traen incluido los importes capturados. */
@@ -52,13 +85,43 @@ class UnitPolicy extends Model
         return $this->kind === self::CONSTRUCTION;
     }
 
+    public function isMachinery(): bool
+    {
+        return $this->kind === self::MACHINERY;
+    }
+
+    /** Si la impuso el proveedor: sin semestres, solo su vigencia (y en la vehicular, un pago anual). */
+    public function isFromSupplier(): bool
+    {
+        return $this->source === self::SUPPLIER;
+    }
+
     /**
-     * La unidad de negocio: la de obra trae la suya, la vehicular la toma de
-     * su unidad.
+     * Las fechas de los dos semestres a partir del inicio de la vigencia: seis
+     * meses exactos cada uno. Si el día no existe en el mes (31 de agosto →
+     * febrero) se queda en el último.
+     *
+     * @return array<string, Carbon>
+     */
+    public static function semestersFrom(Carbon $start): array
+    {
+        $middle = $start->copy()->addMonthsNoOverflow(self::SEMESTER_MONTHS);
+
+        return [
+            'first_payment_starts_on' => $start->copy(),
+            'first_payment_ends_on' => $middle,
+            'second_payment_starts_on' => $middle->copy(),
+            'second_payment_ends_on' => $middle->copy()->addMonthsNoOverflow(self::SEMESTER_MONTHS),
+        ];
+    }
+
+    /**
+     * La unidad de negocio: la de obra y la de maquinaria traen la suya; la
+     * vehicular la toma de su unidad.
      */
     public function businessUnitName(): ?string
     {
-        return $this->isConstruction() ? $this->businessUnit?->name : $this->unit?->businessUnit?->name;
+        return $this->kind === self::VEHICLE ? $this->unit?->businessUnit?->name : $this->businessUnit?->name;
     }
 
     /** Costo anual: la suma de los dos pagos semestrales, con IVA incluido. */
@@ -159,33 +222,6 @@ class UnitPolicy extends Model
         return $start && $start->lte(today()) ? 'second' : 'first';
     }
 
-    /**
-     * Cómo va un semestre: 'paid' con comprobante, 'overdue' si su fecha
-     * límite ya pasó sin pagar y 'pending' si aún está a tiempo.
-     */
-    public function paymentStatus(string $payment): string
-    {
-        if ($this->isPaid($payment)) {
-            return 'paid';
-        }
-
-        $deadline = $this->{"{$payment}_payment_ends_on"};
-
-        return $deadline && $deadline->lt(today()) ? 'overdue' : 'pending';
-    }
-
-    /**
-     * Cómo va el año: el semestre en curso manda (en el primero, si ya se
-     * pagó está al día; en el segundo, si se pagó ese), salvo que haya
-     * quedado un semestre vencido sin pagar, que lo deja vencido.
-     */
-    public function annualStatus(): string
-    {
-        $overdue = collect(self::PAYMENTS)->contains(fn (string $payment) => $this->paymentStatus($payment) === 'overdue');
-
-        return $overdue ? 'overdue' : $this->paymentStatus($this->currentSemester());
-    }
-
     protected function casts(): array
     {
         return [
@@ -198,6 +234,7 @@ class UnitPolicy extends Model
             'second_payment_due_on' => 'date',
             'second_payment_paid_at' => 'date',
             'endorsement' => 'boolean',
+            'financing' => 'boolean',
             'cancellation_requested_on' => 'date',
             'cancelled_on' => 'date',
             'first_payment_amount' => 'decimal:2',
@@ -211,7 +248,13 @@ class UnitPolicy extends Model
         return $this->belongsTo(Unit::class);
     }
 
-    /** Solo en las de obra: la vehicular usa la de su unidad. */
+    /** Solo en las de maquinaria: las máquinas que cubre. */
+    public function machines(): HasMany
+    {
+        return $this->hasMany(Unit::class, 'unit_policy_id')->orderBy('economic_number')->orderBy('id');
+    }
+
+    /** En las de obra y maquinaria: la vehicular usa la de su unidad. */
     public function businessUnit(): BelongsTo
     {
         return $this->belongsTo(BusinessUnit::class);

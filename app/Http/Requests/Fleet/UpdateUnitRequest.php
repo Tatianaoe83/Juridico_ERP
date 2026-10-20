@@ -10,6 +10,8 @@ use Illuminate\Validation\Rule;
 
 class UpdateUnitRequest extends FormRequest
 {
+    use ValidatesUnitPolicy;
+
     /**
      * La autorización va aquí y no solo en la ruta porque el FormRequest
      * valida antes que el controlador: sin esto, quien no tiene permiso
@@ -17,6 +19,13 @@ class UpdateUnitRequest extends FormRequest
      */
     public function authorize(): bool
     {
+        /** @var Unit $unit */
+        $unit = $this->route('unit');
+
+        // La máquina se edita con su póliza de maquinaria: por aquí le
+        // nacería una póliza de automóvil.
+        abort_if($unit->unit_policy_id !== null, 404);
+
         return $this->user()?->can('flotillas.update') ?? false;
     }
 
@@ -27,6 +36,8 @@ class UpdateUnitRequest extends FormRequest
             ->filter(fn (string $field) => is_string($this->input($field)))
             ->mapWithKeys(fn (string $field) => [$field => mb_strtoupper($this->input($field))])
             ->all());
+
+        $this->merge($this->uppercasePolicy());
     }
 
     /**
@@ -52,6 +63,9 @@ class UpdateUnitRequest extends FormRequest
 
             'status' => ['required', Rule::in(Unit::STATUSES)],
             'comments' => ['nullable', 'string', 'max:5000'],
+
+            // Se edita la póliza vigente; su número se compara contra las demás.
+            ...$this->policyRules($unit->currentPolicy),
 
             'evidences' => ['nullable', 'array', 'max:10'],
             // Solo PDF, Word, Excel, imagen o XML, y el contenido tiene que ser
@@ -89,11 +103,12 @@ class UpdateUnitRequest extends FormRequest
             'serial_number' => 'número de serie',
             'plate' => 'placa',
             'economic_number' => 'número económico',
-            'responsible' => 'responsable',
+            'responsible' => 'asignación',
             'status' => 'estado',
             'comments' => 'comentarios',
             'evidences' => 'evidencias',
             'evidences.*' => 'evidencia',
+            ...$this->policyAttributes(),
         ];
     }
 
@@ -105,8 +120,10 @@ class UpdateUnitRequest extends FormRequest
         return [
             'serial_number.unique' => 'Ya hay otra unidad con ese número de serie.',
             'plate.unique' => 'Ya hay otra unidad con esa placa.',
+            'policy.unique' => 'Ya hay otra póliza con ese número.',
             'evidences.*.extensions' => 'Solo se aceptan PDF, Word, Excel, imágenes (JPG, PNG, WEBP) y XML.',
             'evidences.*.max' => 'Cada archivo puede pesar hasta 10 MB.',
+            ...$this->policyMessages(),
         ];
     }
 }

@@ -10,6 +10,8 @@ use Illuminate\Validation\Rule;
 
 class StoreUnitRequest extends FormRequest
 {
+    use ValidatesUnitPolicy;
+
     /**
      * La autorización va aquí y no solo en la ruta porque el FormRequest
      * valida antes que el controlador: sin esto, quien no tiene permiso
@@ -21,8 +23,9 @@ class StoreUnitRequest extends FormRequest
     }
 
     /**
-     * Marca, modelo, placa y responsable se guardan siempre en mayúsculas.
-     * El formulario ya los manda así; esto cubre cualquier otra entrada.
+     * Marca, modelo, placa, asignación, póliza, certificado y aseguradora se
+     * guardan siempre en mayúsculas. El formulario ya los manda así; esto
+     * cubre cualquier otra entrada.
      */
     protected function prepareForValidation(): void
     {
@@ -30,6 +33,8 @@ class StoreUnitRequest extends FormRequest
             ->filter(fn (string $field) => is_string($this->input($field)))
             ->mapWithKeys(fn (string $field) => [$field => mb_strtoupper($this->input($field))])
             ->all());
+
+        $this->merge($this->uppercasePolicy());
     }
 
     /**
@@ -49,6 +54,9 @@ class StoreUnitRequest extends FormRequest
 
             'status' => ['required', Rule::in(Unit::STATUSES)],
             'comments' => ['nullable', 'string', 'max:5000'],
+
+            // La póliza vehicular: obligatoria, se da de alta junto con la unidad.
+            ...$this->policyRules(),
 
             // Evidencias: lo que respalda a la unidad. Van opcionales porque
             // el alta no puede quedarse trabada esperando un archivo.
@@ -77,11 +85,12 @@ class StoreUnitRequest extends FormRequest
             'serial_number' => 'número de serie',
             'plate' => 'placa',
             'economic_number' => 'número económico',
-            'responsible' => 'responsable',
+            'responsible' => 'asignación',
             'status' => 'estado',
             'comments' => 'comentarios',
             'evidences' => 'evidencias',
             'evidences.*' => 'evidencia',
+            ...$this->policyAttributes(),
         ];
     }
 
@@ -93,8 +102,10 @@ class StoreUnitRequest extends FormRequest
         return [
             'serial_number.unique' => 'Ya hay una unidad con ese número de serie.',
             'plate.unique' => 'Ya hay una unidad con esa placa.',
+            'policy.unique' => 'Ya hay una póliza con ese número.',
             'evidences.*.extensions' => 'Solo se aceptan PDF, Word, Excel, imágenes (JPG, PNG, WEBP) y XML.',
             'evidences.*.max' => 'Cada archivo puede pesar hasta 10 MB.',
+            ...$this->policyMessages(),
         ];
     }
 }

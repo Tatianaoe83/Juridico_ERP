@@ -21,9 +21,9 @@ use Throwable;
 class UnitCalendar
 {
     /**
-     * Las tres fechas que van al calendario, con la columna de la que sale
-     * cada una y dónde se guarda el id de su evento. Los pagos usan la fecha
-     * límite que pone la aseguradora, no el cierre del semestre.
+     * Las fechas que van al calendario en la de obra, con la columna de la que
+     * sale cada una y dónde se guarda el id de su evento. Los pagos usan la
+     * fecha límite que pone la aseguradora, no el cierre del semestre.
      *
      * @var array<int, array{label: string, date: string, event: string}>
      */
@@ -34,6 +34,44 @@ class UnitCalendar
     ];
 
     /**
+     * Las fechas de cada póliza. La de obra agenda sus pagos y su fin de
+     * vigencia. La vehicular y la de maquinaria no agendan pagos: la
+     * empresarial vehicular, el cierre de cada semestre (vigencia 1 y 2, cada
+     * uno en el lugar de su pago); las que no tienen semestres, solo su fin.
+     * El lugar del segundo pago queda sin fecha: si tenía evento, se quita.
+     *
+     * @return array<int, array{label: string, date: ?string, event: string}>
+     */
+    public static function entriesFor(UnitPolicy $policy): array
+    {
+        if ($policy->isConstruction()) {
+            return self::EVENTS;
+        }
+
+        $semesters = $policy->first_payment_ends_on !== null;
+
+        return [
+            ['label' => 'Fin de vigencia 1', 'date' => 'first_payment_ends_on', 'event' => 'first_payment_event_id'],
+            ['label' => 'Sin uso', 'date' => null, 'event' => 'second_payment_event_id'],
+            ['label' => $semesters ? 'Fin de vigencia 2' : 'Fin de vigencia', 'date' => 'second_payment_ends_on', 'event' => 'validity_event_id'],
+        ];
+    }
+
+    /**
+     * Si al guardar hay que tocar Outlook: se movió alguna fecha o le falta un
+     * evento. Actualizarlo le vuelve a llegar el aviso a los compartidos, así
+     * que si nada cambió no se toca.
+     */
+    public static function needsSync(UnitPolicy $policy): bool
+    {
+        $entries = collect(self::entriesFor($policy))->filter(fn (array $entry) => $entry['date'] !== null);
+
+        return $policy->wasRecentlyCreated
+            || $policy->wasChanged($entries->pluck('date')->all())
+            || $entries->contains(fn (array $entry) => $policy->{$entry['date']} && ! $policy->{$entry['event']});
+    }
+
+    /**
      * Anticipación del recordatorio de cada evento, en minutos: una semana.
      * Es el recordatorio propio de Outlook, el del reloj.
      */
@@ -42,7 +80,7 @@ class UnitCalendar
     public function __construct(private readonly CalendarEvents $events) {}
 
     /**
-     * Pone al día los tres eventos de la póliza: crea el que falta, mueve el
+     * Pone al día los eventos de la póliza: crea el que falta, mueve el
      * que cambió de fecha y quita el de la fecha que se borró.
      *
      * Se llama justo después de guardar la póliza: de ese guardado sale qué
@@ -67,7 +105,7 @@ class UnitCalendar
         // se borran la próxima vez que se guarda la póliza.
         $ok = $policy->unit ? $this->forgetReminders($policy->unit, $actor) : true;
 
-        foreach (self::EVENTS as $entry) {
+        foreach (self::entriesFor($policy) as $entry) {
             $ok = $this->syncEvent($policy, $actor, $entry, in_array($entry['date'], $changed, true)) && $ok;
         }
 
@@ -108,11 +146,11 @@ class UnitCalendar
     }
 
     /**
-     * @param  array{label: string, date: string, event: string}  $entry
+     * @param  array{label: string, date: ?string, event: string}  $entry
      */
     private function syncEvent(UnitPolicy $policy, User $actor, array $entry, bool $dateChanged): bool
     {
-        $date = $policy->{$entry['date']};
+        $date = $entry['date'] ? $policy->{$entry['date']} : null;
 
         // Sin fecha no hay nada que agendar: si había evento, se quita en vez
         // de dejarlo colgado en una fecha que ya no existe.
@@ -206,9 +244,17 @@ class UnitCalendar
         $unitName = trim("{$unit?->brand} {$unit?->model}");
         $businessUnit = $policy->businessUnitName();
 
+        // La de maquinaria cubre varias máquinas. El evento solo lleva la
+        // póliza y su unidad de negocio: las máquinas cambian sin mover fechas
+        // y el evento no se vuelve a tocar, así que quedarían desactualizadas.
+        if ($policy->isMachinery()) {
+            $unitName = '';
+        }
+
         $lines = array_filter([
             "Póliza: {$policy->policy}",
             $policy->insurer ? "Aseguradora: {$policy->insurer}" : null,
+            $policy->supplier ? "Beneficiario preferente: {$policy->supplier}" : null,
             $policy->project ? "Obra: {$policy->project}" : null,
             $policy->project_address ? "Dirección: {$policy->project_address}" : null,
             $unitName ? "Unidad: {$unitName}" : null,
