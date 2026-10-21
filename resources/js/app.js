@@ -3,10 +3,9 @@ import '../css/app.css';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { createApp, h } from 'vue';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
-
 createInertiaApp({
-    title: (title) => (title ? `${title} - ${appName}` : appName),
+    // Título fijo: el <Head title> de cada página ya no llega a la pestaña.
+    title: () => 'SGJ',
     pages: './Pages',
     setup({ el, App, props, plugin }) {
         createApp({ render: () => h(App, props) })
