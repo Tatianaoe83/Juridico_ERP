@@ -1,11 +1,9 @@
 <script setup>
 import { Link, useForm } from '@inertiajs/vue3';
 import {
-    Ban,
     Building,
     Building2,
     CalendarCheck,
-    CalendarClock,
     CalendarDays,
     CalendarPlus,
     CircleDollarSign,
@@ -50,8 +48,6 @@ const FIELDS = [
     'source_document',
     'category',
     'related',
-    'cancellation_requested_on',
-    'cancelled_on',
     'comments',
 ];
 
@@ -101,11 +97,6 @@ const DATES = [
     { field: 'issued_on', label: 'Fecha de emisión', icon: CalendarCheck },
     { field: 'valid_from', label: 'Inicio de vigencia', icon: CalendarDays },
     { field: 'valid_until', label: 'Fin de vigencia', icon: CalendarDays },
-];
-
-const CANCELLATION = [
-    { field: 'cancellation_requested_on', label: 'Solicitud de cancelación', icon: CalendarClock },
-    { field: 'cancelled_on', label: 'Fecha de cancelación', icon: Ban },
 ];
 
 function submit() {
@@ -283,30 +274,11 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
             </div>
         </section>
 
-        <!-- Cancelación y comentarios: una fianza nueva no llega cancelada, la cancelación solo al editar -->
+        <!-- Comentarios -->
         <section :class="CARD">
-            <p :class="SECTION_TITLE">{{ editing ? 'Cancelación y comentarios' : 'Comentarios' }}</p>
+            <p :class="SECTION_TITLE">Comentarios</p>
 
-            <div :class="['mt-2 grid gap-x-4 gap-y-2.5', editing && 'lg:grid-cols-2']">
-                <div v-if="editing" class="grid content-start gap-x-4 gap-y-2.5 sm:grid-cols-2">
-                    <div v-for="input in CANCELLATION" :key="input.field">
-                        <label :for="`bond-${input.field}`" :class="LABEL">{{ input.label }}</label>
-                        <div class="relative">
-                            <input
-                                :id="`bond-${input.field}`"
-                                v-model="form[input.field]"
-                                type="date"
-                                :class="FIELD"
-                                :aria-invalid="Boolean(form.errors[input.field])"
-                            />
-                            <component :is="input.icon" :class="ICON" />
-                        </div>
-                        <p v-if="form.errors[input.field]" :class="ERROR">{{ form.errors[input.field] }}</p>
-                    </div>
-
-                    <p class="text-[0.7rem] text-slate-400 sm:col-span-2 dark:text-brand-gray/70">Solo si se pidió cancelarla.</p>
-                </div>
-
+            <div class="mt-2">
                 <div>
                     <label for="bond-comments" :class="LABEL">Comentarios</label>
                     <div class="relative">
