@@ -80,6 +80,11 @@ class ConstructionPolicy extends Model
         return $this->belongsTo(Insurer::class);
     }
 
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
+    }
+
     /** Los endosos de extensión, del primero al último. */
     public function endorsements(): HasMany
     {

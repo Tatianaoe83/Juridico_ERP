@@ -22,6 +22,7 @@ const props = defineProps({
     /** Catálogo: [{ id, name }] (póliza de obra y fianza). */
     businessUnits: { type: Array, default: () => [] },
     insurers: { type: Array, default: () => [] },
+    projects: { type: Array, default: () => [] },
     bondingCompanies: { type: Array, default: () => [] },
     beneficiaries: { type: Array, default: () => [] },
     /** Valores del enum `category` (solo si type = bond). */
@@ -73,7 +74,7 @@ const breadcrumbs = computed(() => [
             </div>
 
             <BondForm v-if="isBond" :bond="bond" :business-units="businessUnits" :bonding-companies="bondingCompanies" :beneficiaries="beneficiaries" :categories="categories" />
-            <PolicyForm v-else :policy="policy" :coverages="coverages" :business-units="businessUnits" :insurers="insurers" />
+            <PolicyForm v-else :policy="policy" :coverages="coverages" :business-units="businessUnits" :insurers="insurers" :projects="projects" />
         </div>
     </AppShell>
 </template>

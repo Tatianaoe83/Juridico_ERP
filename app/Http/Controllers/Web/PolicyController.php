@@ -95,6 +95,7 @@ class PolicyController extends Controller
         $policy->load([
             'businessUnit:id,name',
             'insurer:id,name',
+            'project:id,name,address',
             'creator:id,name',
             'documents.uploader:id,name',
             'endorsements.creator:id,name',
@@ -107,8 +108,8 @@ class PolicyController extends Controller
                 'insurer' => $policy->insurer?->name,
                 'coverage' => $policy->coverage,
                 'status' => $policy->status(),
-                'project' => $policy->project,
-                'project_address' => $policy->project_address,
+                'project' => $policy->project?->name,
+                'project_address' => $policy->project?->address,
                 'business_unit' => $policy->businessUnit?->name,
                 'valid_from' => $policy->valid_from?->toDateString(),
                 'valid_until' => $policy->valid_until?->toDateString(),
@@ -183,8 +184,7 @@ class PolicyController extends Controller
             'type' => 'policy',
             'policy' => [
                 'id' => $policy->id,
-                'project' => $policy->project,
-                'project_address' => $policy->project_address,
+                'project_id' => $policy->project_id,
                 'business_unit_id' => $policy->business_unit_id,
                 'policy' => $policy->policy,
                 'insurer_id' => $policy->insurer_id,
@@ -316,7 +316,7 @@ class PolicyController extends Controller
      */
     private function policies(): Collection
     {
-        return ConstructionPolicy::with(['businessUnit:id,name', 'insurer:id,name'])
+        return ConstructionPolicy::with(['businessUnit:id,name', 'insurer:id,name', 'project:id,name,address'])
             ->withSum('endorsements', 'amount')
             ->get()
             ->map(fn (ConstructionPolicy $policy) => [
@@ -327,15 +327,15 @@ class PolicyController extends Controller
                 'provider' => $policy->insurer?->name,
                 'coverage' => $policy->coverage,
                 // Sobre qué: la obra con su dirección.
-                'subject' => $policy->project,
-                'detail' => $policy->project_address,
+                'subject' => $policy->project?->name,
+                'detail' => $policy->project?->address,
                 'business_unit' => $policy->businessUnit?->name,
                 'valid_from' => $policy->valid_from?->toDateString(),
                 'valid_until' => $policy->valid_until?->toDateString(),
                 // Lo que cuesta con todo y endosos; sin ningún monto capturado, nada.
                 'amount' => $policy->amount === null && ! $policy->endorsements_sum_amount ? null : $policy->total(),
                 'status' => $policy->status(),
-                'search' => [$policy->policy, $policy->insurer?->name, $policy->project, $policy->project_address, $policy->businessUnit?->name],
+                'search' => [$policy->policy, $policy->insurer?->name, $policy->project?->name, $policy->project?->address, $policy->businessUnit?->name],
             ]);
     }
 

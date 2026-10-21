@@ -42,6 +42,8 @@ const props = defineProps({
     businessUnits: { type: Array, default: () => [] },
     /** Catálogo: [{ id, name }]. */
     insurers: { type: Array, default: () => [] },
+    /** Catálogo: [{ id, name, address }]. */
+    projects: { type: Array, default: () => [] },
 });
 
 /** IVA incluido en el monto. Igual que ConstructionPolicy::TAX_RATE. */
@@ -53,8 +55,7 @@ const editing = computed(() => props.policy !== null);
 const endorsed = computed(() => Boolean(props.policy?.endorsed));
 
 const form = useForm({
-    project: (props.policy?.project ?? '').toUpperCase(),
-    project_address: (props.policy?.project_address ?? '').toUpperCase(),
+    project_id: props.policy?.project_id ?? '',
     business_unit_id: props.policy?.business_unit_id ?? '',
     policy: (props.policy?.policy ?? '').toUpperCase(),
     insurer_id: props.policy?.insurer_id ?? '',
@@ -87,6 +88,11 @@ function toUpper(field, event) {
 const coverageOptions = computed(() => props.coverages.map((value) => ({ value, label: POLICY_COVERAGES[value] ?? value })));
 
 const insurerOptions = computed(() => catalogOptions(props.insurers));
+
+const projectOptions = computed(() => catalogOptions(props.projects));
+
+/** La dirección es de la obra: se ve, pero se cambia en el catálogo. */
+const projectAddress = computed(() => props.projects.find(({ id }) => String(id) === String(form.project_id))?.address ?? '');
 
 const businessUnitOptions = computed(() => props.businessUnits.map(({ id, name }) => ({ value: id, label: name.toUpperCase() })));
 
@@ -262,27 +268,23 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
             <p :class="SECTION_TITLE">Póliza de obra</p>
 
             <div class="mt-2 grid gap-x-4 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                <!-- Obra: por ahora a mano, mientras no haya catálogo de obras -->
+                <!-- Obra: del catálogo, con su dirección -->
                 <div>
                     <label for="policy-project" :class="LABEL">
                         Obra
                         <span :class="REQUIRED">*</span>
                     </label>
-                    <div class="relative">
-                        <input
-                            id="policy-project"
-                            :value="form.project"
-                            @input="toUpper('project', $event)"
-                            type="text"
-                            required
-                            autocomplete="off"
-                            placeholder="Nombre de la obra"
-                            :class="FIELD"
-                            :aria-invalid="Boolean(form.errors.project)"
-                        />
-                        <HardHat :class="ICON" />
-                    </div>
-                    <p v-if="form.errors.project" :class="ERROR">{{ form.errors.project }}</p>
+                    <FormSelect
+                        compact
+                        id="policy-project"
+                        v-model="form.project_id"
+                        :options="projectOptions"
+                        :icon="HardHat"
+                        placeholder="Selecciona la obra"
+                        :invalid="Boolean(form.errors.project_id)"
+                    />
+                    <p v-if="!projects.length" class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">Todavía no hay obras en el catálogo.</p>
+                    <p v-if="form.errors.project_id" :class="ERROR">{{ form.errors.project_id }}</p>
                 </div>
 
                 <div>
@@ -290,16 +292,15 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                     <div class="relative">
                         <input
                             id="policy-project-address"
-                            :value="form.project_address"
-                            @input="toUpper('project_address', $event)"
+                            :value="projectAddress"
                             type="text"
-                            autocomplete="off"
-                            :class="FIELD"
-                            :aria-invalid="Boolean(form.errors.project_address)"
+                            readonly
+                            tabindex="-1"
+                            placeholder="La de la obra elegida"
+                            :class="[FIELD, 'cursor-default text-slate-500 dark:text-brand-gray']"
                         />
                         <MapPin :class="ICON" />
                     </div>
-                    <p v-if="form.errors.project_address" :class="ERROR">{{ form.errors.project_address }}</p>
                 </div>
 
                 <div>
