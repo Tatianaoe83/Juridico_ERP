@@ -165,40 +165,59 @@ function toggleGroup(group) {
                         @container), no el estado en JS: el completo solo aparece
                         cuando cabe (≥ 11rem) y por debajo queda el isotipo
                         centrado. Así nunca se sale del hueco, ni a media animación.
+
+                        El botón de contraer va junto al logo. En el riel de iconos
+                        no cabe al lado: queda encima del isotipo, invisible, y
+                        aparece al pasar el mouse o con el teclado. La fila mide
+                        lo mismo en los dos modos, así que el menú no se mueve.
                     -->
-                    <Link
-                        href="/calendario"
-                        class="flex h-16 shrink-0 items-center px-6 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-brand/30 @max-[11rem]:justify-center @max-[11rem]:px-0"
-                        aria-label="PROSER Grupo Constructor · Inicio"
-                    >
-                        <span class="block animate-in fade-in-0 duration-300 @max-[11rem]:hidden">
+                    <div class="group/brand relative flex h-16 shrink-0 items-center gap-2 pr-4 pl-6 @max-[11rem]:justify-center @max-[11rem]:px-0">
+                        <Link
+                            href="/calendario"
+                            class="flex min-w-0 flex-1 items-center rounded-lg transition-opacity duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/30 @max-[11rem]:flex-none @max-[11rem]:justify-center @max-[11rem]:group-hover/brand:opacity-0 @max-[11rem]:group-has-[button:focus-visible]/brand:opacity-0"
+                            aria-label="PROSER Grupo Constructor · Inicio"
+                        >
+                            <span class="block animate-in fade-in-0 duration-300 @max-[11rem]:hidden">
+                                <img
+                                    src="/images/Logo-azul.png"
+                                    alt=""
+                                    width="132"
+                                    height="32"
+                                    class="h-8 w-auto max-w-none dark:hidden"
+                                />
+                                <img
+                                    src="/images/Logo-blanco.png"
+                                    alt=""
+                                    width="132"
+                                    height="32"
+                                    class="hidden h-8 w-auto max-w-none dark:block"
+                                />
+                            </span>
+                            <!--
+                                Solo existe la versión azul del isotipo: en oscuro se
+                                vuelve blanca con filtro, sobre el azul no se vería.
+                            -->
                             <img
-                                src="/images/Logo-azul.png"
+                                src="/images/LogoAzul.png"
                                 alt=""
-                                width="132"
+                                width="25"
                                 height="32"
-                                class="h-8 w-auto max-w-none dark:hidden"
+                                class="hidden h-8 w-auto animate-in fade-in-0 zoom-in-90 duration-300 @max-[11rem]:block dark:brightness-0 dark:invert"
                             />
-                            <img
-                                src="/images/Logo-blanco.png"
-                                alt=""
-                                width="132"
-                                height="32"
-                                class="hidden h-8 w-auto max-w-none dark:block"
-                            />
-                        </span>
-                        <!--
-                            Solo existe la versión azul del isotipo: en oscuro se
-                            vuelve blanca con filtro, sobre el azul no se vería.
-                        -->
-                        <img
-                            src="/images/LogoAzul.png"
-                            alt=""
-                            width="25"
-                            height="32"
-                            class="hidden h-8 w-auto animate-in fade-in-0 zoom-in-90 duration-300 @max-[11rem]:block dark:brightness-0 dark:invert"
-                        />
-                    </Link>
+                        </Link>
+
+                        <button
+                            type="button"
+                            class="grid size-9 shrink-0 cursor-pointer place-content-center rounded-lg text-slate-400 transition-[color,background-color,opacity] duration-150 hover:bg-brand/5 hover:text-brand focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/30 dark:text-brand-gray dark:hover:bg-white/10 dark:hover:text-white dark:focus-visible:ring-white/30 @max-[11rem]:absolute @max-[11rem]:inset-0 @max-[11rem]:m-auto @max-[11rem]:opacity-0 @max-[11rem]:group-hover/brand:opacity-100 @max-[11rem]:focus-visible:opacity-100"
+                            :aria-label="sidebarOpen ? 'Contraer menú' : 'Expandir menú'"
+                            :title="sidebarOpen ? 'Contraer menú' : 'Expandir menú'"
+                            :aria-expanded="sidebarOpen"
+                            @click="sidebarOpen = !sidebarOpen"
+                        >
+                            <PanelLeftClose v-if="sidebarOpen" class="size-[1.1rem]" />
+                            <PanelLeftOpen v-else class="size-[1.1rem]" />
+                        </button>
+                    </div>
 
                     <div class="mx-6 h-px bg-gradient-to-r from-brand/15 via-brand/5 to-transparent dark:from-white/15 dark:via-white/5" />
 
@@ -257,9 +276,10 @@ function toggleGroup(group) {
             <header
                 class="relative z-20 flex h-16 shrink-0 items-center gap-3 border-b border-slate-200/80 bg-white/95 px-4 shadow-[0_1px_2px_rgb(2_29_73/0.04)] backdrop-blur md:px-6 dark:border-white/[0.06] dark:bg-brand-deep/95 dark:shadow-none"
             >
+                <!-- Solo en móvil: ahí el sidebar está fuera de pantalla y este es el único modo de abrirlo -->
                 <button
                     type="button"
-                    class="grid size-9 cursor-pointer place-content-center rounded-lg text-slate-500 transition-colors duration-150 hover:bg-brand/5 hover:text-brand focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/30 dark:text-brand-gray dark:hover:bg-white/10 dark:hover:text-white dark:focus-visible:ring-white/30"
+                    class="grid size-9 cursor-pointer place-content-center rounded-lg text-slate-500 md:hidden transition-colors duration-150 hover:bg-brand/5 hover:text-brand focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/30 dark:text-brand-gray dark:hover:bg-white/10 dark:hover:text-white dark:focus-visible:ring-white/30"
                     :aria-label="sidebarOpen ? 'Contraer menú' : 'Expandir menú'"
                     :title="sidebarOpen ? 'Contraer menú' : 'Expandir menú'"
                     :aria-expanded="sidebarOpen"
