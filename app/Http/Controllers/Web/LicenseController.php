@@ -172,7 +172,7 @@ class LicenseController extends Controller
             ? $this->calendarNote($this->calendar->sync($license->load('creator', 'businessUnit'), $request->user()))
             : '';
 
-        return to_route('licenses.index')
+        return back()
             ->with('success', "Se actualizó {$license->name}.".$note);
     }
 
@@ -186,7 +186,7 @@ class LicenseController extends Controller
     {
         $license->update(['reminders_enabled' => ! $license->reminders_enabled]);
 
-        return to_route('licenses.index')->with('success', $license->reminders_enabled
+        return back()->with('success', $license->reminders_enabled
             ? "Se activaron los recordatorios por correo de {$license->name}."
             : "Se desactivaron los recordatorios por correo de {$license->name}.");
     }

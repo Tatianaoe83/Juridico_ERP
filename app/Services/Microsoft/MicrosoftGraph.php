@@ -8,6 +8,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -216,8 +217,12 @@ class MicrosoftGraph
         $start = $data['all_day'] ? $data['start']->copy()->startOfDay() : $data['start'];
         $end = $data['all_day'] ? $data['end']->copy()->startOfDay()->addDay() : $data['end'];
 
+        // El cliente reintenta en timeouts y 504; si Graph ya lo había creado,
+        // el mismo transactionId hace que no lo duplique.
+        $payload = [...$this->payload($data, $start, $end, $timezone), 'transactionId' => (string) Str::uuid()];
+
         $event = $this->client($calendar)
-            ->post(self::BASE.$this->calendarPath($calendar).'/events', $this->payload($data, $start, $end, $timezone))
+            ->post(self::BASE.$this->calendarPath($calendar).'/events', $payload)
             ->throw()
             ->json();
 

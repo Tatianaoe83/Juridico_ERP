@@ -92,14 +92,17 @@ class DashboardController extends Controller
     /**
      * Pagos de flotilla sin cubrir del periodo vigente: vencidos o dentro de la
      * ventana de aviso. Son decenas de pólizas, así que se resuelve en PHP con
-     * la misma regla que el módulo (nextDue).
+     * la misma regla que el módulo (nextDue). Solo las vehiculares
+     * empresariales van por semestres; la maquinaria y la del proveedor llevan
+     * un pago único sin cierre de semestre.
      */
     private function payments(): Collection
     {
         $limit = today()->addDays(Unit::WARNING_DAYS);
 
         return UnitPolicy::with('unit:id,brand,model,plate,economic_number')
-            ->whereIn('kind', UnitPolicy::KINDS)
+            ->where('kind', UnitPolicy::VEHICLE)
+            ->where('source', UnitPolicy::CORPORATE)
             ->whereDoesntHave('renewal')
             ->where(fn ($query) => $query->whereNull('first_payment_paid_at')->orWhereNull('second_payment_paid_at'))
             ->get()
@@ -159,15 +162,22 @@ class DashboardController extends Controller
     }
 
     /**
-     * Lo que falta subir: en flotillas, la póliza del periodo vigente y el
+     * Lo que falta subir: en flotillas, los documentos oficiales y el
      * comprobante de cada semestre ya pagado; en obra, la póliza misma.
+     * Los documentos oficiales los formularios los cuelgan de la unidad (o de
+     * cada máquina), no de la póliza: se buscan en los dos lados.
      */
     private function documents(bool $fleets, bool $policies): Collection
     {
         $rows = collect();
 
         if ($fleets) {
-            UnitPolicy::with(['unit:id,brand,model,plate,economic_number', 'evidences:id,unit_policy_id,type,payment'])
+            UnitPolicy::with([
+                'unit:id,brand,model,plate,economic_number',
+                'unit.evidences:id,unit_id,type',
+                'machines.evidences:id,unit_id,type',
+                'evidences:id,unit_policy_id,type,payment',
+            ])
                 ->whereIn('kind', UnitPolicy::KINDS)
                 ->whereDoesntHave('renewal')
                 ->whereNull('cancelled_on')
@@ -175,8 +185,13 @@ class DashboardController extends Controller
                 ->each(function (UnitPolicy $policy) use ($rows) {
                     $missing = [];
 
-                    if (! $policy->evidences->contains('type', UnitEvidence::OFFICIAL_DOCUMENT)) {
-                        $missing[] = 'póliza';
+                    $official = $policy->evidences
+                        ->concat($policy->unit?->evidences ?? [])
+                        ->concat($policy->machines->flatMap->evidences)
+                        ->contains('type', UnitEvidence::OFFICIAL_DOCUMENT);
+
+                    if (! $official) {
+                        $missing[] = 'documentos oficiales';
                     }
 
                     foreach (UnitPolicy::PAYMENTS as $payment) {

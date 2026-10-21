@@ -281,7 +281,7 @@ const PAGE_BTN =
                         <FileCheck class="size-4" />
                     </span>
                     <div>
-                        <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Pólizas y fianzas</h1>
+                        <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Pólizas y Fianzas</h1>
                     </div>
                 </div>
 

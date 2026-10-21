@@ -1,7 +1,7 @@
 <script setup>
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { CircleCheck } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import { localDate } from '@/lib/licenses';
 import { money } from '@/lib/units';
@@ -118,51 +118,62 @@ const items = computed(() =>
         .sort((a, b) => a.days - b.days),
 );
 
-/* ---------- Franja de vencimientos ---------- */
+/* ---------- Plazos ---------- */
 
-// Lo vencido ocupa una zona fija a la izquierda: sin importar hace cuánto, ya hay que atenderlo.
-const OVERDUE_ZONE = 12;
+/**
+ * Lo vencido y luego cuatro semanas desde hoy. La última llega hasta el fin de
+ * la ventana de aviso (día 30), así que tiene un par de días más que las otras.
+ */
+const PERIODS = [
+    { key: 'overdue', label: 'Vencido', from: -Infinity, to: -1 },
+    { key: 'week1', label: 'Esta semana', from: 0, to: 7 },
+    { key: 'week2', label: 'Semana 2', from: 8, to: 14 },
+    { key: 'week3', label: 'Semana 3', from: 15, to: 21 },
+    { key: 'week4', label: 'Semana 4', from: 22, to: Infinity },
+];
 
-// Cuántos puntos caben apilados en un día antes de resumir con «+n».
-const STACK = 4;
+const PLURALS = { licenses: ['licencia', 'licencias'], payments: ['pago', 'pagos'], policies: ['póliza', 'pólizas'] };
 
-const ticks = computed(() =>
-    [0, 7, 14, 21, props.warning_days].map((days) => {
-        const date = new Date(today.value);
-        date.setDate(date.getDate() + days);
+function dayLabel(days) {
+    const date = new Date(today.value);
+    date.setDate(date.getDate() + days);
 
-        return { days, left: position(days), label: days === 0 ? 'Hoy' : shortDate(date) };
-    }),
-);
-
-function position(days) {
-    return OVERDUE_ZONE + (Math.min(days, props.warning_days) / props.warning_days) * (100 - OVERDUE_ZONE);
+    return shortDate(date);
 }
 
-const overdueItems = computed(() => items.value.filter((item) => item.days < 0));
+const periods = computed(() => {
+    const list = PERIODS.map((period) => {
+        const rows = items.value.filter((item) => item.days >= period.from && item.days <= period.to);
 
-/** Un grupo por día con algo pendiente, de hoy al fin de la ventana. */
-const days = computed(() => {
-    const byDay = new Map();
+        return {
+            ...period,
+            rows,
+            range: period.key === 'overdue' ? 'Antes de hoy' : `${dayLabel(period.from)} al ${dayLabel(Math.min(period.to, props.warning_days))}`,
+            modules: visibleModules.value.map((module) => ({ module, count: rows.filter((item) => item.module === module).length })),
+        };
+    });
 
-    items.value.filter((item) => item.days >= 0).forEach((item) => byDay.set(item.days, [...(byDay.get(item.days) ?? []), item]));
+    // Las barras se miden contra la columna más cargada: así se comparan entre sí.
+    const max = Math.max(1, ...list.map((period) => period.rows.length));
 
-    return [...byDay].map(([days, list]) => ({ days, left: position(days), shown: list.slice(0, STACK), extra: list.length - STACK }));
+    return list.map((period) => ({
+        ...period,
+        modules: period.modules.map((entry) => ({ ...entry, width: (entry.count / max) * 100 })),
+    }));
 });
+
+/** El plazo elegido filtra la lista de abajo; tocarlo otra vez la deja completa. */
+const selected = ref(null);
+
+function select(key) {
+    selected.value = selected.value === key ? null : key;
+}
 
 const markerTone = (item) => (item.days < 0 ? 'bg-red-500 dark:bg-red-400' : 'bg-amber-500 dark:bg-amber-400');
 
-const markerLabel = (item) => `${MODULES[item.module].label}: ${item.title}, ${item.days < 0 ? 'venció' : 'vence'} ${remaining(item.days)}`;
-
 /* ---------- Cola ---------- */
 
-const groups = computed(() =>
-    [
-        { key: 'overdue', label: 'Vencido', rows: items.value.filter((item) => item.days < 0) },
-        { key: 'week', label: 'Esta semana', rows: items.value.filter((item) => item.days >= 0 && item.days <= 7) },
-        { key: 'later', label: `Hasta ${props.warning_days} días`, rows: items.value.filter((item) => item.days > 7) },
-    ].filter((group) => group.rows.length),
-);
+const groups = computed(() => periods.value.filter((period) => period.rows.length && (!selected.value || period.key === selected.value)));
 
 const PANEL = 'rounded-xl border border-slate-200/80 bg-white dark:border-white/[0.08] dark:bg-brand-deep';
 
@@ -208,89 +219,72 @@ const ROW_LINK =
                 </component>
             </section>
 
-            <!-- Franja: cada pendiente en su día, lo vencido a la izquierda de hoy -->
-            <section v-if="visibleModules.length" :class="PANEL" class="px-4 pt-4 pb-3 md:px-5" aria-labelledby="runway-title">
-                <div class="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
-                    <h2 id="runway-title" class="text-sm font-bold text-slate-800 dark:text-white">Próximos {{ warning_days }} días</h2>
-                    <ul class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-brand-gray">
-                        <li v-for="module in visibleModules" :key="module" class="flex items-center gap-1.5">
-                            <span class="size-2.5 bg-slate-400 dark:bg-brand-gray" :class="MODULES[module].shape" aria-hidden="true" />
-                            {{ MODULES[module].label }}
-                        </li>
-                    </ul>
-                </div>
-
-                <div class="relative h-28">
-                    <!-- Zona de vencidos: rayada para que se distinga sin depender del rojo -->
-                    <div
-                        class="overdue-zone absolute inset-y-0 left-0 flex flex-wrap content-end gap-1 rounded-l-md p-1.5"
-                        :style="{ width: `${OVERDUE_ZONE}%` }"
+            <!-- Plazos: cuánto vence en cada uno; elegir uno filtra la lista de abajo -->
+            <section v-if="visibleModules.length" aria-labelledby="periods-title">
+                <h2 id="periods-title" class="sr-only">Vencimientos por plazo</h2>
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                    <button
+                        v-for="period in periods"
+                        :key="period.key"
+                        type="button"
+                        :class="[
+                            PANEL,
+                            selected === period.key
+                                ? 'border-brand ring-2 ring-brand/20 dark:border-white/50 dark:ring-white/15'
+                                : 'hover:border-slate-300 dark:hover:border-white/20',
+                            period.key === 'overdue' && period.rows.length ? 'border-t-[3px] border-t-red-500 dark:border-t-red-400' : '',
+                        ]"
+                        class="flex cursor-pointer flex-col gap-3 p-4 text-left transition-[border-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/30 disabled:cursor-default disabled:opacity-60 dark:focus-visible:ring-white/30"
+                        :disabled="!period.rows.length"
+                        :aria-pressed="selected === period.key"
+                        @click="select(period.key)"
                     >
-                        <Link
-                            v-for="item in overdueItems.slice(0, 12)"
-                            :key="item.key"
-                            :href="item.href"
-                            class="block size-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 dark:focus-visible:ring-white"
-                            :class="[MODULES[item.module].shape, markerTone(item)]"
-                            :title="markerLabel(item)"
-                            :aria-label="markerLabel(item)"
-                        />
-                        <span v-if="overdueItems.length > 12" class="text-[0.65rem] font-semibold text-red-700 dark:text-red-300">
-                            +{{ overdueItems.length - 12 }}
+                        <span>
+                            <span
+                                class="block text-sm font-bold"
+                                :class="period.key === 'overdue' && period.rows.length ? 'text-red-700 dark:text-red-300' : 'text-slate-800 dark:text-white'"
+                            >
+                                {{ period.label }}
+                            </span>
+                            <span class="block text-xs text-slate-400 tabular-nums dark:text-brand-gray/70">{{ period.range }}</span>
                         </span>
-                    </div>
 
-                    <!-- Rejilla: una línea por semana, la de hoy marcada -->
-                    <span
-                        v-for="tick in ticks"
-                        :key="tick.days"
-                        class="absolute inset-y-0 w-px"
-                        :class="tick.days === 0 ? 'bg-brand dark:bg-white/70' : 'bg-slate-200 dark:bg-white/[0.08]'"
-                        :style="{ left: `${tick.left}%` }"
-                        aria-hidden="true"
-                    />
+                        <span class="text-[2rem] leading-none font-bold text-slate-900 tabular-nums dark:text-white">{{ period.rows.length }}</span>
 
-                    <!-- Una columna por día con pendientes, apilada desde abajo -->
-                    <div
-                        v-for="day in days"
-                        :key="day.days"
-                        class="absolute bottom-1.5 flex -translate-x-1/2 flex-col-reverse items-center gap-1"
-                        :style="{ left: `${day.left}%` }"
-                    >
-                        <Link
-                            v-for="item in day.shown"
-                            :key="item.key"
-                            :href="item.href"
-                            class="block size-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 dark:focus-visible:ring-white"
-                            :class="[MODULES[item.module].shape, markerTone(item)]"
-                            :title="markerLabel(item)"
-                            :aria-label="markerLabel(item)"
-                        />
-                        <span v-if="day.extra > 0" class="text-[0.65rem] font-semibold text-slate-500 dark:text-brand-gray">+{{ day.extra }}</span>
-                    </div>
-                </div>
-
-                <!-- Escala -->
-                <div class="relative mt-1.5 h-4 text-[0.68rem] text-slate-400 tabular-nums dark:text-brand-gray/70" aria-hidden="true">
-                    <span class="absolute left-0 font-semibold text-red-600 dark:text-red-400">Vencido</span>
-                    <span
-                        v-for="tick in ticks"
-                        :key="tick.days"
-                        class="absolute whitespace-nowrap"
-                        :class="[tick.days === 0 ? 'font-semibold text-brand dark:text-white' : '', tick.days === warning_days ? '-translate-x-full' : '-translate-x-1/2', tick.days === 7 || tick.days === 21 ? 'max-sm:hidden' : '']"
-                        :style="{ left: `${tick.left}%` }"
-                    >
-                        {{ tick.label }}
-                    </span>
+                        <span class="flex flex-col gap-1.5">
+                            <span v-for="entry in period.modules" :key="entry.module" class="flex flex-col gap-1">
+                                <span class="flex items-center gap-1.5 text-xs text-slate-600 dark:text-brand-gray">
+                                    <span class="size-2 shrink-0 bg-slate-400 dark:bg-brand-gray" :class="MODULES[entry.module].shape" aria-hidden="true" />
+                                    <span class="font-semibold tabular-nums">{{ entry.count }}</span>
+                                    {{ PLURALS[entry.module][entry.count === 1 ? 0 : 1] }}
+                                </span>
+                                <span class="h-1 overflow-hidden rounded-full bg-slate-100 dark:bg-white/[0.06]" aria-hidden="true">
+                                    <span
+                                        class="block h-full rounded-full transition-[width] duration-300"
+                                        :class="period.key === 'overdue' ? 'bg-red-500 dark:bg-red-400' : 'bg-brand dark:bg-brand-gray'"
+                                        :style="{ width: `${entry.width}%` }"
+                                    />
+                                </span>
+                            </span>
+                        </span>
+                    </button>
                 </div>
             </section>
 
             <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
-                <!-- Cola: lo mismo que la franja, en lista y por plazo -->
+                <!-- Cola: los pendientes de cada plazo, o solo los del plazo elegido -->
                 <section v-if="visibleModules.length" :class="PANEL" class="overflow-hidden lg:col-span-2" aria-labelledby="queue-title">
-                    <h2 id="queue-title" class="border-b border-slate-200/80 px-4 py-3 text-sm font-bold text-slate-800 md:px-5 dark:border-white/[0.08] dark:text-white">
-                        Por atender
-                    </h2>
+                    <div class="flex items-center justify-between gap-3 border-b border-slate-200/80 px-4 py-3 md:px-5 dark:border-white/[0.08]">
+                        <h2 id="queue-title" class="text-sm font-bold text-slate-800 dark:text-white">Por atender</h2>
+                        <button
+                            v-if="selected"
+                            type="button"
+                            class="cursor-pointer rounded-md text-xs font-semibold text-brand hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25 dark:text-brand-gray dark:hover:text-white"
+                            @click="selected = null"
+                        >
+                            Ver todos los plazos
+                        </button>
+                    </div>
 
                     <div v-for="group in groups" :key="group.key">
                         <h3
@@ -312,7 +306,7 @@ const ROW_LINK =
                                             <span class="truncate text-sm font-semibold text-slate-800 dark:text-white" :title="item.title">{{ item.title }}</span>
                                         </span>
                                         <span class="block truncate pl-4 text-xs text-slate-500 dark:text-brand-gray/80" :title="item.subtitle">
-                                            {{ MODULES[item.module].label }}<template v-if="item.subtitle">, {{ item.subtitle }}</template>
+                                            {{ item.key.startsWith('bond-') ? 'Fianza' : MODULES[item.module].label }}<template v-if="item.subtitle">, {{ item.subtitle }}</template>
                                         </span>
                                     </span>
 
@@ -370,8 +364,3 @@ const ROW_LINK =
     </AppShell>
 </template>
 
-<style scoped>
-.overdue-zone {
-    background: repeating-linear-gradient(-45deg, rgb(239 68 68 / 0.1) 0 4px, transparent 4px 8px);
-}
-</style>

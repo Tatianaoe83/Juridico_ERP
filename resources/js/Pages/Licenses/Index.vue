@@ -328,7 +328,7 @@ const PAGE_BTN =
                         <FileBadge class="size-4" />
                     </span>
                     <div>
-                        <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Licencias y permisos</h1>
+                        <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Licencias y Permisos</h1>
                     </div>
                 </div>
 
@@ -372,7 +372,8 @@ const PAGE_BTN =
                         Cuando ya no caben, la fila se parte sola en vez de encoger los controles.
                     -->
                     <div class="flex flex-wrap items-center gap-2">
-                        <label class="relative min-w-0 flex-1 @xl:max-w-xs">
+                        <!-- Con ancho mínimo: si no cabe todo, bajan los filtros y no se aplasta el buscador -->
+                        <label class="relative min-w-[min(100%,16rem)] flex-1 @xl:max-w-xs">
                             <span class="sr-only">Buscar licencias y permisos</span>
                             <input
                                 v-model="search"

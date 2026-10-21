@@ -347,7 +347,7 @@ const CHIP =
                         </button>
                         <button type="button" :class="GHOST_BTN" @click="cursor = startOfMonth(new Date())">Hoy</button>
 
-                        <h2 class="ml-1 text-[0.95rem] font-bold capitalize text-brand dark:text-white">{{ monthLabel }}</h2>
+                        <h2 class="ml-1 text-[0.95rem] font-bold text-brand first-letter:uppercase dark:text-white">{{ monthLabel }}</h2>
                         <Loader2 v-if="loading" class="size-4 animate-spin text-slate-400 dark:text-brand-gray" aria-label="Cargando eventos" />
 
                         <p v-if="connection.synced_at" class="ml-auto hidden text-[0.7rem] text-slate-400 @2xl:block dark:text-brand-gray/80">
@@ -419,7 +419,7 @@ const CHIP =
                     @click.stop
                 >
                     <div class="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-white/[0.06]">
-                        <p class="truncate text-[0.72rem] font-bold capitalize text-slate-700 dark:text-white">
+                        <p class="truncate text-[0.72rem] font-bold text-slate-700 first-letter:uppercase dark:text-white">
                             {{ popDay ? longDayLabel(popDay.key) : '' }}
                         </p>
                         <button

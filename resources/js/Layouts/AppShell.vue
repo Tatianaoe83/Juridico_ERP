@@ -38,16 +38,22 @@ const user = computed(() => page.props.auth?.user ?? {});
 const { isDark, toggle: toggleTheme } = useTheme();
 const { can } = usePermissions();
 
-const sidebarOpen = ref(localStorage.getItem('sidebar') !== 'closed');
-
-watch(sidebarOpen, (open) => localStorage.setItem('sidebar', open ? 'open' : 'closed'));
-
 /**
  * Cerrado en computadora no desaparece: se queda como riel de iconos y sigue
  * navegando. En móvil sí se esconde entero, porque ahí flota sobre el
  * contenido y un riel fijo robaría ancho a una pantalla que no lo tiene.
  */
-const isDesktop = useMediaQuery('(min-width: 768px)');
+const DESKTOP = '(min-width: 768px)';
+const isDesktop = useMediaQuery(DESKTOP);
+
+/**
+ * Solo la computadora recuerda si lo dejaste abierto. En móvil arranca cerrado
+ * en cada página: abierto taparía el contenido nada más entrar.
+ */
+const sidebarOpen = ref(window.matchMedia(DESKTOP).matches && localStorage.getItem('sidebar') !== 'closed');
+
+watch(sidebarOpen, (open) => isDesktop.value && localStorage.setItem('sidebar', open ? 'open' : 'closed'));
+
 const compact = computed(() => isDesktop.value && !sidebarOpen.value);
 
 // Mensajes flash del backend
