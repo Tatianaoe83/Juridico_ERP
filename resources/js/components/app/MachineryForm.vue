@@ -286,6 +286,7 @@ const CELL_ERROR = 'mt-0.5 text-[0.65rem] leading-tight font-medium text-red-600
                             type="text"
                             required
                             autocomplete="off"
+                            placeholder="Ej. POL-2026-0148"
                             :class="FIELD"
                             :aria-invalid="Boolean(form.errors.policy)"
                         />

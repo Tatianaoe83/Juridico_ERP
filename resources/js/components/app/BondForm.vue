@@ -80,7 +80,7 @@ function toUpper(field, event) {
     nextTick(() => input.setSelectionRange(selectionStart, selectionEnd));
 }
 
-const businessUnitOptions = computed(() => props.businessUnits.map(({ id, name }) => ({ value: id, label: name })));
+const businessUnitOptions = computed(() => props.businessUnits.map(({ id, name }) => ({ value: id, label: name.toUpperCase() })));
 
 const bondingCompanyOptions = computed(() => catalogOptions(props.bondingCompanies));
 
@@ -246,14 +246,14 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                 </div>
 
                 <div>
-                    <label for="bond-category" :class="LABEL">Categoría</label>
+                    <label for="bond-category" :class="LABEL">Cobertura</label>
                     <FormSelect
                         compact
                         id="bond-category"
                         v-model="form.category"
                         :options="categoryOptions"
                         :icon="Package"
-                        placeholder="Selecciona la categoría"
+                        placeholder="Selecciona la cobertura"
                         :invalid="Boolean(form.errors.category)"
                     />
                     <p v-if="form.errors.category" :class="ERROR">{{ form.errors.category }}</p>

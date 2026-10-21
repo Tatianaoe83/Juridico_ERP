@@ -74,7 +74,7 @@ class SaveBondRequest extends FormRequest
             'valid_from' => 'inicio de vigencia',
             'valid_until' => 'fin de vigencia',
             'source_document' => 'docto. fuente',
-            'category' => 'categoría',
+            'category' => 'cobertura',
             'related' => 'relativo',
             'cancellation_requested_on' => 'solicitud de cancelación',
             'cancelled_on' => 'fecha de cancelación',

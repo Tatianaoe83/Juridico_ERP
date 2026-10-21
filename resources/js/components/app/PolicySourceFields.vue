@@ -70,13 +70,13 @@ const HINT = 'mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70';
 
         <!-- Quién es: la agencia, financiera o arrendadora -->
         <div v-if="preferred">
-            <label :for="`${prefix}-supplier`" :class="LABEL">Proveedor <span :class="REQUIRED">*</span></label>
+            <label :for="`${prefix}-supplier`" :class="LABEL">Beneficiario <span :class="REQUIRED">*</span></label>
             <FormSelect
                 :id="`${prefix}-supplier`"
                 v-model="form.supplier_id"
                 :options="beneficiaryOptions"
                 :icon="Store"
-                placeholder="Agencia, financiera o arrendadora"
+                placeholder="Selecciona el beneficiario"
                 :invalid="Boolean(form.errors.supplier_id)"
             />
             <p v-if="form.errors.supplier_id" :class="ERROR">{{ form.errors.supplier_id }}</p>
