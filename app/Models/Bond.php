@@ -13,8 +13,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Bond extends Model
 {
     /**
-     * Los mismos valores que el enum de la columna `category`: cumplimiento,
-     * anticipo, buena calidad, vicios ocultos, suministro e interés fiscal.
+     * Las coberturas que puede llevar en `categories` (una o varias):
+     * cumplimiento, anticipo, buena calidad, vicios ocultos, suministro e
+     * interés fiscal.
      */
     public const CATEGORIES = ['performance', 'advance_payment', 'quality', 'hidden_defects', 'supply', 'tax_interest'];
 
@@ -30,6 +31,7 @@ class Bond extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'categories' => 'array',
             'requested_on' => 'date',
             'issued_on' => 'date',
             'valid_from' => 'date',

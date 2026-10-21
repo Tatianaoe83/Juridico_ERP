@@ -353,7 +353,7 @@ class PolicyController extends Controller
                 'number' => $bond->bond,
                 'provider' => $bond->bondingCompany?->name,
                 'coverage' => null,
-                'category' => $bond->category,
+                'categories' => $bond->categories ?? [],
                 // Sobre qué: a quién se garantiza y el asunto.
                 'subject' => $bond->beneficiary?->name,
                 'detail' => $bond->related,

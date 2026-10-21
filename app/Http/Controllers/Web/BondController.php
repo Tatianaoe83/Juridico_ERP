@@ -122,7 +122,7 @@ class BondController extends Controller
             'valid_from' => $bond->valid_from?->toDateString(),
             'valid_until' => $bond->valid_until?->toDateString(),
             'source_document' => $bond->source_document,
-            'category' => $bond->category,
+            'categories' => $bond->categories ?? [],
             'related' => $bond->related,
             'cancellation_requested_on' => $bond->cancellation_requested_on?->toDateString(),
             'cancelled_on' => $bond->cancelled_on?->toDateString(),

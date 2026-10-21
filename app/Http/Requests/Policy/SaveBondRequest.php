@@ -49,7 +49,8 @@ class SaveBondRequest extends FormRequest
             'valid_until' => ['nullable', 'date', 'after_or_equal:valid_from'],
 
             'source_document' => ['nullable', 'string', 'max:255'],
-            'category' => ['nullable', Rule::in(Bond::CATEGORIES)],
+            'categories' => ['nullable', 'array'],
+            'categories.*' => ['distinct', Rule::in(Bond::CATEGORIES)],
             'related' => ['nullable', 'string', 'max:255'],
 
             'cancellation_requested_on' => ['nullable', 'date'],
@@ -74,7 +75,8 @@ class SaveBondRequest extends FormRequest
             'valid_from' => 'inicio de vigencia',
             'valid_until' => 'fin de vigencia',
             'source_document' => 'docto. fuente',
-            'category' => 'cobertura',
+            'categories' => 'coberturas',
+            'categories.*' => 'cobertura',
             'related' => 'relativo',
             'cancellation_requested_on' => 'solicitud de cancelación',
             'cancelled_on' => 'fecha de cancelación',

@@ -22,7 +22,7 @@ const props = defineProps({
     projects: { type: Array, default: () => [] },
     bondingCompanies: { type: Array, default: () => [] },
     beneficiaries: { type: Array, default: () => [] },
-    /** Valores del enum `category` de la fianza. */
+    /** Las coberturas que puede llevar la fianza (Bond::CATEGORIES). */
     categories: { type: Array, default: () => [] },
 });
 

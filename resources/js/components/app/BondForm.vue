@@ -4,6 +4,7 @@ import {
     Building,
     Building2,
     CalendarCheck,
+    Check,
     CalendarDays,
     CalendarPlus,
     CircleDollarSign,
@@ -29,7 +30,7 @@ const props = defineProps({
     businessUnits: { type: Array, default: () => [] },
     bondingCompanies: { type: Array, default: () => [] },
     beneficiaries: { type: Array, default: () => [] },
-    /** Valores del enum `category`. */
+    /** Las coberturas que puede llevar (Bond::CATEGORIES). */
     categories: { type: Array, default: () => [] },
 });
 
@@ -46,7 +47,6 @@ const FIELDS = [
     'valid_from',
     'valid_until',
     'source_document',
-    'category',
     'related',
     'comments',
 ];
@@ -54,15 +54,17 @@ const FIELDS = [
 /** Los de texto libre van siempre en mayúsculas. Igual que SaveBondRequest::UPPERCASE. */
 const UPPERCASE = ['bond', 'related', 'source_document', 'comments'];
 
-const form = useForm(
-    Object.fromEntries(
+const form = useForm({
+    ...Object.fromEntries(
         FIELDS.map((field) => {
             const value = props.bond?.[field] ?? '';
 
             return [field, UPPERCASE.includes(field) ? String(value).toUpperCase() : value];
         }),
     ),
-);
+    // Una o varias: va aparte porque es lista, no texto.
+    categories: [...(props.bond?.categories ?? [])],
+});
 
 /**
  * Se convierten a mayúsculas mientras escribe. El cursor se deja donde estaba
@@ -83,6 +85,16 @@ const bondingCompanyOptions = computed(() => catalogOptions(props.bondingCompani
 const beneficiaryOptions = computed(() => catalogOptions(props.beneficiaries));
 
 const categoryOptions = computed(() => props.categories.map((value) => ({ value, label: BOND_CATEGORIES[value] ?? value })));
+
+/** Prende o apaga una cobertura; se guardan en el orden del catálogo. */
+function toggleCategory(value) {
+    const chosen = new Set(form.categories);
+
+    chosen.has(value) ? chosen.delete(value) : chosen.add(value);
+    form.categories = props.categories.filter((category) => chosen.has(category));
+}
+
+const categoryError = computed(() => form.errors.categories ?? Object.entries(form.errors).find(([key]) => key.startsWith('categories.'))?.[1]);
 
 /** Los de texto, en el orden en que se leen en el detalle. */
 const TEXTS = [
@@ -236,19 +248,30 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                     <p v-if="form.errors.business_unit_id" :class="ERROR">{{ form.errors.business_unit_id }}</p>
                 </div>
 
-                <div>
-                    <label for="bond-category" :class="LABEL">Cobertura</label>
-                    <FormSelect
-                        compact
-                        id="bond-category"
-                        v-model="form.category"
-                        :options="categoryOptions"
-                        :icon="Package"
-                        placeholder="Selecciona la cobertura"
-                        :invalid="Boolean(form.errors.category)"
-                    />
-                    <p v-if="form.errors.category" :class="ERROR">{{ form.errors.category }}</p>
-                </div>
+                <!-- Coberturas: una o varias, se prenden y apagan -->
+                <fieldset class="sm:col-span-2 lg:col-span-3 xl:col-span-4">
+                    <legend :class="LABEL">Coberturas</legend>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button
+                            v-for="option in categoryOptions"
+                            :key="option.value"
+                            type="button"
+                            :aria-pressed="form.categories.includes(option.value)"
+                            class="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-[0.75rem] font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/10"
+                            :class="
+                                form.categories.includes(option.value)
+                                    ? 'border-brand/40 bg-brand/[0.07] text-brand dark:border-white/30 dark:bg-white/10 dark:text-white'
+                                    : 'border-slate-200 bg-slate-50/70 text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-brand-gray dark:hover:border-white/20 dark:hover:text-white'
+                            "
+                            @click="toggleCategory(option.value)"
+                        >
+                            <Check v-if="form.categories.includes(option.value)" class="size-3.5" />
+                            <Package v-else class="size-3.5 opacity-60" />
+                            {{ option.label }}
+                        </button>
+                    </div>
+                    <p v-if="categoryError" :class="ERROR">{{ categoryError }}</p>
+                </fieldset>
             </div>
         </section>
 

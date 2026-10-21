@@ -168,11 +168,11 @@ const TYPE_META = {
     },
 };
 
-/** La categoría: en pólizas, su cobertura; en fianzas, su categoría. */
+/** La cobertura: en pólizas, una; en fianzas, una o varias. */
 function category(row) {
     if (row.type === 'policy') return POLICY_COVERAGES[row.coverage] ?? 'Sin cobertura';
 
-    return BOND_CATEGORIES[row.category] ?? 'Sin categoría';
+    return row.categories.map((value) => BOND_CATEGORIES[value] ?? value).join(', ') || 'Sin cobertura';
 }
 
 /** El color de la barra y del texto de lo que falta, según cómo va la vigencia. */

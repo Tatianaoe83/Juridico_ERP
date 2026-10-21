@@ -23,7 +23,7 @@ export const POLICY_COVERAGES = {
     contractors_equipment: 'EQUIPO DE CONTRATISTAS',
 };
 
-/** Categoría de la fianza. Igual que Bond::CATEGORIES. */
+/** Coberturas de la fianza. Igual que Bond::CATEGORIES. */
 export const BOND_CATEGORIES = {
     performance: 'CUMPLIMIENTO',
     advance_payment: 'ANTICIPO',

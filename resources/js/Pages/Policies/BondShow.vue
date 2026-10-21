@@ -54,7 +54,7 @@ const details = computed(() => [
     { label: 'Afianzadora', value: props.bond.bonding_company, icon: Building },
     { label: 'Unidad de negocio', value: props.bond.business_unit, icon: Building2 },
     { label: 'Beneficiario', value: props.bond.beneficiary, icon: UserRound },
-    { label: 'Categoría', value: BOND_CATEGORIES[props.bond.category] ?? null, icon: Package },
+    { label: 'Coberturas', value: props.bond.categories.map((value) => BOND_CATEGORIES[value] ?? value).join(', ') || null, icon: Package },
     { label: 'Relativo', value: props.bond.related, icon: Link2 },
     { label: 'Docto. fuente', value: props.bond.source_document, icon: FileText },
 ]);
