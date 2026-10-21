@@ -235,6 +235,7 @@ class FleetController extends Controller
             'supplier' => $policy->supplier?->name,
             'valid_until' => $policy->second_payment_ends_on?->toDateString(),
             'coverage_status' => $policy->coverageStatus(),
+            'reminders_enabled' => $policy->reminders_enabled,
             'machines' => $machinery ? $policy->machines->map(fn (Unit $machine) => [
                 'id' => $machine->id,
                 'machine_type' => $machine->machine_type,
@@ -244,6 +245,22 @@ class FleetController extends Controller
                 'status' => $machine->status,
             ]) : [],
         ];
+    }
+
+    /**
+     * PATCH /flotillas/polizas/{policy}/recordatorios
+     *
+     * Prende o apaga los recordatorios por correo de la póliza, de cualquiera
+     * de las cuatro: automóvil, maquinaria y sus preferentes. En el automóvil
+     * va en su periodo vigente.
+     */
+    public function reminders(UnitPolicy $policy): RedirectResponse
+    {
+        $policy->update(['reminders_enabled' => ! $policy->reminders_enabled]);
+
+        return back()->with('success', $policy->reminders_enabled
+            ? "Se activaron los recordatorios por correo de la póliza {$policy->policy}."
+            : "Se desactivaron los recordatorios por correo de la póliza {$policy->policy}.");
     }
 
     /**
@@ -586,7 +603,9 @@ class FleetController extends Controller
             'responsible' => $unit->responsible,
             'status' => $unit->status,
             'policy' => $policy?->policy,
+            'policy_id' => $policy?->id,
             'policy_source' => $policy?->source,
+            'reminders_enabled' => (bool) $policy?->reminders_enabled,
             // La del proveedor no tiene semestres: solo cuenta su vigencia.
             'semester' => $policy && ! $policy->isFromSupplier() ? [
                 'ends_on' => $semesterEnd?->toDateString(),

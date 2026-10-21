@@ -224,6 +224,7 @@ class UnitPolicy extends Model
             'second_payment_ends_on' => 'date',
             'second_payment_due_on' => 'date',
             'second_payment_paid_at' => 'date',
+            'reminders_enabled' => 'boolean',
             'endorsement' => 'boolean',
             'financing' => 'boolean',
             'cancellation_requested_on' => 'date',

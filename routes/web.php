@@ -124,6 +124,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/flotillas/maquinaria/{policy}', [MachineryController::class, 'destroy'])
         ->middleware('can:flotillas.delete')
         ->name('fleets.machinery.destroy');
+    // Recordatorios por correo: van en la póliza, sea de automóvil o de maquinaria.
+    Route::patch('/flotillas/polizas/{policy}/recordatorios', [FleetController::class, 'reminders'])
+        ->middleware('can:flotillas.update')
+        ->name('fleets.reminders');
     // Va después de /flotillas/crear: si no, «crear» entraría como {unit}.
     Route::get('/flotillas/{unit}', [FleetController::class, 'show'])
         ->middleware('can:flotillas.view')

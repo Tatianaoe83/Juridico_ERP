@@ -21,7 +21,7 @@ class ExpirationReminderNotification extends Notification
      */
     public function __construct(
         private readonly string $kind,
-        private readonly string $name,
+        public readonly string $name,
         private readonly Carbon $expiresOn,
         private readonly array $details = [],
         private readonly ?string $url = null,

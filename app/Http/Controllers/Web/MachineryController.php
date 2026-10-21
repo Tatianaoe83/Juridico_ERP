@@ -179,6 +179,7 @@ class MachineryController extends Controller
             'amount' => $policy->first_payment_amount !== null ? (float) $policy->first_payment_amount : null,
             'valid_until' => $policy->second_payment_ends_on?->toDateString(),
             'status' => $policy->coverageStatus(),
+            'reminders_enabled' => $policy->reminders_enabled,
             'machines' => $policy->machines->map(fn (Unit $machine) => self::machineSummary($machine)),
         ];
     }

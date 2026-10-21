@@ -6,6 +6,7 @@ import AppShell from '@/Layouts/AppShell.vue';
 import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
 import FilterSelect from '@/components/app/FilterSelect.vue';
 import PolicyMachinesTable from '@/components/app/PolicyMachinesTable.vue';
+import ReminderToggle from '@/components/app/ReminderToggle.vue';
 import { usePermissions } from '@/composables/usePermissions';
 import { coverageStatus } from '@/lib/coverages';
 import { MACHINERY_COVERAGES, PAYMENT_WARNING_DAYS, UNASSIGNED, UNIT_STATUS, UNIT_TYPES, money, shortDate, unitStatus } from '@/lib/units';
@@ -580,6 +581,12 @@ const PAGE_BTN =
                                             >
                                                 <Pencil class="size-4" />
                                             </Link>
+                                            <ReminderToggle
+                                                v-if="can('flotillas.update')"
+                                                :url="`/flotillas/polizas/${row.id}/recordatorios`"
+                                                :enabled="row.reminders_enabled"
+                                                :label="`la póliza ${row.policy}`"
+                                            />
                                             <button
                                                 v-if="can('flotillas.delete')"
                                                 type="button"
@@ -703,6 +710,12 @@ const PAGE_BTN =
                                             >
                                                 <Pencil class="size-4" />
                                             </Link>
+                                            <ReminderToggle
+                                                v-if="can('flotillas.update')"
+                                                :url="`/flotillas/polizas/${row.id}/recordatorios`"
+                                                :enabled="row.reminders_enabled"
+                                                :label="`la póliza ${row.policy}`"
+                                            />
                                             <button
                                                 v-if="can('flotillas.delete')"
                                                 type="button"
@@ -822,6 +835,13 @@ const PAGE_BTN =
                                         >
                                             <Pencil class="size-4" />
                                         </Link>
+                                        <!-- Sin póliza no hay vigencia de qué avisar -->
+                                        <ReminderToggle
+                                            v-if="can('flotillas.update') && unit.policy_id"
+                                            :url="`/flotillas/polizas/${unit.policy_id}/recordatorios`"
+                                            :enabled="unit.reminders_enabled"
+                                            :label="`la póliza ${unit.policy}`"
+                                        />
                                         <button
                                             v-if="can('flotillas.delete')"
                                             type="button"
