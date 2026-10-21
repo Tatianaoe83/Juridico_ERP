@@ -298,9 +298,9 @@ class MicrosoftGraph
             'isAllDay' => $data['all_day'],
             'start' => ['dateTime' => $format($start), 'timeZone' => $timezone],
             'end' => ['dateTime' => $format($end), 'timeZone' => $timezone],
-            'body' => filled($data['description'])
-                ? ['contentType' => 'text', 'content' => $data['description']]
-                : null,
+            // Siempre viaja, aunque venga vacío: así un PATCH limpia la
+            // descripción que hubiera quedado de antes.
+            'body' => ['contentType' => 'text', 'content' => (string) ($data['description'] ?? '')],
             // Siempre viaja, aunque venga vacío: así un PATCH limpia la
             // ubicación que hubiera quedado de antes.
             'location' => ['displayName' => (string) ($data['location'] ?? '')],

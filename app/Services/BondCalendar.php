@@ -86,23 +86,14 @@ class BondCalendar
      */
     private function event(Bond $bond): array
     {
-        $bond->loadMissing(['businessUnit', 'bondingCompany', 'beneficiary']);
-
-        $lines = array_filter([
-            "Fianza: {$bond->bond}",
-            $bond->bondingCompany ? "Afianzadora: {$bond->bondingCompany->name}" : null,
-            $bond->beneficiary ? "Beneficiario: {$bond->beneficiary->name}" : null,
-            $bond->related ? "Relativo: {$bond->related}" : null,
-            $bond->businessUnit ? "Unidad de negocio: {$bond->businessUnit->name}" : null,
-        ]);
+        $bond->loadMissing('beneficiary');
 
         $day = $bond->valid_until->copy()->startOfDay();
 
         return [
             'title' => collect(['Fin de vigencia', "Fianza {$bond->bond}", $bond->beneficiary?->name])->filter()->implode(' · '),
-            'description' => implode("\n", $lines),
-            // La unidad de negocio va en la descripción: en «Ubicación» Outlook
-            // la muestra como si fuera un lugar.
+            // Solo el título: el detalle está en el sistema.
+            'description' => null,
             'location' => null,
             'all_day' => true,
             'start' => $day,

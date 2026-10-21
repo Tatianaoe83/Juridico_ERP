@@ -33,7 +33,7 @@ class LicenseCalendar
         try {
             // Sin correo propio: la invitación nativa de Outlook ya avisa a
             // los compartidos.
-            $event = $this->events->sync($actor, $license->calendar_event_id, $this->event($license, $actor), notify: false);
+            $event = $this->events->sync($actor, $license->calendar_event_id, $this->event($license), notify: false);
         } catch (Throwable $e) {
             report($e);
 
@@ -69,32 +69,23 @@ class LicenseCalendar
     }
 
     /**
-     * Lo que se ve en Outlook. El cuerpo repite empresa, autoridad y quién dio
-     * de alta el registro: quien abre el evento no tiene por qué entrar al ERP
-     * para saber de qué va.
+     * Lo que se ve en Outlook: solo el título, sin descripción. El detalle
+     * está en el sistema.
      *
      * Los invitados no van aquí: CalendarEvents suma a quienes tienen el
      * calendario compartido.
      *
      * @return array<string, mixed>
      */
-    private function event(License $license, User $actor): array
+    private function event(License $license): array
     {
         $start = $license->expiresAt();
         $allDay = $license->isAllDay();
 
-        $lines = array_filter([
-            $license->businessUnit ? "Unidad de negocio: {$license->businessUnit->name}" : null,
-            $license->authority ? "Autoridad: {$license->authority}" : null,
-            'Registrado por: '.($license->creator?->name ?? $actor->name),
-            'Alta: '.$license->created_at?->format('d/m/Y H:i'),
-            $license->comments ? "\n{$license->comments}" : null,
-        ]);
-
         return [
-            'title' => $license->name,
-            'description' => implode("\n", $lines),
-            // Outlook pone la autoridad en «Ubicación» y confunde: va en la descripción.
+            // Mismo formato que pólizas y fianzas: qué pasa · qué es.
+            'title' => "Fin de vigencia · {$license->name}",
+            'description' => null,
             'location' => null,
             'all_day' => $allDay,
             'start' => $start,

@@ -227,33 +227,20 @@ class UnitCalendar
     {
         $unit = $policy->unit;
         $unitName = trim("{$unit?->brand} {$unit?->model}");
-        $businessUnit = $policy->businessUnitName();
 
-        // La de maquinaria cubre varias máquinas. El evento solo lleva la
-        // póliza y su unidad de negocio: las máquinas cambian sin mover fechas
-        // y el evento no se vuelve a tocar, así que quedarían desactualizadas.
+        // La de maquinaria cubre varias máquinas. El título solo lleva la
+        // póliza: las máquinas cambian sin mover fechas y el evento no se
+        // vuelve a tocar, así que quedarían desactualizadas.
         if ($policy->isMachinery()) {
             $unitName = '';
         }
-
-        $lines = array_filter([
-            "Póliza: {$policy->policy}",
-            $policy->insurer ? "Aseguradora: {$policy->insurer->name}" : null,
-            $policy->supplier ? "Beneficiario preferente: {$policy->supplier->name}" : null,
-            $unitName ? "Unidad: {$unitName}" : null,
-            $unit?->plate ? "Placa: {$unit->plate}" : null,
-            $unit?->economic_number ? "Económico: {$unit->economic_number}" : null,
-            $businessUnit ? "Unidad de negocio: {$businessUnit}" : null,
-            $unit?->responsible ? "Responsable: {$unit->responsible}" : null,
-        ]);
 
         $day = $date->copy()->startOfDay();
 
         return [
             'title' => collect([$label, "Póliza {$policy->policy}", $unitName])->filter()->implode(' · '),
-            'description' => implode("\n", $lines),
-            // La unidad de negocio va en la descripción: en «Ubicación» Outlook
-            // la muestra como si fuera un lugar.
+            // Solo el título: el detalle está en el sistema.
+            'description' => null,
             'location' => null,
             'all_day' => true,
             'start' => $day,

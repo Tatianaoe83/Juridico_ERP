@@ -79,23 +79,14 @@ class ConstructionPolicyCalendar
      */
     private function event(ConstructionPolicy $policy): array
     {
-        $policy->loadMissing(['businessUnit', 'insurer', 'project']);
-
-        $lines = array_filter([
-            "Póliza: {$policy->policy}",
-            $policy->insurer ? "Aseguradora: {$policy->insurer->name}" : null,
-            $policy->project ? "Obra: {$policy->project->name}" : null,
-            $policy->project?->address ? "Dirección: {$policy->project->address}" : null,
-            $policy->businessUnit ? "Unidad de negocio: {$policy->businessUnit->name}" : null,
-        ]);
+        $policy->loadMissing('project');
 
         $day = $policy->valid_until->copy()->startOfDay();
 
         return [
             'title' => collect(['Fin de vigencia', "Póliza {$policy->policy}", $policy->project?->name])->filter()->implode(' · '),
-            'description' => implode("\n", $lines),
-            // La unidad de negocio va en la descripción: en «Ubicación» Outlook
-            // la muestra como si fuera un lugar.
+            // Solo el título: el detalle está en el sistema.
+            'description' => null,
             'location' => null,
             'all_day' => true,
             'start' => $day,
