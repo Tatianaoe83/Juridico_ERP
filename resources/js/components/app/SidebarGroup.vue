@@ -34,7 +34,7 @@ const panelId = `sidebar-group-${props.label.normalize('NFD').replace(/[^\w]+/g,
                 :aria-controls="panelId"
                 @click="emit('toggle')"
             >
-                <span class="flex-1 text-left">{{ label }}</span>
+                <span class="flex-1 text-left uppercase">{{ label }}</span>
                 <ChevronDown class="size-3.5 shrink-0 transition-transform duration-200" :class="open ? 'rotate-0' : '-rotate-90'" />
             </button>
             <span
