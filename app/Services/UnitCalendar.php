@@ -57,10 +57,11 @@ class UnitCalendar
     }
 
     /**
-     * Anticipación del recordatorio de cada evento, en minutos: una semana.
-     * Es el recordatorio propio de Outlook, el del reloj.
+     * Recordatorio de Outlook, en minutos antes del evento: 0 = el mismo día,
+     * al empezar (medianoche, porque es de todo el día). Los avisos con
+     * anticipación irán por correo.
      */
-    private const REMINDER_MINUTES = 10080;
+    private const REMINDER_MINUTES = 0;
 
     public function __construct(private readonly CalendarEvents $events) {}
 
