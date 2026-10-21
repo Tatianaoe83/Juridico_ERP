@@ -24,4 +24,20 @@ class BusinessUnit extends Model
     {
         return $this->hasMany(License::class);
     }
+
+    public function bonds(): HasMany
+    {
+        return $this->hasMany(Bond::class);
+    }
+
+    /** Pólizas de maquinaria: la vehicular toma la de su unidad. */
+    public function unitPolicies(): HasMany
+    {
+        return $this->hasMany(UnitPolicy::class);
+    }
+
+    public function constructionPolicies(): HasMany
+    {
+        return $this->hasMany(ConstructionPolicy::class);
+    }
 }
