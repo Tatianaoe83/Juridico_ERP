@@ -39,7 +39,7 @@ const CARD =
     'rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] ' +
     'dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none';
 
-const LABEL = 'flex items-center gap-2 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80';
+const LABEL = 'flex items-center gap-2 text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/80';
 </script>
 
 <template>
@@ -56,7 +56,6 @@ const LABEL = 'flex items-center gap-2 text-[0.62rem] font-bold uppercase tracki
                         <component :is="meta.icon" class="size-4" />
                     </span>
                     <div class="min-w-0">
-                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Roles</p>
                         <h1 class="truncate text-xl font-bold tracking-tight text-brand dark:text-white">{{ meta.label }}</h1>
                     </div>
                 </div>
@@ -148,7 +147,7 @@ const LABEL = 'flex items-center gap-2 text-[0.62rem] font-bold uppercase tracki
                             <div
                                 class="flex items-center gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-2.5 dark:border-white/[0.06] dark:bg-white/[0.03]"
                             >
-                                <span class="flex-1 text-[0.7rem] font-bold uppercase tracking-[0.14em] text-slate-600 dark:text-slate-200">{{ group.area }}</span>
+                                <span class="flex-1 text-[0.7rem] font-bold text-slate-600 dark:text-slate-200">{{ group.area }}</span>
                                 <span
                                     class="rounded-md px-1.5 py-0.5 text-[0.65rem] font-bold tabular-nums"
                                     :class="countIn(group) ? 'bg-brand/[0.08] text-brand dark:bg-white/10 dark:text-white' : 'text-slate-400 dark:text-brand-gray/70'"

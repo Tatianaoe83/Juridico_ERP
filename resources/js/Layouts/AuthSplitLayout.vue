@@ -93,7 +93,7 @@ const year = new Date().getFullYear();
 
                 <!-- En md bajo el banner solo lleva el logo: el formulario tiene prioridad -->
                 <div class="mt-auto pt-8 short:md:max-lg:hidden lg:max-w-md lg:pt-6">
-                    <p class="flex items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-brand-gray">
+                    <p class="flex items-center gap-2 text-[0.7rem] font-semibold text-brand-gray">
                         <span class="size-1.5 rounded-full bg-brand-gray" aria-hidden="true" />
                         Sistema de Gestión Jurídica
                     </p>

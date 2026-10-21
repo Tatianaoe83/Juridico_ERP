@@ -39,7 +39,6 @@ const breadcrumbs = [
                         <Tractor class="size-4" />
                     </span>
                     <div class="min-w-0">
-                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Editar póliza de maquinaria</p>
                         <h1 class="truncate text-xl font-bold tracking-tight text-brand dark:text-white">{{ policy.policy }}</h1>
                     </div>
                 </div>

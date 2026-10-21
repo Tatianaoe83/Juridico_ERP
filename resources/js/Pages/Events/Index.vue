@@ -114,7 +114,7 @@ const CARD =
     'rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] ' +
     'dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none';
 
-const SECTION_TITLE = 'flex items-center gap-2 text-[0.62rem] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-brand-gray/80';
+const SECTION_TITLE = 'flex items-center gap-2 text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/80';
 
 const FIELD =
     'peer h-9 w-full rounded-lg border border-slate-200 bg-slate-50/70 px-3 text-[0.8rem] text-slate-900 outline-none ' +

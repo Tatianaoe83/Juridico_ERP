@@ -91,7 +91,7 @@ const CARD =
     'rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] ' +
     'tall:p-5 dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none';
 
-const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80';
+const SECTION_TITLE = 'text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/80';
 
 const TILE =
     'mt-0.5 grid size-7 shrink-0 place-content-center rounded-lg bg-slate-50 text-slate-400 ring-1 ring-inset ring-slate-500/10 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10';
@@ -111,7 +111,6 @@ const TILE =
                         <Tractor class="size-4" />
                     </span>
                     <div class="min-w-0">
-                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Póliza de maquinaria</p>
                         <h1 class="truncate text-xl font-bold tracking-tight text-brand dark:text-white">{{ policy.policy }}</h1>
                     </div>
                     <span class="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.7rem] font-bold whitespace-nowrap ring-1 ring-inset" :class="status.tone">
@@ -147,7 +146,7 @@ const TILE =
                     <div v-for="detail in details" :key="detail.label" class="flex items-start gap-2.5">
                         <span :class="TILE"><component :is="detail.icon" class="size-3.5" /></span>
                         <div class="min-w-0">
-                            <dt class="text-[0.6rem] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-brand-gray/70">{{ detail.label }}</dt>
+                            <dt class="text-[0.6rem] font-bold text-slate-400 dark:text-brand-gray/70">{{ detail.label }}</dt>
                             <dd class="truncate text-[0.82rem] font-semibold text-slate-800 tabular-nums dark:text-white" :title="detail.value ?? undefined">
                                 {{ detail.value ?? '—' }}
                             </dd>
@@ -162,7 +161,7 @@ const TILE =
 
                 <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 dark:border-white/10">
                     <table class="w-full min-w-[44rem] text-left text-[0.78rem]">
-                        <thead class="bg-slate-50 text-[0.62rem] font-bold tracking-[0.1em] text-slate-500 uppercase dark:bg-white/[0.03] dark:text-brand-gray">
+                        <thead class="bg-slate-50 text-[0.62rem] font-bold text-slate-500 dark:bg-white/[0.03] dark:text-brand-gray">
                             <tr>
                                 <th class="px-3 py-2 font-bold">Tipo</th>
                                 <th class="px-3 py-2 font-bold">Marca / Modelo</th>

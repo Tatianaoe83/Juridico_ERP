@@ -65,7 +65,6 @@ const breadcrumbs = computed(() => [
                         <component :is="UNIT_TYPES[type]?.icon ?? Truck" class="size-4" />
                     </span>
                     <div>
-                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Flotillas</p>
                         <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">{{ title }}</h1>
                     </div>
                 </div>

@@ -84,7 +84,7 @@ async function copyEmail() {
                         {{ user.name }}
                         <span
                             v-if="user.is_self"
-                            class="rounded-full bg-slate-100 px-2 py-0.5 text-[0.65rem] font-bold tracking-wide text-slate-500 uppercase dark:bg-white/10 dark:text-brand-gray"
+                            class="rounded-full bg-slate-100 px-2 py-0.5 text-[0.65rem] font-bold text-slate-500 dark:bg-white/10 dark:text-brand-gray"
                         >
                             Tú
                         </span>
@@ -115,7 +115,7 @@ async function copyEmail() {
                     :key="tile.label"
                     class="rounded-xl border border-slate-200/80 bg-slate-50/60 p-4 short:p-3 dark:border-white/[0.08] dark:bg-white/[0.03]"
                 >
-                    <dt class="flex items-center gap-2 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">
+                    <dt class="flex items-center gap-2 text-[0.68rem] font-bold text-slate-400 dark:text-brand-gray/80">
                         <component :is="tile.icon" class="size-3.5" />
                         {{ tile.label }}
                     </dt>

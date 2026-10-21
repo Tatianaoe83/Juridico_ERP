@@ -103,7 +103,7 @@ const REQUIRED = 'font-normal text-red-500 dark:text-red-400';
         <form id="policy-endorsement-form" class="flex flex-col gap-4 px-6 pt-1 pb-6 short:pb-4 sm:px-7" novalidate @submit.prevent="submit">
             <!-- Hasta cuándo va hoy -->
             <div class="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50/70 px-3 py-2.5 ring-1 ring-inset ring-slate-200/70 dark:bg-white/[0.03] dark:ring-white/[0.06]">
-                <p class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">Fin de vigencia actual</p>
+                <p class="text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/80">Fin de vigencia actual</p>
                 <p class="text-[0.85rem] font-bold tabular-nums text-slate-800 dark:text-white">{{ shortDate(policy?.valid_until) ?? '—' }}</p>
             </div>
 

@@ -34,11 +34,11 @@ const tally = computed(() =>
     }, {}),
 );
 
-const SECTION = 'mb-2 flex items-center gap-2 text-[0.62rem] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-brand-gray/80';
+const SECTION = 'mb-2 flex items-center gap-2 text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/80';
 
 const TILE = 'rounded-xl border border-slate-200/80 bg-slate-50/60 px-3.5 py-3 dark:border-white/[0.08] dark:bg-white/[0.03]';
 
-const TILE_LABEL = 'flex items-center gap-2 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80';
+const TILE_LABEL = 'flex items-center gap-2 text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/80';
 
 const TILE_VALUE = 'mt-1.5 text-[0.85rem] font-bold text-slate-800 dark:text-white';
 </script>

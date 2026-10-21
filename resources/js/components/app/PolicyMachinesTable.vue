@@ -10,7 +10,7 @@ defineProps({
     machines: { type: Array, required: true },
 });
 
-const TH = 'px-3 py-1.5 text-left text-[0.6rem] font-bold uppercase tracking-[0.12em]';
+const TH = 'px-3 py-1.5 text-left text-[0.6rem] font-bold ';
 </script>
 
 <template>

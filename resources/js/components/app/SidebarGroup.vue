@@ -26,7 +26,7 @@ const panelId = `sidebar-group-${props.label.normalize('NFD').replace(/[^\w]+/g,
         <div class="relative flex h-7 items-center">
             <button
                 type="button"
-                class="flex h-full w-full cursor-pointer items-center gap-2 rounded-md px-3 text-[0.65rem] font-semibold uppercase tracking-[0.15em] whitespace-nowrap text-muted-foreground transition-[opacity,color] duration-200 hover:text-brand focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-brand/30 dark:text-brand-gray/70 dark:hover:text-white dark:focus-visible:ring-white/30"
+                class="flex h-full w-full cursor-pointer items-center gap-2 rounded-md px-3 text-[0.65rem] font-semibold whitespace-nowrap text-muted-foreground transition-[opacity,color] duration-200 hover:text-brand focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-brand/30 dark:text-brand-gray/70 dark:hover:text-white dark:focus-visible:ring-white/30"
                 :class="compact ? 'pointer-events-none opacity-0' : 'opacity-100'"
                 :aria-hidden="compact"
                 :tabindex="compact ? -1 : undefined"

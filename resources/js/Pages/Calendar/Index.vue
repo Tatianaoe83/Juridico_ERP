@@ -358,7 +358,7 @@ const CHIP =
                     <div class="flex flex-col border-t border-slate-100 md:min-h-0 md:flex-1 dark:border-white/[0.06]">
                         <!-- Encabezado de días, pegado al desplazar -->
                         <div
-                            class="grid shrink-0 grid-cols-7 border-b border-slate-100 bg-slate-50 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-500 dark:border-white/[0.06] dark:bg-brand-deep dark:text-brand-gray"
+                            class="grid shrink-0 grid-cols-7 border-b border-slate-100 bg-slate-50 text-[0.62rem] font-bold text-slate-500 dark:border-white/[0.06] dark:bg-brand-deep dark:text-brand-gray"
                         >
                             <div v-for="day in WEEKDAYS" :key="day" class="px-2 py-2 text-center">{{ day }}</div>
                         </div>

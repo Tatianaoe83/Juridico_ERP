@@ -123,12 +123,12 @@ const CARD =
     'rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] ' +
     'tall:p-5 dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none';
 
-const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80';
+const SECTION_TITLE = 'text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/80';
 
 const TILE_ICON =
     'mt-0.5 grid size-7 shrink-0 place-content-center rounded-lg bg-slate-50 text-slate-400 ring-1 ring-inset ring-slate-500/10 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/10';
 
-const DT = 'text-[0.6rem] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-brand-gray/70';
+const DT = 'text-[0.6rem] font-bold text-slate-400 dark:text-brand-gray/70';
 
 const DD = 'truncate text-[0.82rem] font-semibold text-slate-800 dark:text-white';
 
@@ -149,7 +149,6 @@ const EMPTY = 'mt-3 flex items-center gap-2 text-[0.78rem] text-slate-400 dark:t
                         <FileCheck class="size-4" />
                     </span>
                     <div class="min-w-0">
-                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Póliza de obra</p>
                         <h1 class="truncate text-xl font-bold tracking-tight text-brand dark:text-white">{{ policy.policy }}</h1>
                     </div>
                     <span class="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.7rem] font-bold whitespace-nowrap ring-1 ring-inset" :class="status.tone">

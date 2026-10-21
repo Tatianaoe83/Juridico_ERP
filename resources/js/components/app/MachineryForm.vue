@@ -216,7 +216,7 @@ const CARD =
     'rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] ' +
     'tall:p-5 dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none';
 
-const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80';
+const SECTION_TITLE = 'text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/80';
 
 /* ---------- Filas de máquinas ---------- */
 
@@ -422,7 +422,7 @@ const CELL_ERROR = 'mt-0.5 text-[0.65rem] leading-tight font-medium text-red-600
                 <!-- Encabezados: solo en pantallas anchas; en angostas cada campo lleva su etiqueta -->
                 <div
                     :class="ROW_GRID"
-                    class="hidden border-b border-slate-200 bg-slate-50 px-3 py-2 text-[0.62rem] font-bold tracking-[0.1em] text-slate-500 uppercase lg:grid dark:border-white/10 dark:bg-white/[0.03] dark:text-brand-gray"
+                    class="hidden border-b border-slate-200 bg-slate-50 px-3 py-2 text-[0.62rem] font-bold text-slate-500 lg:grid dark:border-white/10 dark:bg-white/[0.03] dark:text-brand-gray"
                 >
                     <span>Tipo <span :class="REQUIRED">*</span></span>
                     <span>Marca <span :class="REQUIRED">*</span></span>
@@ -443,7 +443,7 @@ const CELL_ERROR = 'mt-0.5 text-[0.65rem] leading-tight font-medium text-red-600
                     <p class="col-span-2 flex items-center gap-2 text-[0.78rem] font-bold text-slate-800 lg:hidden dark:text-white">
                         <Tractor class="size-4 text-slate-400 dark:text-brand-gray" />
                         Máquina {{ index + 1 }}
-                        <span v-if="!item.id" class="rounded bg-brand/[0.07] px-1.5 py-px text-[0.6rem] font-bold text-brand uppercase dark:bg-white/10 dark:text-white">Nueva</span>
+                        <span v-if="!item.id" class="rounded bg-brand/[0.07] px-1.5 py-px text-[0.6rem] font-bold text-brand dark:bg-white/10 dark:text-white">Nueva</span>
                     </p>
 
                     <div class="col-span-2 lg:col-span-1">

@@ -144,7 +144,7 @@ const CARD =
     'rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] ' +
     'tall:py-3.5 dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none';
 
-const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80';
+const SECTION_TITLE = 'text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/80';
 </script>
 
 <template>

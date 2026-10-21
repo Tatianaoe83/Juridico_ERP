@@ -49,7 +49,7 @@
                     </tr>
                 </table>
 
-                <p style="margin:18px 0 0; font-size:12px; letter-spacing:0.16em; text-transform:uppercase; color:#FFFFFF; opacity:0.85;">
+                <p style="margin:18px 0 0; font-size:12px; color:#FFFFFF; opacity:0.85;">
                     Calendario · {{ config('app.name') }}
                 </p>
                 <h1 style="margin:6px 0 0; font-size:24px; line-height:1.25; font-weight:600; color:#FFFFFF;">
@@ -75,7 +75,7 @@
                         @foreach ($details as $row)
                             <tr>
                                 <td style="padding:14px 18px; {{ $loop->last ? '' : 'border-bottom:1px solid '.$line.';' }}">
-                                    <p style="margin:0 0 3px; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:{{ $muted }};">
+                                    <p style="margin:0 0 3px; font-size:11px; color:{{ $muted }};">
                                         {{ $row['label'] }}
                                     </p>
                                     <p style="margin:0; font-size:15px; line-height:1.45; color:{{ $ink }};">
@@ -93,7 +93,7 @@
         @if ($changes)
             <tr>
                 <td style="padding:26px 32px 0;">
-                    <p style="margin:0 0 12px; font-size:13px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:{{ $ink }};">
+                    <p style="margin:0 0 12px; font-size:13px; font-weight:600; color:{{ $ink }};">
                         Qué cambió
                     </p>
 
@@ -101,7 +101,7 @@
                         @foreach ($changes as $change)
                             <tr>
                                 <td style="padding:16px 18px; {{ $loop->last ? '' : 'border-bottom:1px solid '.$line.';' }}">
-                                    <p style="margin:0 0 10px; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:{{ $muted }};">
+                                    <p style="margin:0 0 10px; font-size:11px; color:{{ $muted }};">
                                         {{ $change['label'] }}
                                     </p>
 
@@ -110,7 +110,7 @@
                                              distingue es la etiqueta y la barra lateral. --}}
                                         <tr>
                                             <td valign="top" style="padding:0 0 10px 12px; border-left:3px solid {{ $line }};">
-                                                <p style="margin:0 0 2px; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:{{ $muted }};">
+                                                <p style="margin:0 0 2px; font-size:10px; color:{{ $muted }};">
                                                     Antes
                                                 </p>
                                                 <p style="margin:0; font-size:15px; line-height:1.45; font-weight:600; color:{{ $ink }};">
@@ -120,7 +120,7 @@
                                         </tr>
                                         <tr>
                                             <td valign="top" style="padding:10px 0 0 12px; border-left:3px solid {{ $accent }};">
-                                                <p style="margin:0 0 2px; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; font-weight:700; color:{{ $accent }};">
+                                                <p style="margin:0 0 2px; font-size:10px; font-weight:700; color:{{ $accent }};">
                                                     Ahora
                                                 </p>
                                                 <p style="margin:0; font-size:15px; line-height:1.45; font-weight:600; color:{{ $ink }};">
@@ -141,7 +141,7 @@
         @if ($guests)
             <tr>
                 <td style="padding:26px 32px 0;">
-                    <p style="margin:0 0 12px; font-size:13px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:{{ $ink }};">
+                    <p style="margin:0 0 12px; font-size:13px; font-weight:600; color:{{ $ink }};">
                         Invitados
                     </p>
 

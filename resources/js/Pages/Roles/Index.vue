@@ -123,7 +123,7 @@ function deleteBlocker(role) {
 }
 
 /* Mismas medidas que la tabla de permisos: responden al ancho del card. */
-const TH = 'px-3 py-2 text-left text-[0.62rem] font-bold uppercase tracking-[0.14em] whitespace-nowrap tall:py-2.5 @2xl:px-4 @6xl:px-6';
+const TH = 'px-3 py-2 text-left text-[0.68rem] font-bold whitespace-nowrap tall:py-2.5 @2xl:px-4 @6xl:px-6';
 const TD = 'px-3 py-1.5 tall:py-2 @2xl:px-4 @6xl:px-6';
 
 const ACTION =

@@ -159,7 +159,7 @@ function shortDate(iso) {
  * (`@container`), no al de la ventana: con el sidebar abierto el card es más
  * angosto que la pantalla.
  */
-const TH = 'px-3 py-2 text-left text-[0.62rem] font-bold uppercase tracking-[0.14em] whitespace-nowrap tall:py-2.5 @2xl:px-4 @6xl:px-6';
+const TH = 'px-3 py-2 text-left text-[0.68rem] font-bold whitespace-nowrap tall:py-2.5 @2xl:px-4 @6xl:px-6';
 const TD = 'px-3 py-1.5 tall:py-2 @2xl:px-4 @6xl:px-6';
 
 const ACTION =
@@ -272,7 +272,7 @@ const PAGE_BTN =
                                                 </span>
                                                 <span
                                                     v-if="user.is_self"
-                                                    class="shrink-0 rounded-md bg-brand/[0.07] px-1.5 py-0.5 text-[0.55rem] font-bold tracking-wide text-brand uppercase dark:bg-white/10 dark:text-brand-gray"
+                                                    class="shrink-0 rounded-md bg-brand/[0.07] px-1.5 py-0.5 text-[0.55rem] font-bold text-brand dark:bg-white/10 dark:text-brand-gray"
                                                 >
                                                     Tú
                                                 </span>

@@ -423,7 +423,7 @@ const PAGE_BTN =
                                                 >
                                                     {{ row.number }}
                                                 </Link>
-                                                <span class="shrink-0 text-[0.58rem] font-bold uppercase tracking-wider text-slate-400 dark:text-brand-gray/70">
+                                                <span class="shrink-0 text-[0.58rem] font-bold text-slate-400 dark:text-brand-gray/70">
                                                     {{ TYPE_META[row.type].label }}
                                                 </span>
                                             </p>
@@ -442,7 +442,7 @@ const PAGE_BTN =
                                     >
                                         {{ row.provider ?? 'Sin proveedor' }}
                                     </p>
-                                    <p class="truncate text-[0.68rem] font-medium uppercase tracking-wide text-slate-400 dark:text-brand-gray/70">{{ category(row) }}</p>
+                                    <p class="truncate text-[0.68rem] font-medium text-slate-400 dark:text-brand-gray/70">{{ category(row) }}</p>
                                 </td>
 
                                 <!-- Vigencia: fechas, barra de lo transcurrido y cuánto falta -->

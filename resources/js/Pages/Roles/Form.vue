@@ -98,7 +98,6 @@ const CHECK =
                         <ShieldCheck class="size-4" />
                     </span>
                     <div class="min-w-0">
-                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Roles</p>
                         <h1 class="truncate text-xl font-bold tracking-tight text-brand dark:text-white">{{ title }}</h1>
                     </div>
                 </div>
@@ -116,7 +115,7 @@ const CHECK =
                 <!-- Datos del rol -->
                 <aside class="flex flex-col gap-3 lg:min-h-0 lg:overflow-y-auto tall:gap-4">
                     <section :class="[CARD, 'p-4 tall:p-5']">
-                        <h2 class="flex items-center gap-2 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">
+                        <h2 class="flex items-center gap-2 text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/80">
                             <Tag class="size-3.5" />
                             Datos del rol
                         </h2>
@@ -142,7 +141,7 @@ const CHECK =
 
                     <!-- Resumen de la selección -->
                     <section :class="[CARD, 'p-4 tall:p-5']">
-                        <h2 class="flex items-center gap-2 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">
+                        <h2 class="flex items-center gap-2 text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/80">
                             <KeyRound class="size-3.5" />
                             Resumen
                         </h2>
@@ -217,7 +216,7 @@ const CHECK =
                                     :indeterminate="countIn(group) > 0 && countIn(group) < group.permissions.length"
                                     @change="toggleGroup(group)"
                                 />
-                                <span class="flex-1 text-[0.7rem] font-bold uppercase tracking-[0.14em] text-slate-600 dark:text-slate-200">{{ group.area }}</span>
+                                <span class="flex-1 text-[0.7rem] font-bold text-slate-600 dark:text-slate-200">{{ group.area }}</span>
                                 <span
                                     class="rounded-md px-1.5 py-0.5 text-[0.65rem] font-bold tabular-nums"
                                     :class="countIn(group) ? 'bg-brand/[0.08] text-brand dark:bg-white/10 dark:text-white' : 'text-slate-400 dark:text-brand-gray/70'"

@@ -61,7 +61,7 @@ function back() {
                 <component :is="info.icon" class="size-6" />
             </span>
 
-            <p class="mt-6 text-[0.6rem] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-brand-gray/80">Error {{ status }}</p>
+            <p class="mt-6 text-[0.6rem] font-bold text-slate-400 dark:text-brand-gray/80">Error {{ status }}</p>
 
             <h1 class="mt-1 text-2xl font-bold tracking-tight text-brand dark:text-white">{{ info.title }}</h1>
 

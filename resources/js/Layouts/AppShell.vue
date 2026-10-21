@@ -270,7 +270,7 @@ function toggleGroup(group) {
                                 class="min-w-0 py-1 transition-opacity duration-200"
                                 :class="compact ? 'opacity-0' : 'opacity-100'"
                             >
-                                <span class="block text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-brand-gray">
+                                <span class="block text-[0.6rem] font-semibold text-brand-gray">
                                     Sistema de
                                 </span>
                                 <span class="block truncate text-sm font-bold">Gestión Jurídica</span>

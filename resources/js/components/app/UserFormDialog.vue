@@ -89,7 +89,7 @@ const ICON =
 
 const LABEL = 'mb-1.5 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200';
 
-const SECTION = 'mb-3 flex items-center gap-3 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-brand-gray/80';
+const SECTION = 'mb-3 flex items-center gap-3 text-[0.68rem] font-bold text-slate-400 dark:text-brand-gray/80';
 </script>
 
 <template>

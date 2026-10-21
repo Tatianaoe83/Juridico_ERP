@@ -102,7 +102,7 @@ const blocks = {
 
         return `
             <div class="rounded-lg border ${danger ? 'border-destructive/30 bg-destructive/5' : 'bg-muted/30'} px-3.5 py-3 text-left">
-                <p class="mb-1.5 text-[0.7rem] font-semibold uppercase tracking-wider ${danger ? 'text-destructive' : 'text-muted-foreground'}">
+                <p class="mb-1.5 text-[0.7rem] font-semibold ${danger ? 'text-destructive' : 'text-muted-foreground'}">
                     ${label}
                 </p>
                 <ul class="list-disc space-y-1 pl-4 text-sm text-foreground ${danger ? 'marker:text-destructive/50' : 'marker:text-muted-foreground/50'}">

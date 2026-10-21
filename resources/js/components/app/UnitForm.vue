@@ -369,7 +369,7 @@ const CARD =
     'rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] ' +
     'tall:p-5 dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none';
 
-const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80';
+const SECTION_TITLE = 'text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/80';
 </script>
 
 <template>
@@ -727,7 +727,7 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
 
                 <!-- El costo se calcula de los dos semestres, con IVA incluido -->
                 <div class="flex flex-col justify-center rounded-xl bg-slate-50/70 px-3.5 py-2 ring-1 ring-inset ring-slate-200/70 lg:col-span-2 dark:bg-white/[0.03] dark:ring-white/[0.06]">
-                    <p class="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-brand-gray/80">Costo anual (IVA incluido)</p>
+                    <p class="text-[0.62rem] font-bold text-slate-400 dark:text-brand-gray/80">Costo anual (IVA incluido)</p>
                     <p class="text-lg leading-tight font-bold tabular-nums text-brand dark:text-white">{{ money(total) }}</p>
                     <p class="text-[0.7rem] tabular-nums text-slate-500 dark:text-brand-gray">IVA {{ Math.round(TAX_RATE * 100) }}%: {{ money(tax) }} · Subtotal: {{ money(total - tax) }}</p>
                 </div>
