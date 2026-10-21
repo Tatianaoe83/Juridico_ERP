@@ -34,7 +34,7 @@ const emit = defineEmits(['update:open', 'confirm']);
                 class="fixed inset-0 z-50 bg-brand-deep/60 backdrop-blur-sm data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-150 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:duration-200 dark:bg-black/70"
             />
             <AlertDialogContent
-                class="fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-white font-corporate shadow-2xl shadow-brand-deep/25 ring-1 ring-slate-900/[0.06] outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:duration-150 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-2 data-[state=open]:duration-200 motion-reduce:animate-none dark:bg-brand-panel dark:shadow-black/60 dark:ring-white/10"
+                class="fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-white font-corporate shadow-2xl shadow-brand-deep/25 ring-1 ring-slate-900/[0.06] outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:duration-150 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-2 data-[state=open]:duration-200 dark:bg-brand-panel dark:shadow-black/60 dark:ring-white/10"
             >
                 <!-- Resplandor rojo arriba: marca el tono de la acción sin gritar -->
                 <div
@@ -76,7 +76,7 @@ const emit = defineEmits(['update:open', 'confirm']);
                         Cancelar
                     </AlertDialogCancel>
                     <AlertDialogAction
-                        class="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl bg-red-600 px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-red-600/25 ring-1 ring-inset ring-white/10 transition-all duration-150 hover:bg-red-700 hover:shadow-lg hover:shadow-red-600/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/30 active:scale-[0.98] motion-reduce:active:scale-100 dark:bg-red-500 dark:shadow-black/40 dark:hover:bg-red-600"
+                        class="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl bg-red-600 px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-red-600/25 ring-1 ring-inset ring-white/10 transition-all duration-150 hover:bg-red-700 hover:shadow-lg hover:shadow-red-600/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/30 active:scale-[0.98] dark:bg-red-500 dark:shadow-black/40 dark:hover:bg-red-600"
                         @click="emit('confirm')"
                     >
                         <Trash2 class="size-4" />

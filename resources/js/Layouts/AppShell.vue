@@ -235,7 +235,15 @@ function toggleGroup(group) {
                     <div class="mx-6 h-px bg-gradient-to-r from-brand/15 via-brand/5 to-transparent dark:from-white/15 dark:via-white/5" />
 
                     <!-- Si algún día el menú no cabe, desplaza solo la lista -->
-                    <nav aria-label="Principal" class="min-h-0 flex-1 space-y-3 overflow-x-hidden overflow-y-auto px-4 py-5">
+                    <!--
+                        En el riel de iconos la barra de scroll se comería el ancho y cortaría
+                        el fondo del enlace activo: se oculta, la rueda sigue desplazando.
+                    -->
+                    <nav
+                        aria-label="Principal"
+                        class="min-h-0 flex-1 space-y-3 overflow-x-hidden overflow-y-auto px-4 py-5"
+                        :class="compact && '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden'"
+                    >
                         <template v-for="(section, index) in nav" :key="section.group ?? `suelto-${index}`">
                             <!-- Sin título: enlaces fijos, siempre visibles -->
                             <div v-if="!section.group" class="space-y-1">

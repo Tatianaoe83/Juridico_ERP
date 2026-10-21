@@ -14,7 +14,7 @@ const year = new Date().getFullYear();
         class="auth-backdrop relative isolate flex min-h-dvh flex-col items-center justify-center gap-4 bg-brand-deep px-3 font-corporate py-6 sm:px-6 md:h-dvh md:overflow-hidden md:py-12 lg:px-8 short:md:py-9"
     >
         <div
-            class="grid min-h-0 w-full max-w-md animate-in fade-in zoom-in-[0.98] rounded-3xl bg-card p-2 text-card-foreground shadow-2xl shadow-black/50 ring-1 ring-black/5 duration-300 motion-reduce:animate-none sm:p-3 md:max-h-full md:grid-rows-[auto_minmax(0,1fr)] lg:h-full lg:max-h-[40rem] lg:max-w-4xl lg:grid-cols-[0.95fr_1fr] lg:grid-rows-1 xl:max-w-5xl 2xl:max-w-6xl dark:ring-white/10"
+            class="grid min-h-0 w-full max-w-md animate-in fade-in zoom-in-[0.98] rounded-3xl bg-card p-2 text-card-foreground shadow-2xl shadow-black/50 ring-1 ring-black/5 duration-300 sm:p-3 md:max-h-full md:grid-rows-[auto_minmax(0,1fr)] lg:h-full lg:max-h-[40rem] lg:max-w-4xl lg:grid-cols-[0.95fr_1fr] lg:grid-rows-1 xl:max-w-5xl 2xl:max-w-6xl dark:ring-white/10"
         >
             <!-- Panel de marca: banner compacto en pantallas chicas, columna en grandes -->
             <aside
@@ -201,13 +201,6 @@ const year = new Date().getFullYear();
 @media (max-height: 760px) {
     .float-card-extra {
         display: none;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .road-dash,
-    .float-card {
-        animation: none;
     }
 }
 </style>

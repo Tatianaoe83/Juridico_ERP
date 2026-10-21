@@ -11,10 +11,6 @@ function apply(dark) {
     document.documentElement.classList.toggle('dark', dark);
 }
 
-function prefersReducedMotion() {
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 /**
  * El cambio con fundido. Dos caminos según lo que soporte el navegador:
  *
@@ -24,11 +20,6 @@ function prefersReducedMotion() {
  *    y se quita al terminar, para no dejarla pegada en cada hover.
  */
 function applyWithFade(dark) {
-    if (prefersReducedMotion()) {
-        apply(dark);
-
-        return;
-    }
 
     if (typeof document.startViewTransition === 'function') {
         document.startViewTransition(() => apply(dark));

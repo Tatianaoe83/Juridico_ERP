@@ -21,7 +21,7 @@ const BUTTON =
  * pasar el cursor. Da jerarquía sin necesidad de borde, que es lo que se veía
  * duro contra el fondo claro de la tarjeta.
  */
-const LIFT = 'motion-safe:hover:!-translate-y-px active:!translate-y-0 active:!duration-75';
+const LIFT = 'hover:!-translate-y-px active:!translate-y-0 active:!duration-75';
 
 /**
  * customClass completo en cada variante. No se puede armar con `mixin()` encima

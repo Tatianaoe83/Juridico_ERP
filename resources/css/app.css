@@ -177,17 +177,3 @@
 ::view-transition-new(root) {
     animation-duration: 220ms;
 }
-
-@media (prefers-reduced-motion: reduce) {
-    .theme-transition,
-    .theme-transition *,
-    .theme-transition *::before,
-    .theme-transition *::after {
-        transition: none !important;
-    }
-
-    ::view-transition-old(root),
-    ::view-transition-new(root) {
-        animation: none;
-    }
-}

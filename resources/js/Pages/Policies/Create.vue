@@ -83,7 +83,7 @@ const breadcrumbs = computed(() => [
             >
                 <span
                     aria-hidden="true"
-                    class="pointer-events-none absolute top-1 bottom-1 left-1 w-[calc(50%-0.375rem)] rounded-lg bg-white shadow-sm ring-1 ring-slate-900/5 transition-transform duration-200 ease-out motion-reduce:transition-none dark:bg-white/15 dark:ring-white/10"
+                    class="pointer-events-none absolute top-1 bottom-1 left-1 w-[calc(50%-0.375rem)] rounded-lg bg-white shadow-sm ring-1 ring-slate-900/5 transition-transform duration-200 ease-out dark:bg-white/15 dark:ring-white/10"
                     :class="current === 'bond' ? 'translate-x-[calc(100%+0.25rem)]' : 'translate-x-0'"
                 />
 
@@ -105,9 +105,9 @@ const breadcrumbs = computed(() => [
             <!-- Fundido corto al cambiar; KeepAlive guarda lo capturado en el otro -->
             <Transition
                 mode="out-in"
-                enter-active-class="transition duration-200 ease-out motion-reduce:transition-none"
+                enter-active-class="transition duration-200 ease-out"
                 enter-from-class="opacity-0 translate-y-1"
-                leave-active-class="transition duration-150 ease-in motion-reduce:transition-none"
+                leave-active-class="transition duration-150 ease-in"
                 leave-to-class="opacity-0"
             >
                 <KeepAlive>

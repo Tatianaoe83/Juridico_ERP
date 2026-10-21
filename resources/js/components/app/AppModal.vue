@@ -38,7 +38,7 @@ const SIZES = {
                 class="fixed inset-0 z-50 bg-brand-deep/55 backdrop-blur-[3px] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 dark:bg-black/60"
             />
             <DialogContent
-                class="fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl bg-white font-corporate text-foreground shadow-2xl shadow-brand-deep/30 ring-1 ring-slate-900/5 outline-none duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-2 motion-reduce:animate-none dark:bg-brand-panel dark:shadow-black/50 dark:ring-white/10"
+                class="fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl bg-white font-corporate text-foreground shadow-2xl shadow-brand-deep/30 ring-1 ring-slate-900/5 outline-none duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-2 dark:bg-brand-panel dark:shadow-black/50 dark:ring-white/10"
                 :class="SIZES[size]"
             >
                 <!-- Cabecera: se puede reemplazar entera con el slot `header` -->

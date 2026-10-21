@@ -44,7 +44,7 @@ function logout() {
                 {{ user.name }}
             </span>
             <ChevronDown
-                class="size-4 shrink-0 text-slate-400 transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none dark:text-brand-gray"
+                class="size-4 shrink-0 text-slate-400 transition-transform duration-200 group-data-[state=open]:rotate-180 dark:text-brand-gray"
             />
         </DropdownMenuTrigger>
 

@@ -39,11 +39,11 @@ const LABEL = 'mb-1.5 block text-[0.75rem] font-semibold text-slate-700 dark:tex
             @click="model = !model"
         >
             <span
-                class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-300 ease-in-out motion-reduce:transition-none"
+                class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-300 ease-in-out"
                 :class="model ? 'bg-brand dark:bg-brand-light' : 'bg-slate-300 dark:bg-white/20'"
             >
                 <span
-                    class="absolute left-0.5 size-4 rounded-full bg-white shadow-sm transition-transform duration-300 ease-in-out motion-reduce:transition-none"
+                    class="absolute left-0.5 size-4 rounded-full bg-white shadow-sm transition-transform duration-300 ease-in-out"
                     :class="model ? 'translate-x-4' : 'translate-x-0'"
                 />
             </span>
