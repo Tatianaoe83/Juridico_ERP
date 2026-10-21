@@ -51,7 +51,7 @@ const panelId = `sidebar-group-${props.label.normalize('NFD').replace(/[^\w]+/g,
         -->
         <div
             :id="panelId"
-            class="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"
+            class="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
             :class="open || compact ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'"
             :inert="!open && !compact"
         >

@@ -161,7 +161,7 @@ function toggleGroup(group) {
             `inert` solo en móvil cerrado: ahí sí está fuera de pantalla.
         -->
         <div
-            class="fixed inset-y-0 left-0 z-40 w-64 shrink-0 overflow-hidden transition-[width,translate] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none md:relative md:z-auto md:translate-x-0"
+            class="fixed inset-y-0 left-0 z-40 w-64 shrink-0 overflow-hidden transition-[width,translate] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] md:relative md:z-auto md:translate-x-0"
             :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full md:w-20'"
             :inert="!sidebarOpen && !isDesktop"
         >
