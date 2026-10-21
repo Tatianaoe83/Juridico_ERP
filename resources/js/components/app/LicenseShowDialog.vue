@@ -1,5 +1,5 @@
 <script setup>
-import { Building2, CalendarDays, CalendarPlus, FileBadge, Landmark, MessageSquareText, UserRound } from 'lucide-vue-next';
+import { BellRing, Building2, CalendarDays, CalendarPlus, FileBadge, Landmark, MessageSquareText, UserRound } from 'lucide-vue-next';
 import { DialogClose } from 'reka-ui';
 import { computed } from 'vue';
 import AppModal from '@/components/app/AppModal.vue';
@@ -43,6 +43,7 @@ const tiles = computed(() =>
             },
             { icon: CalendarPlus, label: 'Fecha de alta', value: stamp(props.license.created_at) },
             { icon: UserRound, label: 'Registró', value: props.license.created_by ?? '—' },
+            { icon: BellRing, label: 'Recordatorios por correo', value: props.license.reminders_enabled ? 'Activos' : 'Desactivados' },
         ]
         : [],
 );

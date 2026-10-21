@@ -73,6 +73,8 @@ class LicenseController extends Controller
                     'comments' => $license->comments,
                     'created_at' => $license->created_at?->toIso8601String(),
                     'created_by' => $license->creator?->name,
+                    // Si manda los recordatorios recurrentes por correo.
+                    'reminders_enabled' => $license->reminders_enabled,
                 ]),
                 'meta' => [
                     'total' => $licenses->total(),
@@ -172,6 +174,21 @@ class LicenseController extends Controller
 
         return to_route('licenses.index')
             ->with('success', "Se actualizó {$license->name}.".$note);
+    }
+
+    /**
+     * PATCH /licencias/{license}/recordatorios
+     *
+     * Prende o apaga los recordatorios recurrentes por correo. Los manda
+     * recordatorios:enviar cada mañana a los correos fijos.
+     */
+    public function reminders(License $license): RedirectResponse
+    {
+        $license->update(['reminders_enabled' => ! $license->reminders_enabled]);
+
+        return to_route('licenses.index')->with('success', $license->reminders_enabled
+            ? "Se activaron los recordatorios por correo de {$license->name}."
+            : "Se desactivaron los recordatorios por correo de {$license->name}.");
     }
 
     /** DELETE /licencias/{license} */

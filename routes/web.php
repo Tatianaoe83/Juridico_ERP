@@ -91,6 +91,9 @@ Route::middleware('auth')->group(function () {
     Route::patch('/licencias/{license}', [LicenseController::class, 'update'])
         ->middleware('can:licencias.update')
         ->name('licenses.update');
+    Route::patch('/licencias/{license}/recordatorios', [LicenseController::class, 'reminders'])
+        ->middleware('can:licencias.update')
+        ->name('licenses.reminders');
     Route::delete('/licencias/{license}', [LicenseController::class, 'destroy'])
         ->middleware('can:licencias.delete')
         ->name('licenses.destroy');

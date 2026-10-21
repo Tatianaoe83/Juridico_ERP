@@ -1,6 +1,6 @@
 <script setup>
 import { Head, router } from '@inertiajs/vue3';
-import { Building2, CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Eye, FileBadge, Landmark, ListFilter, Pencil, Plus, Search, Trash2, X } from 'lucide-vue-next';
+import { BellRing, Building2, CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Eye, FileBadge, Landmark, ListFilter, Pencil, Plus, Search, Trash2, X } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
@@ -46,6 +46,20 @@ function edit(license) {
 function show(license) {
     viewing.value = license;
     showOpen.value = true;
+}
+
+/* ---------- Recordatorios por correo ---------- */
+
+const toggling = ref(null);
+
+function toggleReminders(license) {
+    toggling.value = license.id;
+
+    router.patch(`/licencias/${license.id}/recordatorios`, {}, {
+        preserveScroll: true,
+        preserveState: true,
+        onFinish: () => (toggling.value = null),
+    });
 }
 
 /* ---------- Eliminar ---------- */
@@ -562,6 +576,30 @@ const PAGE_BTN =
                                             @click="edit(license)"
                                         >
                                             <Pencil class="size-4" />
+                                        </button>
+                                        <!-- Recordatorios recurrentes por correo: en color y con punto cuando están prendidos -->
+                                        <button
+                                            v-if="can('licencias.update')"
+                                            type="button"
+                                            :class="[
+                                                ACTION,
+                                                'relative',
+                                                license.reminders_enabled
+                                                    ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 focus-visible:ring-amber-500/25 dark:bg-amber-400/10 dark:text-amber-300 dark:hover:bg-amber-400/20'
+                                                    : NEUTRAL,
+                                            ]"
+                                            :aria-label="`${license.reminders_enabled ? 'Desactivar' : 'Activar'} recordatorios por correo de ${license.name}`"
+                                            :aria-pressed="license.reminders_enabled"
+                                            :title="license.reminders_enabled ? 'Recordatorios por correo activos' : 'Activar recordatorios por correo'"
+                                            :disabled="toggling === license.id"
+                                            @click="toggleReminders(license)"
+                                        >
+                                            <BellRing class="size-4" />
+                                            <span
+                                                v-if="license.reminders_enabled"
+                                                class="absolute top-1 right-1 size-1.5 rounded-full bg-amber-500 ring-2 ring-white dark:ring-brand-deep"
+                                                aria-hidden="true"
+                                            />
                                         </button>
                                         <button
                                             v-if="can('licencias.delete')"

@@ -115,4 +115,18 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Recordatorios de vencimiento
+    |--------------------------------------------------------------------------
+    |
+    | A quién llegan los recordatorios recurrentes por correo. Son fijos: una
+    | lista separada por comas en MAIL_REMINDER_RECIPIENTS.
+    |
+    */
+
+    'reminders' => [
+        'recipients' => array_values(array_filter(array_map('trim', explode(',', (string) env('MAIL_REMINDER_RECIPIENTS', 'econg@proser.com.mx'))))),
+    ],
+
 ];

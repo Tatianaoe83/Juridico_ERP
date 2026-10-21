@@ -84,6 +84,7 @@ class License extends Model
     {
         return [
             'valid_until' => 'date',
+            'reminders_enabled' => 'boolean',
         ];
     }
 
