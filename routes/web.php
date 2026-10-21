@@ -5,6 +5,7 @@ use App\Http\Controllers\Web\BondController;
 use App\Http\Controllers\Web\CalendarController;
 use App\Http\Controllers\Web\CalendarEventController;
 use App\Http\Controllers\Web\CalendarShareController;
+use App\Http\Controllers\Web\CatalogController;
 use App\Http\Controllers\Web\EventController;
 use App\Http\Controllers\Web\FleetController;
 use App\Http\Controllers\Web\LicenseController;
@@ -196,6 +197,21 @@ Route::middleware('auth')->group(function () {
     Route::delete('/polizas/{policy}/endosos/{endorsement}', [PolicyEndorsementController::class, 'destroy'])
         ->middleware('can:polizas.update')
         ->name('policies.endorsements.destroy');
+
+    // Catálogos: unidades de negocio, aseguradoras, afianzadoras y beneficiarios.
+    Route::patch('/catalogos/aseguradoras/{insurer}/preferida', [CatalogController::class, 'prefer'])
+        ->middleware('can:catalogos.manage')
+        ->name('catalogs.insurers.prefer');
+    Route::middleware('can:catalogos.manage')
+        ->prefix('catalogos/{catalog}')
+        ->whereIn('catalog', array_keys(CatalogController::CATALOGS))
+        ->name('catalogs.')
+        ->group(function () {
+            Route::get('/', [CatalogController::class, 'index'])->name('index');
+            Route::post('/', [CatalogController::class, 'store'])->name('store');
+            Route::patch('/{id}', [CatalogController::class, 'update'])->whereNumber('id')->name('update');
+            Route::delete('/{id}', [CatalogController::class, 'destroy'])->whereNumber('id')->name('destroy');
+        });
 
     // Administración de usuarios. La Policy afina por registro: quién puede
     // tocar a quién no lo resuelve un permiso suelto.
