@@ -7,6 +7,7 @@ use App\Models\Beneficiary;
 use App\Models\BondingCompany;
 use App\Models\BusinessUnit;
 use App\Models\Insurer;
+use App\Models\Project;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,21 +19,23 @@ use Inertia\Response;
 
 /**
  * Catálogos que comparten los módulos: unidades de negocio, aseguradoras,
- * afianzadoras y beneficiarios. Los cuatro son solo un nombre, así que una
- * sola pantalla y un solo controlador los atienden.
+ * afianzadoras, beneficiarios y obras. Son un nombre (las obras, además, su
+ * dirección), así que una sola pantalla y un solo controlador los atienden.
  */
 class CatalogController extends Controller
 {
     /**
      * slug de la URL => [modelo, relaciones donde se usa, cómo se nombra uno,
-     * si va en mayúsculas]. Las unidades de negocio se escriben como nombre
-     * propio; las demás, en mayúsculas como en el resto de los formularios.
+     * si va en mayúsculas, campos además del nombre]. Las unidades de negocio
+     * se escriben como nombre propio; las demás, en mayúsculas como en el
+     * resto de los formularios.
      */
     public const CATALOGS = [
         'unidades-de-negocio' => [BusinessUnit::class, ['units', 'licenses', 'bonds', 'unitPolicies', 'constructionPolicies'], 'la unidad de negocio', false],
         'aseguradoras' => [Insurer::class, ['unitPolicies', 'constructionPolicies'], 'la aseguradora', true],
         'afianzadoras' => [BondingCompany::class, ['bonds'], 'la afianzadora', true],
         'beneficiarios' => [Beneficiary::class, ['bonds', 'unitPolicies'], 'el beneficiario', true],
+        'obras' => [Project::class, ['constructionPolicies'], 'la obra', true, ['address']],
     ];
 
     /** GET /catalogos/{catalog} */
@@ -45,6 +48,7 @@ class CatalogController extends Controller
             'items' => $model::withCount($uses)->orderBy('name')->get()->map(fn (Model $item) => [
                 'id' => $item->id,
                 'name' => $item->name,
+                'address' => $item->address,
                 // En cuántos registros aparece: con alguno, no se puede borrar.
                 'uses' => collect($uses)->sum(fn (string $relation) => $item->{Str::snake($relation).'_count'}),
                 // Solo las aseguradoras tienen preferida.
@@ -58,7 +62,7 @@ class CatalogController extends Controller
     {
         [$model, , $label] = self::CATALOGS[$catalog];
 
-        $item = $model::create(['name' => $this->validated($request, $catalog)]);
+        $item = $model::create($this->validated($request, $catalog));
 
         return to_route('catalogs.index', $catalog)->with('success', "Se agregó {$label} {$item->name}.");
     }
@@ -69,7 +73,7 @@ class CatalogController extends Controller
         [$model, , $label] = self::CATALOGS[$catalog];
 
         $item = $model::findOrFail($id);
-        $item->update(['name' => $this->validated($request, $catalog, $item)]);
+        $item->update($this->validated($request, $catalog, $item));
 
         return to_route('catalogs.index', $catalog)->with('success', "Se actualizó {$label} {$item->name}.");
     }
@@ -130,22 +134,35 @@ class CatalogController extends Controller
             'insurers' => Insurer::orderBy('name')->get(['id', 'name', 'preferred']),
             'bondingCompanies' => BondingCompany::orderBy('name')->get(['id', 'name']),
             'beneficiaries' => Beneficiary::orderBy('name')->get(['id', 'name']),
+            'projects' => Project::orderBy('name')->get(['id', 'name', 'address']),
         ];
     }
 
-    /** El nombre, ya limpio, sin repetirse en su catálogo. */
-    private function validated(Request $request, string $catalog, ?Model $item = null): string
+    /**
+     * El nombre, ya limpio y sin repetirse en su catálogo, y los campos
+     * opcionales que lleve (la dirección de la obra).
+     *
+     * @return array<string, mixed>
+     */
+    private function validated(Request $request, string $catalog, ?Model $item = null): array
     {
         [$model, , , $uppercase] = self::CATALOGS[$catalog];
+        $extra = self::CATALOGS[$catalog][4] ?? [];
 
-        $name = trim((string) $request->input('name'));
-        $request->merge(['name' => $uppercase ? mb_strtoupper($name) : $name]);
+        $request->merge(collect(['name', ...$extra])
+            ->mapWithKeys(function (string $field) use ($request, $uppercase) {
+                $value = trim((string) $request->input($field));
+
+                return [$field => $value === '' ? null : ($uppercase ? mb_strtoupper($value) : $value)];
+            })
+            ->all());
 
         return $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique((new $model)->getTable(), 'name')->ignore($item)],
+            ...collect($extra)->mapWithKeys(fn (string $field) => [$field => ['nullable', 'string', 'max:255']])->all(),
         ], [
             'name.required' => 'Escribe el nombre.',
             'name.unique' => 'Ya existe uno con ese nombre.',
-        ])['name'];
+        ]);
     }
 }

@@ -1,6 +1,6 @@
 <script setup>
 import { useForm } from '@inertiajs/vue3';
-import { Loader2, Pencil, Plus, Save } from 'lucide-vue-next';
+import { Loader2, MapPin, Pencil, Plus, Save } from 'lucide-vue-next';
 import { computed, nextTick, watch } from 'vue';
 import AppModal from '@/components/app/AppModal.vue';
 import { CATALOGS } from '@/lib/catalogs';
@@ -17,7 +17,7 @@ const emit = defineEmits(['update:open']);
 
 const meta = computed(() => CATALOGS[props.catalog]);
 
-const form = useForm({ name: '' });
+const form = useForm({ name: '', address: '' });
 
 const editing = computed(() => props.item !== null);
 
@@ -27,7 +27,7 @@ watch(
     (open) => {
         if (!open) return;
 
-        form.defaults({ name: props.item?.name ?? '' });
+        form.defaults({ name: props.item?.name ?? '', address: props.item?.address ?? '' });
         form.reset();
         form.clearErrors();
     },
@@ -35,17 +35,17 @@ watch(
 );
 
 /** Igual que en los formularios: en mayúsculas mientras escribe, sin mover el cursor. */
-function input(event) {
+function input(name, event) {
     const field = event.target;
 
     if (!meta.value.uppercase) {
-        form.name = field.value;
+        form[name] = field.value;
         return;
     }
 
     const { selectionStart, selectionEnd } = field;
 
-    form.name = field.value.toUpperCase();
+    form[name] = field.value.toUpperCase();
     nextTick(() => field.setSelectionRange(selectionStart, selectionEnd));
 }
 
@@ -56,6 +56,9 @@ function close() {
 function submit() {
     const options = { preserveScroll: true, onSuccess: close };
     const url = `/catalogos/${props.catalog}`;
+
+    // Solo las obras llevan dirección.
+    form.transform(({ address, ...data }) => (meta.value.address ? { ...data, address } : data));
 
     editing.value ? form.patch(`${url}/${props.item.id}`, options) : form.post(url, options);
 }
@@ -79,7 +82,7 @@ const ICON =
         size="sm"
         :icon="editing ? Pencil : Plus"
         :title="editing ? `Editar ${meta.singular}` : meta.create"
-        :description="editing ? `Cambia el nombre de ${item?.name}.` : 'Queda disponible en los formularios en cuanto la guardes.'"
+        :description="editing ? `Cambia los datos de ${item?.name}.` : 'Queda disponible en los formularios en cuanto la guardes.'"
         @update:open="emit('update:open', $event)"
     >
         <form id="catalog-form" class="px-6 pt-1 pb-7 short:pb-5 sm:px-7" novalidate @submit.prevent="submit">
@@ -88,7 +91,7 @@ const ICON =
                 <input
                     id="catalog-name"
                     :value="form.name"
-                    @input="input"
+                    @input="input('name', $event)"
                     type="text"
                     required
                     autofocus
@@ -100,6 +103,24 @@ const ICON =
                 <component :is="meta.icon" :class="ICON" />
             </div>
             <p v-if="form.errors.name" class="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">{{ form.errors.name }}</p>
+
+            <template v-if="meta.address">
+                <label for="catalog-address" class="mt-4 mb-1.5 block text-[0.8rem] font-semibold text-slate-700 dark:text-slate-200">Dirección</label>
+                <div class="relative">
+                    <input
+                        id="catalog-address"
+                        :value="form.address"
+                        @input="input('address', $event)"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="Calle, número, colonia y municipio"
+                        :class="FIELD"
+                        :aria-invalid="Boolean(form.errors.address)"
+                    />
+                    <MapPin :class="ICON" />
+                </div>
+                <p v-if="form.errors.address" class="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">{{ form.errors.address }}</p>
+            </template>
         </form>
 
         <template #footer>

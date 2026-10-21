@@ -37,7 +37,7 @@ export const CATALOGS = {
         placeholder: 'Ej. SECRETARÍA DE OBRAS PÚBLICAS',
         uppercase: true,
     },
-    // Las obras de las pólizas de obra. Por ahora solo la pantalla, todavía vacía.
+    // Las obras de las pólizas de obra; además del nombre llevan su dirección.
     obras: {
         title: 'Obras',
         singular: 'obra',
@@ -45,6 +45,7 @@ export const CATALOGS = {
         icon: HardHat,
         placeholder: 'Ej. PUENTE VEHICULAR ZONA NORTE',
         uppercase: true,
+        address: true,
     },
 };
 

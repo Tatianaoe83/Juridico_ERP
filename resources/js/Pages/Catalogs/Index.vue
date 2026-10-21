@@ -30,7 +30,7 @@ const page = ref(1);
 const filtered = computed(() => {
     const term = search.value.trim().toLowerCase();
 
-    return term ? props.items.filter((item) => item.name.toLowerCase().includes(term)) : props.items;
+    return term ? props.items.filter((item) => [item.name, item.address ?? ''].some((text) => text.toLowerCase().includes(term))) : props.items;
 });
 
 const lastPage = computed(() => Math.max(1, Math.ceil(filtered.value.length / PER_PAGE)));
@@ -198,7 +198,7 @@ const PAGE_BTN =
                         <input
                             v-model="search"
                             type="search"
-                            placeholder="Buscar por nombre…"
+                            :placeholder="meta.address ? 'Buscar por nombre o dirección…' : 'Buscar por nombre…'"
                             class="peer h-9 w-full rounded-lg border border-slate-200 bg-slate-50/70 pr-9 pl-9 text-[0.8rem] text-slate-900 outline-none transition-[border-color,background-color,box-shadow] duration-150 placeholder:text-slate-400 hover:border-slate-300 focus:border-brand/50 focus:bg-white focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/30 dark:hover:border-white/20 dark:focus:border-brand-gray/50 dark:focus:bg-white/[0.06] dark:focus:ring-white/10 [&::-webkit-search-cancel-button]:hidden"
                         />
                         <Search
@@ -226,6 +226,7 @@ const PAGE_BTN =
                         <thead class="sticky top-0 z-10 bg-slate-50 text-slate-500 dark:bg-brand-deep dark:text-brand-gray">
                             <tr>
                                 <th :class="TH">Nombre</th>
+                                <th v-if="meta.address" :class="[TH, 'hidden @3xl:table-cell']">Dirección</th>
                                 <th :class="[TH, 'hidden @lg:table-cell']">En uso</th>
                                 <th :class="[TH, 'text-right']">Acciones</th>
                             </tr>
@@ -262,6 +263,10 @@ const PAGE_BTN =
                                             </span>
                                         </span>
                                     </div>
+                                </td>
+
+                                <td v-if="meta.address" :class="[TD, 'hidden max-w-[22rem] truncate text-slate-600 @3xl:table-cell dark:text-slate-300']" :title="item.address">
+                                    {{ item.address ?? '—' }}
                                 </td>
 
                                 <td :class="[TD, 'hidden whitespace-nowrap text-slate-600 tabular-nums @lg:table-cell dark:text-slate-300']">
@@ -301,7 +306,7 @@ const PAGE_BTN =
                             </tr>
 
                             <tr v-if="!visible.length">
-                                <td colspan="3" class="px-6 py-8 text-center tall:py-14">
+                                <td :colspan="meta.address ? 4 : 3" class="px-6 py-8 text-center tall:py-14">
                                     <span
                                         class="mx-auto mb-2.5 grid size-10 place-content-center rounded-xl bg-slate-100 text-slate-400 dark:bg-white/[0.05] dark:text-brand-gray"
                                     >
