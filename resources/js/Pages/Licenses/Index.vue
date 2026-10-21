@@ -23,7 +23,7 @@ const props = defineProps({
     businessUnits: { type: Array, default: () => [] },
 });
 
-const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Licencias y Permisos' }];
+const breadcrumbs = [{ label: 'Inicio', href: '/dashboard' }, { label: 'Licencias y Permisos' }];
 
 const { can } = usePermissions();
 

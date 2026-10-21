@@ -17,7 +17,7 @@ const props = defineProps({
 
 const meta = computed(() => CATALOGS[props.catalog]);
 
-const breadcrumbs = computed(() => [{ label: 'Inicio', href: '/calendario' }, { label: meta.value.title }]);
+const breadcrumbs = computed(() => [{ label: 'Inicio', href: '/dashboard' }, { label: meta.value.title }]);
 
 /* ---------- Búsqueda y páginas ---------- */
 

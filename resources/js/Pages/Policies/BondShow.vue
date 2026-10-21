@@ -29,7 +29,7 @@ const props = defineProps({
 });
 
 const breadcrumbs = [
-    { label: 'Inicio', href: '/calendario' },
+    { label: 'Inicio', href: '/dashboard' },
     { label: 'Pólizas y Fianzas', href: '/polizas' },
     { label: `Fianza ${props.bond.bond}` },
 ];

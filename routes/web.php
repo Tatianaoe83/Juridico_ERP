@@ -6,6 +6,7 @@ use App\Http\Controllers\Web\CalendarController;
 use App\Http\Controllers\Web\CalendarEventController;
 use App\Http\Controllers\Web\CalendarShareController;
 use App\Http\Controllers\Web\CatalogController;
+use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\EventController;
 use App\Http\Controllers\Web\FleetController;
 use App\Http\Controllers\Web\LicenseController;
@@ -21,7 +22,7 @@ use Illuminate\Support\Facades\Route;
 // Portada: manda a la sección inicial o al login.
 Route::get('/', function () {
     return Auth::check()
-        ? redirect()->route('calendar.index')
+        ? redirect()->route('dashboard')
         : redirect()->route('login');
 })->name('home');
 
@@ -36,8 +37,9 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
-    // Punto de entrada tras iniciar sesión.
-    Route::redirect('/dashboard', '/calendario')->name('dashboard');
+    // Punto de entrada tras iniciar sesión. Sin permiso propio: cada sección
+    // del panel se filtra con el permiso de su módulo.
+    Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
     /*
      * Se usa `can:` y no el middleware de Spatie: `can` pasa por el Gate, que

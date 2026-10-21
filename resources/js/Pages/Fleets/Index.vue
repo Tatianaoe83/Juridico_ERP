@@ -30,7 +30,7 @@ const props = defineProps({
     options: { type: Object, default: () => ({ brands: [], businessUnits: [] }) },
 });
 
-const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Flotillas' }];
+const breadcrumbs = [{ label: 'Inicio', href: '/dashboard' }, { label: 'Flotillas' }];
 
 /* ---------- Pestañas ---------- */
 

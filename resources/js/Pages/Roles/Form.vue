@@ -17,7 +17,7 @@ const editing = computed(() => props.role !== null);
 const title = computed(() => (editing.value ? `Editar ${roleMeta(props.role.name).label}` : 'Nuevo rol'));
 
 const breadcrumbs = computed(() => [
-    { label: 'Inicio', href: '/calendario' },
+    { label: 'Inicio', href: '/dashboard' },
     { label: 'Roles', href: '/roles' },
     ...(editing.value ? [{ label: roleMeta(props.role.name).label, href: `/roles/${props.role.id}` }] : []),
     { label: editing.value ? 'Editar' : 'Nuevo' },

@@ -10,7 +10,7 @@ const props = defineProps({
 const page = usePage();
 
 /** Sin sesión no hay a dónde «volver al inicio» salvo el login. */
-const home = computed(() => (page.props.auth?.user ? '/calendario' : '/login'));
+const home = computed(() => (page.props.auth?.user ? '/dashboard' : '/login'));
 
 const CONTENT = {
     403: {

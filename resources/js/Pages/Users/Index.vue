@@ -18,7 +18,7 @@ const props = defineProps({
     canCreate: { type: Boolean, default: false },
 });
 
-const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Usuarios' }];
+const breadcrumbs = [{ label: 'Inicio', href: '/dashboard' }, { label: 'Usuarios' }];
 
 /* ---------- Búsqueda y páginas ---------- */
 

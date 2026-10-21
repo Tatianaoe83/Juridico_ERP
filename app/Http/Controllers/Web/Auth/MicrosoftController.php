@@ -121,7 +121,7 @@ class MicrosoftController extends Controller
             Auth::login($user, remember: true);
             $request->session()->regenerate();
 
-            return redirect()->intended(route('calendar.index'));
+            return redirect()->intended(route('dashboard'));
         }
 
         return redirect()->route('calendar.index')->with('success', 'Cuenta de Outlook conectada.');

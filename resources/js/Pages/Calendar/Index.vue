@@ -24,7 +24,7 @@ const props = defineProps({
     timezone: { type: String, default: 'UTC' },
 });
 
-const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Calendario' }];
+const breadcrumbs = [{ label: 'Inicio', href: '/dashboard' }, { label: 'Calendario' }];
 
 const { confirmDelete, blocks } = useSwal();
 const { can } = usePermissions();

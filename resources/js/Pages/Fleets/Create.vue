@@ -45,7 +45,7 @@ const title = computed(() => (type.value === 'machinery' ? 'Nueva póliza de maq
 const back = props.source === 'supplier' ? '/flotillas?tab=supplier' : '/flotillas';
 
 const breadcrumbs = computed(() => [
-    { label: 'Inicio', href: '/calendario' },
+    { label: 'Inicio', href: '/dashboard' },
     { label: 'Flotillas', href: back },
     { label: title.value },
 ]);

@@ -19,7 +19,7 @@ const props = defineProps({
 });
 
 const breadcrumbs = [
-    { label: 'Inicio', href: '/calendario' },
+    { label: 'Inicio', href: '/dashboard' },
     { label: 'Flotillas', href: fleetListUrl(props.policy.source, true) },
     { label: `Póliza ${props.policy.policy}`, href: `/flotillas/maquinaria/${props.policy.id}` },
     { label: 'Editar' },

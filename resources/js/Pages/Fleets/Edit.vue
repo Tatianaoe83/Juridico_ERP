@@ -19,7 +19,7 @@ const props = defineProps({
 const listUrl = fleetListUrl(props.unit.source);
 
 const breadcrumbs = [
-    { label: 'Inicio', href: '/calendario' },
+    { label: 'Inicio', href: '/dashboard' },
     { label: 'Flotillas', href: listUrl },
     { label: `${props.unit.brand} ${props.unit.model}` },
 ];

@@ -15,7 +15,7 @@ const props = defineProps({
 const meta = computed(() => roleMeta(props.role.name));
 
 const breadcrumbs = computed(() => [
-    { label: 'Inicio', href: '/calendario' },
+    { label: 'Inicio', href: '/dashboard' },
     { label: 'Roles', href: '/roles' },
     { label: meta.value.label },
 ]);

@@ -38,7 +38,7 @@ const label = computed(() => (isBond.value ? 'Fianza' : 'Póliza'));
 const showUrl = computed(() => (isBond.value ? `/polizas/fianzas/${props.bond.id}` : `/polizas/${props.policy.id}`));
 
 const breadcrumbs = computed(() => [
-    { label: 'Inicio', href: '/calendario' },
+    { label: 'Inicio', href: '/dashboard' },
     { label: 'Pólizas y Fianzas', href: '/polizas' },
     { label: `${label.value} ${number.value}`, href: showUrl.value },
     { label: 'Editar' },

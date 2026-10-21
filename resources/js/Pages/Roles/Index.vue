@@ -12,7 +12,7 @@ const props = defineProps({
     totalPermissions: { type: Number, default: 0 },
 });
 
-const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Roles' }];
+const breadcrumbs = [{ label: 'Inicio', href: '/dashboard' }, { label: 'Roles' }];
 
 /* ---------- Búsqueda y páginas ---------- */
 

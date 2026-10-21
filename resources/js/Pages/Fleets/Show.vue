@@ -56,7 +56,7 @@ const SEMESTER_TITLES = { first: 'Primer semestre', second: 'Segundo semestre' }
 const listUrl = fleetListUrl(props.unit.policy_detail?.source);
 
 const breadcrumbs = [
-    { label: 'Inicio', href: '/calendario' },
+    { label: 'Inicio', href: '/dashboard' },
     { label: 'Flotillas', href: listUrl },
     { label: `${props.unit.brand} ${props.unit.model}` },
 ];

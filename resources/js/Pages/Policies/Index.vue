@@ -34,7 +34,7 @@ const props = defineProps({
     filters: { type: Object, default: () => ({}) },
 });
 
-const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Pólizas y Fianzas' }];
+const breadcrumbs = [{ label: 'Inicio', href: '/dashboard' }, { label: 'Pólizas y Fianzas' }];
 
 // Los botones de crear y editar solo se muestran a quien tiene el permiso.
 const { can } = usePermissions();

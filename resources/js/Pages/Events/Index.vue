@@ -27,7 +27,7 @@ const props = defineProps({
     loadError: { type: String, default: null },
 });
 
-const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Compartir' }];
+const breadcrumbs = [{ label: 'Inicio', href: '/dashboard' }, { label: 'Compartir' }];
 
 const { can } = usePermissions();
 const { guests, response, dayLabel, timeLabel } = useEventDisplay();

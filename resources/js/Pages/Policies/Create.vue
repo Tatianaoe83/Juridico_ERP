@@ -39,7 +39,7 @@ const selected = computed(() => OPTIONS.find((option) => option.value === curren
 const title = computed(() => (current.value === 'bond' ? 'Nueva fianza' : 'Nueva póliza'));
 
 const breadcrumbs = computed(() => [
-    { label: 'Inicio', href: '/calendario' },
+    { label: 'Inicio', href: '/dashboard' },
     { label: 'Pólizas y Fianzas', href: '/polizas' },
     { label: title.value },
 ]);

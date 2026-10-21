@@ -6,6 +6,7 @@ import {
     FileBadge,
     FileCheck,
     KeyRound,
+    LayoutDashboard,
     Moon,
     PanelLeftClose,
     PanelLeftOpen,
@@ -73,6 +74,8 @@ const nav = computed(() =>
             // partes de uno mayor. Van fijos arriba, sin plegarse.
             group: null,
             items: [
+                // Sin permiso: el panel filtra cada sección con el de su módulo.
+                { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
                 { href: '/calendario', label: 'Calendario', icon: CalendarDays, permission: 'calendar.view' },
                 { href: '/compartido', label: 'Compartir', icon: CalendarCheck, permission: 'calendar.view' },
             ],
@@ -103,7 +106,7 @@ const nav = computed(() =>
             ],
         },
     ]
-        .map((section) => ({ ...section, items: section.items.filter((item) => can(item.permission)) }))
+        .map((section) => ({ ...section, items: section.items.filter((item) => !item.permission || can(item.permission)) }))
         .filter((section) => section.items.length),
 );
 
@@ -183,7 +186,7 @@ function toggleGroup(group) {
                     -->
                     <div class="group/brand relative flex h-16 shrink-0 items-center gap-2 pr-4 pl-6 @max-[11rem]:justify-center @max-[11rem]:px-0">
                         <Link
-                            href="/calendario"
+                            href="/dashboard"
                             class="flex min-w-0 flex-1 items-center rounded-lg transition-opacity duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/30 @max-[11rem]:flex-none @max-[11rem]:justify-center @max-[11rem]:group-hover/brand:opacity-0 @max-[11rem]:group-has-[button:focus-visible]/brand:opacity-0"
                             aria-label="PROSER Grupo Constructor · Inicio"
                         >

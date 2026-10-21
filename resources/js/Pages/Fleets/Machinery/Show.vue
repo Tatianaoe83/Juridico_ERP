@@ -34,7 +34,7 @@ const { can } = usePermissions();
 const listUrl = fleetListUrl(props.policy.source, true);
 
 const breadcrumbs = [
-    { label: 'Inicio', href: '/calendario' },
+    { label: 'Inicio', href: '/dashboard' },
     { label: 'Flotillas', href: listUrl },
     { label: `Póliza ${props.policy.policy}` },
 ];
