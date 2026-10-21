@@ -23,6 +23,7 @@ class PermissionCatalog
         'licencias' => 'Licencias y Permisos',
         'flotillas' => 'Flotillas',
         'polizas' => 'Pólizas y Fianzas',
+        'catalogos' => 'Catálogos',
     ];
 
     private const LABELS = [
@@ -49,6 +50,7 @@ class PermissionCatalog
         'polizas.create' => 'Crear pólizas y fianzas',
         'polizas.update' => 'Editar pólizas y fianzas y registrar pagos',
         'polizas.delete' => 'Eliminar pólizas y fianzas',
+        'catalogos.manage' => 'Administrar catálogos',
     ];
 
     public static function label(string $name): string

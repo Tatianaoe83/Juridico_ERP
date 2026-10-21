@@ -25,6 +25,7 @@ import UserMenu from '@/components/app/UserMenu.vue';
 import { Toaster } from '@/components/ui/sonner';
 import { usePermissions } from '@/composables/usePermissions';
 import { useTheme } from '@/composables/useTheme';
+import { CATALOGS } from '@/lib/catalogs';
 
 defineProps({
     /** [{ label, href? }] — la última entrada es la página actual. */
@@ -83,6 +84,15 @@ const nav = computed(() =>
                 { href: '/flotillas', label: 'Flotillas', icon: Truck, permission: 'flotillas.view' },
                 { href: '/polizas', label: 'Pólizas y Fianzas', icon: FileCheck, permission: 'polizas.view' },
             ],
+        },
+        {
+            group: 'Catálogos',
+            items: Object.entries(CATALOGS).map(([slug, catalog]) => ({
+                href: `/catalogos/${slug}`,
+                label: catalog.title,
+                icon: catalog.icon,
+                permission: 'catalogos.manage',
+            })),
         },
         {
             group: 'Administración',
