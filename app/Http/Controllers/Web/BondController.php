@@ -91,6 +91,16 @@ class BondController extends Controller
         return to_route('policies.index')->with('success', "Se eliminó la fianza {$bond->bond}.");
     }
 
+    /** PATCH /polizas/fianzas/{bond}/recordatorios: prende o apaga los recordatorios por correo. */
+    public function reminders(Bond $bond): RedirectResponse
+    {
+        $bond->update(['reminders_enabled' => ! $bond->reminders_enabled]);
+
+        return back()->with('success', $bond->reminders_enabled
+            ? "Se activaron los recordatorios por correo de la fianza {$bond->bond}."
+            : "Se desactivaron los recordatorios por correo de la fianza {$bond->bond}.");
+    }
+
     /**
      * Agendar es un extra: si Outlook no respondió o la cuenta no está
      * vinculada, se dice en el mismo aviso en vez de fallar el guardado.

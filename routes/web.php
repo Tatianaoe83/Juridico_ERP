@@ -163,6 +163,9 @@ Route::middleware('auth')->group(function () {
     Route::patch('/polizas/fianzas/{bond}', [BondController::class, 'update'])
         ->middleware('can:polizas.update')
         ->name('policies.bonds.update');
+    Route::patch('/polizas/fianzas/{bond}/recordatorios', [BondController::class, 'reminders'])
+        ->middleware('can:polizas.update')
+        ->name('policies.bonds.reminders');
     Route::delete('/polizas/fianzas/{bond}', [BondController::class, 'destroy'])
         ->middleware('can:polizas.delete')
         ->name('policies.bonds.destroy');
@@ -183,6 +186,9 @@ Route::middleware('auth')->group(function () {
     Route::patch('/polizas/{policy}', [PolicyController::class, 'update'])
         ->middleware('can:polizas.update')
         ->name('policies.update');
+    Route::patch('/polizas/{policy}/recordatorios', [PolicyController::class, 'reminders'])
+        ->middleware('can:polizas.update')
+        ->name('policies.reminders');
     Route::delete('/polizas/{policy}', [PolicyController::class, 'destroy'])
         ->middleware('can:polizas.delete')
         ->name('policies.destroy');

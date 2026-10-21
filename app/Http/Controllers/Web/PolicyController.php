@@ -108,6 +108,7 @@ class PolicyController extends Controller
                 'insurer' => $policy->insurer?->name,
                 'coverage' => $policy->coverage,
                 'status' => $policy->status(),
+                'reminders_enabled' => $policy->reminders_enabled,
                 'project' => $policy->project?->name,
                 'project_address' => $policy->project?->address,
                 'business_unit' => $policy->businessUnit?->name,
@@ -242,6 +243,16 @@ class PolicyController extends Controller
         return to_route('policies.index')->with('success', "Se eliminó la póliza {$policy->policy}.");
     }
 
+    /** PATCH /polizas/{policy}/recordatorios: prende o apaga los recordatorios por correo. */
+    public function reminders(ConstructionPolicy $policy): RedirectResponse
+    {
+        $policy->update(['reminders_enabled' => ! $policy->reminders_enabled]);
+
+        return back()->with('success', $policy->reminders_enabled
+            ? "Se activaron los recordatorios por correo de la póliza {$policy->policy}."
+            : "Se desactivaron los recordatorios por correo de la póliza {$policy->policy}.");
+    }
+
     /**
      * GET /polizas/{policy}/documentos/{document}
      *
@@ -362,6 +373,7 @@ class PolicyController extends Controller
                 'valid_until' => $bond->valid_until?->toDateString(),
                 'amount' => (float) $bond->amount,
                 'status' => $bond->status(),
+                'reminders_enabled' => $bond->reminders_enabled,
                 'search' => [$bond->bond, $bond->bondingCompany?->name, $bond->beneficiary?->name, $bond->related, $bond->source_document, $bond->businessUnit?->name],
             ]);
     }

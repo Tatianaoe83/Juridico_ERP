@@ -19,6 +19,7 @@ import {
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
+import ReminderToggle from '@/components/app/ReminderToggle.vue';
 import { usePermissions } from '@/composables/usePermissions';
 import { BOND_CATEGORIES, COVERAGE_STATUS, POLICY_COVERAGES, coverageStatus } from '@/lib/coverages';
 import { daysLeft, localDate, remainingLabel } from '@/lib/licenses';
@@ -499,6 +500,12 @@ const PAGE_BTN =
                                         >
                                             <Pencil class="size-4" />
                                         </Link>
+                                        <ReminderToggle
+                                            v-if="can('polizas.update')"
+                                            :url="`${showUrl(row)}/recordatorios`"
+                                            :enabled="row.reminders_enabled"
+                                            :label="`${row.type === 'bond' ? 'la fianza' : 'la póliza'} ${row.number}`"
+                                        />
                                         <button
                                             v-if="can('polizas.delete')"
                                             type="button"

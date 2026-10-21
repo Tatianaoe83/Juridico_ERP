@@ -36,6 +36,7 @@ class Bond extends Model
             'issued_on' => 'date',
             'valid_from' => 'date',
             'valid_until' => 'date',
+            'reminders_enabled' => 'boolean',
             'cancellation_requested_on' => 'date',
             'cancelled_on' => 'date',
         ];

@@ -66,6 +66,7 @@ class ConstructionPolicy extends Model
         return [
             'valid_from' => 'date',
             'valid_until' => 'date',
+            'reminders_enabled' => 'boolean',
             'amount' => 'decimal:2',
         ];
     }
