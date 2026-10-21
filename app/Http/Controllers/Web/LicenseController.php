@@ -5,11 +5,9 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\BusinessUnit;
 use App\Models\License;
-use App\Services\CalendarEvents;
 use App\Services\LicenseCalendar;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -20,10 +18,7 @@ class LicenseController extends Controller
 {
     private const PER_PAGE = 10;
 
-    public function __construct(
-        private readonly LicenseCalendar $calendar,
-        private readonly CalendarEvents $events,
-    ) {}
+    public function __construct(private readonly LicenseCalendar $calendar) {}
 
     public function index(Request $request): Response
     {
@@ -44,7 +39,7 @@ class LicenseController extends Controller
         $year = preg_match('/^\d{4}$/', (string) $request->query('year', '')) ? (int) $request->query('year') : null;
         $month = preg_match('/^(0?[1-9]|1[0-2])$/', (string) $request->query('month', '')) ? (int) $request->query('month') : null;
 
-        $licenses = License::with(['notification', 'creator', 'businessUnit'])
+        $licenses = License::with(['creator', 'businessUnit'])
             ->when($search !== '', fn ($query) => $query->where(fn ($q) => $q
                 ->where('name', 'like', "%{$search}%")
                 ->orWhereHas('businessUnit', fn ($q2) => $q2->where('name', 'like', "%{$search}%"))
@@ -73,16 +68,11 @@ class LicenseController extends Controller
                     'company' => $license->businessUnit?->name,
                     'authority' => $license->authority,
                     'valid_until' => $license->valid_until?->toDateString(),
-                    'valid_time' => $license->valid_time ? substr($license->valid_time, 0, 5) : null,
                     'status' => $license->status(),
                     // Para el modal de detalle: evita pedir el registro otra vez.
                     'comments' => $license->comments,
                     'created_at' => $license->created_at?->toIso8601String(),
                     'created_by' => $license->creator?->name,
-                    // Para el modal de la campana; null = sin recordatorio.
-                    'notification' => $license->notification ? [
-                        'minutes_before' => $license->notification->minutes_before,
-                    ] : null,
                 ]),
                 'meta' => [
                     'total' => $licenses->total(),
@@ -116,9 +106,6 @@ class LicenseController extends Controller
             ],
             // La empresa se elige del catálogo de unidades de negocio.
             'businessUnits' => BusinessUnit::orderBy('name')->get(['id', 'name']),
-            // Quién recibe la invitación y el correo: con quién está compartido
-            // el calendario. Se muestra de solo lectura en el modal del aviso.
-            'sharedWith' => $this->events->sharedWith($request->user()),
         ]);
     }
 
@@ -174,22 +161,17 @@ class LicenseController extends Controller
     {
         $license->update($this->validated($request));
 
-        // Mover la vigencia hacia atrás puede dejar el aviso en el pasado: ahí
-        // ya no suena nadie, así que se quita y se dice, en vez de sincronizar
-        // un evento con una alerta muerta.
-        $vencido = $this->dropStaleReminder($license);
-
-        // Outlook solo se toca si se movió la vigencia o la hora: actualizar el
-        // evento le vuelve a llegar el aviso a los compartidos, y con el mismo
-        // día no hay nada nuevo que avisar. Si aún no tiene evento, se crea.
-        $moved = $license->wasChanged(['valid_until', 'valid_time']) || ! $license->calendar_event_id;
+        // Outlook solo se toca si se movió la vigencia: actualizar el evento le
+        // vuelve a llegar el aviso a los compartidos, y con el mismo día no hay
+        // nada nuevo que avisar. Si aún no tiene evento, se crea.
+        $moved = $license->wasChanged('valid_until') || ! $license->calendar_event_id;
 
         $note = $moved
-            ? $this->calendarNote($this->calendar->sync($license->load('creator', 'notification', 'businessUnit'), $request->user()))
+            ? $this->calendarNote($this->calendar->sync($license->load('creator', 'businessUnit'), $request->user()))
             : '';
 
         return to_route('licenses.index')
-            ->with('success', "Se actualizó {$license->name}.".$vencido.$note);
+            ->with('success', "Se actualizó {$license->name}.".$note);
     }
 
     /** DELETE /licencias/{license} */
@@ -203,25 +185,6 @@ class LicenseController extends Controller
         $license->delete();
 
         return to_route('licenses.index')->with('success', "Se eliminó {$name}.");
-    }
-
-    /**
-     * Quita el aviso que quedó antes de «ahora» tras mover la vigencia: Outlook
-     * no lanza alertas del pasado y dejarlo guardado solo engaña a quien lo ve
-     * en la tabla. Devuelve la frase que se suma al mensaje de éxito.
-     */
-    private function dropStaleReminder(License $license): string
-    {
-        $minutes = $license->notification?->minutes_before;
-
-        if ($minutes === null || ! $license->expiresAt()->copy()->subMinutes($minutes)->isPast()) {
-            return '';
-        }
-
-        $license->notification()->delete();
-        $license->unsetRelation('notification');
-
-        return ' Se quitó el aviso: con la nueva vigencia ya había pasado.';
     }
 
     /**
@@ -250,14 +213,12 @@ class LicenseController extends Controller
             }
         }
 
-        $data = $request->validate([
+        return $request->validate([
             'name' => ['required', 'string', 'max:255'],
             // La empresa es una unidad de negocio del catálogo.
             'business_unit_id' => ['required', 'integer', 'exists:business_units,id'],
             'authority' => ['required', 'string', 'max:255'],
             'valid_until' => ['required', 'date'],
-            // La hora solo tiene sentido con fecha: sin vigencia no hay qué agendar.
-            'valid_time' => ['nullable', 'date_format:H:i,H:i:s'],
             'comments' => ['nullable', 'string'],
         ], [
             'name.required' => 'Escribe el nombre o trámite.',
@@ -266,14 +227,6 @@ class LicenseController extends Controller
             'authority.required' => 'Escribe la autoridad.',
             'valid_until.required' => 'Pon la fecha de vencimiento.',
             'valid_until.date' => 'La vigencia no es una fecha válida.',
-            'valid_time.date_format' => 'La hora no es válida.',
         ]);
-
-        return [
-            ...$data,
-            // Con segundos, como la guarda la base: «10:00» contra «10:00:00»
-            // contaría como cambio de hora y reenviaría el evento.
-            'valid_time' => isset($data['valid_time']) ? Carbon::parse($data['valid_time'])->format('H:i:s') : null,
-        ];
     }
 }

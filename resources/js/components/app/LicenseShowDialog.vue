@@ -1,13 +1,13 @@
 <script setup>
-import { BellRing, Building2, CalendarDays, CalendarPlus, FileBadge, Landmark, MessageSquareText, UserRound } from 'lucide-vue-next';
+import { Building2, CalendarDays, CalendarPlus, FileBadge, Landmark, MessageSquareText, UserRound } from 'lucide-vue-next';
 import { DialogClose } from 'reka-ui';
 import { computed } from 'vue';
 import AppModal from '@/components/app/AppModal.vue';
-import { licenseStatus, localDate, reminderLabel, remainingLabel } from '@/lib/licenses';
+import { licenseStatus, localDate, remainingLabel } from '@/lib/licenses';
 
 const props = defineProps({
     open: { type: Boolean, default: false },
-    /** Fila de la tabla: { id, name, company, authority, valid_until, valid_time, status, comments, created_at, created_by, notification } */
+    /** Fila de la tabla: { id, name, company, authority, valid_until, status, comments, created_at, created_by } */
     license: { type: Object, default: null },
 });
 
@@ -26,11 +26,6 @@ function stamp(iso) {
     return `${longDate(moment)}, ${moment.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
-/** «14:30» a partir de la hora guardada; sin hora, la vigencia es de todo el día. */
-function validTime(time) {
-    return time ? ` · ${time} h` : ' · todo el día';
-}
-
 const remaining = computed(() => remainingLabel(props.license?.valid_until));
 
 const status = computed(() => (props.license ? licenseStatus(props.license.status) : null));
@@ -43,16 +38,11 @@ const tiles = computed(() =>
             {
                 icon: CalendarDays,
                 label: 'Vigencia',
-                value: longDate(localDate(props.license.valid_until)) + validTime(props.license.valid_time),
+                value: longDate(localDate(props.license.valid_until)),
                 hint: remaining.value,
             },
             { icon: CalendarPlus, label: 'Fecha de alta', value: stamp(props.license.created_at) },
             { icon: UserRound, label: 'Registró', value: props.license.created_by ?? '—' },
-            {
-                icon: BellRing,
-                label: 'Aviso',
-                value: reminderLabel(props.license.notification?.minutes_before ?? null, Boolean(props.license.valid_time)),
-            },
         ]
         : [],
 );

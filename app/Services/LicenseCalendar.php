@@ -18,8 +18,12 @@ use Throwable;
  */
 class LicenseCalendar
 {
-    /** Duración del evento cuando la vigencia trae hora. */
-    private const DURATION_MINUTES = 60;
+    /**
+     * Recordatorio de Outlook, en minutos antes del evento: 0 = el mismo día,
+     * al empezar (medianoche, porque es de todo el día). Igual que en pólizas
+     * y fianzas; los avisos con anticipación irán por correo.
+     */
+    private const REMINDER_MINUTES = 0;
 
     public function __construct(private readonly CalendarEvents $events) {}
 
@@ -79,19 +83,19 @@ class LicenseCalendar
      */
     private function event(License $license): array
     {
-        $start = $license->expiresAt();
-        $allDay = $license->isAllDay();
+        // Solo importa el día: el evento es de todo el día.
+        $day = $license->valid_until->copy()->startOfDay();
 
         return [
             // Mismo formato que pólizas y fianzas: qué pasa · qué es.
             'title' => "Fin de vigencia · {$license->name}",
             'description' => null,
             'location' => null,
-            'all_day' => $allDay,
-            'start' => $start,
-            'end' => $allDay ? $start->copy() : $start->copy()->addMinutes(self::DURATION_MINUTES),
+            'all_day' => true,
+            'start' => $day,
+            'end' => $day->copy(),
             // La alerta la lanza Outlook en cada buzón; el servidor no manda nada.
-            'reminder_minutes' => $license->notification?->minutes_before,
+            'reminder_minutes' => self::REMINDER_MINUTES,
         ];
     }
 }

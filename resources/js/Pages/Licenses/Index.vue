@@ -1,18 +1,17 @@
 <script setup>
 import { Head, router } from '@inertiajs/vue3';
-import { BellRing, Building2, CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Eye, FileBadge, Landmark, ListFilter, Pencil, Plus, Search, Trash2, X } from 'lucide-vue-next';
+import { Building2, CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Eye, FileBadge, Landmark, ListFilter, Pencil, Plus, Search, Trash2, X } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
 import FilterSelect from '@/components/app/FilterSelect.vue';
 import LicenseFormDialog from '@/components/app/LicenseFormDialog.vue';
-import LicenseReminderDialog from '@/components/app/LicenseReminderDialog.vue';
 import LicenseShowDialog from '@/components/app/LicenseShowDialog.vue';
 import { usePermissions } from '@/composables/usePermissions';
 import { LICENSE_STATUS, daysLeft, licenseStatus } from '@/lib/licenses';
 
 const props = defineProps({
-    /** { data: [{ id, name, company, authority, valid_until, valid_time, status, created_by, notification }], meta } */
+    /** { data: [{ id, name, company, authority, valid_until, status, created_by }], meta } */
     licenses: { type: Object, required: true },
     /** { total, active, expiring, expired } — de todo el catálogo, sin filtros. */
     stats: { type: Object, required: true },
@@ -22,8 +21,6 @@ const props = defineProps({
     options: { type: Object, default: () => ({ companies: [], authorities: [], years: [] }) },
     /** Catálogo de unidades de negocio, [{ id, name }]: de ahí se elige la empresa. */
     businessUnits: { type: Array, default: () => [] },
-    /** Correos con acceso al calendario: a ellos les llega el aviso. */
-    sharedWith: { type: Array, default: () => [] },
 });
 
 const breadcrumbs = [{ label: 'Inicio', href: '/calendario' }, { label: 'Licencias y Permisos' }];
@@ -49,14 +46,6 @@ function edit(license) {
 function show(license) {
     viewing.value = license;
     showOpen.value = true;
-}
-
-const reminderOpen = ref(false);
-const reminding = ref(null);
-
-function remind(license) {
-    reminding.value = license;
-    reminderOpen.value = true;
 }
 
 /* ---------- Eliminar ---------- */
@@ -540,7 +529,6 @@ const PAGE_BTN =
 
                                 <td :class="[TD, 'hidden whitespace-nowrap text-slate-600 tabular-nums @lg:table-cell dark:text-slate-300']">
                                     {{ shortDate(license.valid_until) }}
-                                    <span v-if="license.valid_time" class="text-slate-400 dark:text-brand-gray/80">{{ license.valid_time }}</span>
                                 </td>
 
                                 <td :class="[TD, 'hidden whitespace-nowrap tabular-nums @lg:table-cell']">
@@ -574,28 +562,6 @@ const PAGE_BTN =
                                             @click="edit(license)"
                                         >
                                             <Pencil class="size-4" />
-                                        </button>
-                                        <!-- Con recordatorio activo la campana va en color y con punto: se ve sin abrirla -->
-                                        <button
-                                            v-if="can('licencias.update')"
-                                            type="button"
-                                            :class="[
-                                                ACTION,
-                                                'relative',
-                                                license.notification
-                                                    ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 focus-visible:ring-amber-500/25 dark:bg-amber-400/10 dark:text-amber-300 dark:hover:bg-amber-400/20'
-                                                    : NEUTRAL,
-                                            ]"
-                                            :aria-label="`Aviso de ${license.name}${license.notification ? ' (activo)' : ''}`"
-                                            :title="license.notification ? 'Aviso activo' : 'Configurar aviso'"
-                                            @click="remind(license)"
-                                        >
-                                            <BellRing class="size-4" />
-                                            <span
-                                                v-if="license.notification"
-                                                class="absolute top-1 right-1 size-1.5 rounded-full bg-amber-500 ring-2 ring-white dark:ring-brand-deep"
-                                                aria-hidden="true"
-                                            />
                                         </button>
                                         <button
                                             v-if="can('licencias.delete')"
@@ -696,7 +662,6 @@ const PAGE_BTN =
 
         <LicenseShowDialog v-model:open="showOpen" :license="viewing" />
 
-        <LicenseReminderDialog v-model:open="reminderOpen" :license="reminding" :shared-with="sharedWith" />
 
         <ConfirmDeleteDialog
             v-model:open="deleteOpen"

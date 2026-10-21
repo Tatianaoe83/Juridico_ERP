@@ -9,7 +9,6 @@ use App\Http\Controllers\Web\CatalogController;
 use App\Http\Controllers\Web\EventController;
 use App\Http\Controllers\Web\FleetController;
 use App\Http\Controllers\Web\LicenseController;
-use App\Http\Controllers\Web\LicenseNotificationController;
 use App\Http\Controllers\Web\MachineryController;
 use App\Http\Controllers\Web\PermissionController;
 use App\Http\Controllers\Web\PolicyController;
@@ -95,10 +94,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('/licencias/{license}', [LicenseController::class, 'destroy'])
         ->middleware('can:licencias.delete')
         ->name('licenses.destroy');
-    Route::middleware('can:licencias.update')->group(function () {
-        Route::put('/licencias/{license}/recordatorio', [LicenseNotificationController::class, 'update'])->name('licenses.reminder.update');
-        Route::delete('/licencias/{license}/recordatorio', [LicenseNotificationController::class, 'destroy'])->name('licenses.reminder.destroy');
-    });
     Route::get('/flotillas', [FleetController::class, 'index'])
         ->middleware('can:flotillas.view')
         ->name('fleets.index');
