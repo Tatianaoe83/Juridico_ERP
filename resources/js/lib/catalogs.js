@@ -1,4 +1,4 @@
-import { Building, Building2, Landmark, UserRound } from 'lucide-vue-next';
+import { Building, Building2, HardHat, Landmark, UserRound } from 'lucide-vue-next';
 
 /**
  * Los catálogos, por el slug de su URL (CatalogController::CATALOGS). Los
@@ -35,6 +35,15 @@ export const CATALOGS = {
         create: 'Nuevo beneficiario',
         icon: UserRound,
         placeholder: 'Ej. SECRETARÍA DE OBRAS PÚBLICAS',
+        uppercase: true,
+    },
+    // Las obras de las pólizas de obra. Por ahora solo la pantalla, todavía vacía.
+    obras: {
+        title: 'Obras',
+        singular: 'obra',
+        create: 'Nueva obra',
+        icon: HardHat,
+        placeholder: 'Ej. PUENTE VEHICULAR ZONA NORTE',
         uppercase: true,
     },
 };

@@ -199,6 +199,10 @@ Route::middleware('auth')->group(function () {
         ->name('policies.endorsements.destroy');
 
     // Catálogos: unidades de negocio, aseguradoras, afianzadoras y beneficiarios.
+    // Obras: por ahora solo la pantalla, vacía. Su catálogo llega después.
+    Route::inertia('/catalogos/obras', 'Projects/Index')
+        ->middleware('can:catalogos.manage')
+        ->name('projects.index');
     Route::patch('/catalogos/aseguradoras/{insurer}/preferida', [CatalogController::class, 'prefer'])
         ->middleware('can:catalogos.manage')
         ->name('catalogs.insurers.prefer');
