@@ -20,25 +20,22 @@ trait ValidatesUnitPolicy
     use ValidatesPolicySource;
 
     /** Campos de la póliza que se guardan siempre en mayúsculas. */
-    private const POLICY_UPPERCASE = ['policy', 'certificate', 'insurer'];
+    private const POLICY_UPPERCASE = ['policy', 'certificate'];
 
     /** Los de la póliza, para separarlos de los de la unidad al guardar. */
     public const POLICY_FIELDS = [
-        'policy', 'certificate', 'insurer', 'coverage', 'endorsement', 'financing',
+        'policy', 'certificate', 'insurer_id', 'coverage', 'endorsement', 'financing',
         'valid_from', 'valid_until', 'first_payment_amount', 'second_payment_amount',
-        'source', 'supplier',
+        'source', 'supplier_id',
     ];
 
     /** @return array<string, string> */
     private function uppercasePolicy(): array
     {
-        return [
-            ...collect(self::POLICY_UPPERCASE)
-                ->filter(fn (string $field) => is_string($this->input($field)))
-                ->mapWithKeys(fn (string $field) => [$field => mb_strtoupper($this->input($field))])
-                ->all(),
-            ...$this->uppercaseSource(),
-        ];
+        return collect(self::POLICY_UPPERCASE)
+            ->filter(fn (string $field) => is_string($this->input($field)))
+            ->mapWithKeys(fn (string $field) => [$field => mb_strtoupper($this->input($field))])
+            ->all();
     }
 
     /**
@@ -51,7 +48,7 @@ trait ValidatesUnitPolicy
         return [
             'policy' => ['required', 'string', 'max:255', Rule::unique('unit_policies', 'policy')->ignore($current)],
             'certificate' => ['nullable', 'string', 'max:255'],
-            'insurer' => ['nullable', 'string', 'max:255'],
+            'insurer_id' => ['nullable', 'integer', 'exists:insurers,id'],
             'coverage' => ['required', Rule::in(UnitPolicy::COVERAGES[UnitPolicy::VEHICLE])],
             'endorsement' => ['boolean'],
             'financing' => ['boolean', 'accepted_if:source,'.UnitPolicy::SUPPLIER],
@@ -73,7 +70,7 @@ trait ValidatesUnitPolicy
         return [
             'policy' => 'número de póliza',
             'certificate' => 'certificado',
-            'insurer' => 'aseguradora',
+            'insurer_id' => 'aseguradora',
             'coverage' => 'cobertura',
             'endorsement' => 'endoso',
             'financing' => 'financiamiento',

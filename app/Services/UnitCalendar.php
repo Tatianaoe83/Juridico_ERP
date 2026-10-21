@@ -238,8 +238,8 @@ class UnitCalendar
 
         $lines = array_filter([
             "Póliza: {$policy->policy}",
-            $policy->insurer ? "Aseguradora: {$policy->insurer}" : null,
-            $policy->supplier ? "Beneficiario preferente: {$policy->supplier}" : null,
+            $policy->insurer ? "Aseguradora: {$policy->insurer->name}" : null,
+            $policy->supplier ? "Beneficiario preferente: {$policy->supplier->name}" : null,
             $unitName ? "Unidad: {$unitName}" : null,
             $unit?->plate ? "Placa: {$unit->plate}" : null,
             $unit?->economic_number ? "Económico: {$unit->economic_number}" : null,

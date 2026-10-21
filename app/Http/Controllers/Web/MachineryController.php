@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Fleet\SaveMachineryPolicyRequest;
-use App\Models\BusinessUnit;
 use App\Models\Unit;
 use App\Models\UnitEvidence;
 use App\Models\UnitPolicy;
@@ -101,7 +100,7 @@ class MachineryController extends Controller
                 'id' => $policy->id,
                 'policy' => $policy->policy,
                 'certificate' => $policy->certificate,
-                'insurer' => $policy->insurer,
+                'insurer_id' => $policy->insurer_id,
                 'coverage' => $policy->coverage,
                 'currency' => $policy->currency,
                 'business_unit_id' => $policy->business_unit_id,
@@ -172,7 +171,7 @@ class MachineryController extends Controller
         return [
             'id' => $policy->id,
             'policy' => $policy->policy,
-            'insurer' => $policy->insurer,
+            'insurer' => $policy->insurer?->name,
             'coverage' => $policy->coverage,
             'business_unit' => $policy->businessUnit?->name,
             'source' => $policy->source ?? UnitPolicy::CORPORATE,
@@ -207,7 +206,7 @@ class MachineryController extends Controller
     private function policyAttributes(SaveMachineryPolicyRequest $request): array
     {
         return [
-            ...$request->safe()->only(['policy', 'certificate', 'insurer', 'coverage', 'business_unit_id', 'comments']),
+            ...$request->safe()->only(['policy', 'certificate', 'insurer_id', 'coverage', 'business_unit_id', 'comments']),
             ...$request->policySource(),
             // La del proveedor no lleva pago: moneda y monto quedan vacíos.
             'currency' => $request->validated('currency'),
@@ -287,7 +286,7 @@ class MachineryController extends Controller
     public static function formOptions(): array
     {
         return [
-            'businessUnits' => BusinessUnit::orderBy('name')->get(['id', 'name']),
+            ...CatalogController::options(),
             'statuses' => Unit::STATUSES,
             'machineryCoverages' => UnitPolicy::COVERAGES[UnitPolicy::MACHINERY],
             'machineryCurrencies' => UnitPolicy::MACHINERY_CURRENCIES,

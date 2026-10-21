@@ -23,6 +23,7 @@ import FilePreviewDialog from '@/components/app/FilePreviewDialog.vue';
 import FormSelect from '@/components/app/FormSelect.vue';
 import FormSwitch from '@/components/app/FormSwitch.vue';
 import PolicySourceFields from '@/components/app/PolicySourceFields.vue';
+import { catalogOptions } from '@/lib/catalogs';
 import { POLICY_COVERAGES } from '@/lib/coverages';
 import { ACCEPT, FILE_KINDS, extensionOf, fileSize, kindOf } from '@/lib/files';
 import { SEMESTER_MONTHS, UNIT_STATUS, addMonths, fleetListUrl, money, periodLabel } from '@/lib/units';
@@ -40,6 +41,9 @@ const props = defineProps({
     unit: { type: Object, default: null },
     /** Catálogo: [{ id, name }]. Puede venir vacío si nadie lo ha llenado. */
     businessUnits: { type: Array, default: () => [] },
+    /** Catálogos: [{ id, name }]. */
+    insurers: { type: Array, default: () => [] },
+    beneficiaries: { type: Array, default: () => [] },
     /** Valores del enum `status`, tal como los acepta el servidor. */
     statuses: { type: Array, default: () => [] },
     /** Coberturas de la póliza vehicular, del enum `coverage`. */
@@ -52,6 +56,11 @@ const props = defineProps({
 const TAX_RATE = 0.16;
 
 const editing = computed(() => props.unit !== null);
+
+/** La preferida del catálogo (la que ganó la subasta): la de las empresariales. */
+function preferredInsurer() {
+    return props.insurers.find((insurer) => insurer.preferred)?.id ?? '';
+}
 
 const form = useForm({
     business_unit_id: props.unit?.business_unit_id ?? '',
@@ -69,15 +78,15 @@ const form = useForm({
     // La póliza vigente.
     policy: (props.unit?.policy ?? '').toUpperCase(),
     certificate: (props.unit?.certificate ?? '').toUpperCase(),
-    // Por ahora todas las vehiculares son con Zurich; se puede cambiar.
-    insurer: (props.unit?.insurer ?? (props.initialSource === 'supplier' ? '' : 'ZURICH')).toUpperCase(),
+    // Las empresariales abren con la preferida; se puede cambiar.
+    insurer_id: props.unit?.insurer_id ?? (props.initialSource === 'supplier' ? '' : preferredInsurer()),
     coverage: props.unit?.coverage ?? '',
     endorsement: props.unit?.endorsement ?? false,
     financing: props.unit?.financing ?? props.initialSource === 'supplier',
     valid_from: props.unit?.valid_from ?? '',
     valid_until: props.unit?.source === 'supplier' ? (props.unit?.valid_until ?? '') : '',
     source: props.unit?.source ?? props.initialSource,
-    supplier: (props.unit?.supplier ?? '').toUpperCase(),
+    supplier_id: props.unit?.supplier_id ?? '',
     first_payment_amount: props.unit?.first_payment_amount ?? '',
     second_payment_amount: props.unit?.second_payment_amount ?? '',
     evidences: [],
@@ -92,15 +101,16 @@ const coverageOptions = computed(() => props.coverages.map((value) => ({ value, 
 const fromSupplier = computed(() => form.source === 'supplier');
 
 /**
- * Zurich es la aseguradora de las empresariales; con beneficiario preferente
- * la elige el proveedor. Al prender el beneficiario se deja libre; al apagarlo
- * vuelve a Zurich, aunque se haya escrito otra. Después se puede cambiar.
+ * La preferida del catálogo es la aseguradora de las empresariales; con
+ * beneficiario preferente la elige el proveedor. Al prender el beneficiario se
+ * deja libre; al apagarlo vuelve a la preferida, aunque se haya elegido otra.
+ * Después se puede cambiar.
  */
 watch(
     () => form.source,
     (source) => {
-        if (source === 'supplier' && form.insurer === 'ZURICH') form.insurer = '';
-        if (source === 'corporate') form.insurer = 'ZURICH';
+        if (source === 'supplier' && String(form.insurer_id) === String(preferredInsurer())) form.insurer_id = '';
+        if (source === 'corporate') form.insurer_id = preferredInsurer();
     },
 );
 
@@ -322,6 +332,8 @@ const statusOptions = computed(() =>
     props.statuses.map((value) => ({ value, label: (UNIT_STATUS[value]?.label ?? value).toUpperCase(), dot: UNIT_STATUS[value]?.dot })),
 );
 
+const insurerOptions = computed(() => catalogOptions(props.insurers));
+
 const businessUnitOptions = computed(() => props.businessUnits.map(({ id, name }) => ({ value: id, label: name.toUpperCase() })));
 
 function submit() {
@@ -531,7 +543,7 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
             <p :class="SECTION_TITLE">Póliza</p>
 
             <!-- Primero quién manda en la póliza: el financiamiento y, con él, el beneficiario preferente y su proveedor -->
-            <PolicySourceFields :form="form" prefix="unit" vehicle class="mt-3">
+            <PolicySourceFields :form="form" :beneficiaries="beneficiaries" prefix="unit" vehicle class="mt-3">
                 <FormSwitch
                     id="unit-financing"
                     v-model="form.financing"
@@ -546,20 +558,16 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
             <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
                     <label for="unit-insurer" :class="LABEL">Aseguradora</label>
-                    <div class="relative">
-                        <input
-                            id="unit-insurer"
-                            :value="form.insurer"
-                            @input="toUpper('insurer', $event)"
-                            type="text"
-                            autocomplete="off"
-                            placeholder="Ej. QUALITAS"
-                            :class="FIELD"
-                            :aria-invalid="Boolean(form.errors.insurer)"
-                        />
-                        <Landmark :class="ICON" />
-                    </div>
-                    <p v-if="form.errors.insurer" :class="ERROR">{{ form.errors.insurer }}</p>
+                    <FormSelect
+                        id="unit-insurer"
+                        v-model="form.insurer_id"
+                        :options="insurerOptions"
+                        :icon="Landmark"
+                        placeholder="Selecciona la aseguradora"
+                        :invalid="Boolean(form.errors.insurer_id)"
+                    />
+                    <p v-if="!insurerOptions.length" class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">Todavía no hay aseguradoras en el catálogo.</p>
+                    <p v-if="form.errors.insurer_id" :class="ERROR">{{ form.errors.insurer_id }}</p>
                 </div>
 
                 <div>

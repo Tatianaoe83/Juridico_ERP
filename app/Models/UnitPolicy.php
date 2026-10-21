@@ -251,6 +251,17 @@ class UnitPolicy extends Model
         return $this->belongsTo(BusinessUnit::class);
     }
 
+    public function insurer(): BelongsTo
+    {
+        return $this->belongsTo(Insurer::class);
+    }
+
+    /** En la del proveedor: el beneficiario preferente. */
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Beneficiary::class, 'supplier_id');
+    }
+
     /** El periodo del que salió al renovar. */
     public function renewedFrom(): BelongsTo
     {

@@ -20,14 +20,14 @@ class SaveMachineryPolicyRequest extends FormRequest
     use ValidatesPolicySource;
 
     /** Campos de la póliza que se guardan siempre en mayúsculas. */
-    private const UPPERCASE = ['policy', 'certificate', 'insurer'];
+    private const UPPERCASE = ['policy', 'certificate'];
 
     public function authorize(): bool
     {
         return $this->user()?->can($this->editing() ? 'flotillas.update' : 'flotillas.create') ?? false;
     }
 
-    /** Póliza, certificado, aseguradora, tipo, marca y modelo van en mayúsculas. */
+    /** Póliza, certificado, tipo, marca y modelo van en mayúsculas. */
     protected function prepareForValidation(): void
     {
         $upper = fn (mixed $value) => is_string($value) ? mb_strtoupper($value) : $value;
@@ -36,8 +36,6 @@ class SaveMachineryPolicyRequest extends FormRequest
             ->filter(fn (string $field) => $this->has($field))
             ->mapWithKeys(fn (string $field) => [$field => $upper($this->input($field))])
             ->all());
-
-        $this->merge($this->uppercaseSource());
 
         if (is_array($this->input('machines'))) {
             $this->merge(['machines' => collect($this->input('machines'))
@@ -68,7 +66,7 @@ class SaveMachineryPolicyRequest extends FormRequest
         return [
             'policy' => ['required', 'string', 'max:255', Rule::unique('unit_policies', 'policy')->ignore($policy)],
             'certificate' => ['nullable', 'string', 'max:255'],
-            'insurer' => ['nullable', 'string', 'max:255'],
+            'insurer_id' => ['nullable', 'integer', 'exists:insurers,id'],
             'coverage' => ['required', Rule::in(UnitPolicy::COVERAGES[UnitPolicy::MACHINERY])],
             'currency' => [$onlyCorporate, 'required', Rule::in(UnitPolicy::CURRENCIES)],
             'valid_from' => ['required', 'date'],
@@ -112,7 +110,7 @@ class SaveMachineryPolicyRequest extends FormRequest
         return [
             'policy' => 'número de póliza',
             'certificate' => 'certificado',
-            'insurer' => 'aseguradora',
+            'insurer_id' => 'aseguradora',
             'coverage' => 'cobertura',
             'currency' => 'moneda',
             'valid_from' => 'inicio de vigencia',

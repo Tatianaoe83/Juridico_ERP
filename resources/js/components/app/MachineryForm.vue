@@ -20,6 +20,7 @@ import AppModal from '@/components/app/AppModal.vue';
 import FormSelect from '@/components/app/FormSelect.vue';
 import MachineDocuments from '@/components/app/MachineDocuments.vue';
 import PolicySourceFields from '@/components/app/PolicySourceFields.vue';
+import { catalogOptions } from '@/lib/catalogs';
 import { MACHINERY_COVERAGES, UNIT_STATUS, fleetListUrl, money } from '@/lib/units';
 
 /**
@@ -34,6 +35,9 @@ const props = defineProps({
     policy: { type: Object, default: null },
     /** Catálogo: [{ id, name }]. */
     businessUnits: { type: Array, default: () => [] },
+    /** Catálogos: [{ id, name }]. */
+    insurers: { type: Array, default: () => [] },
+    beneficiaries: { type: Array, default: () => [] },
     /** Valores del enum `status` de la máquina. */
     statuses: { type: Array, default: () => [] },
     /** Coberturas de la póliza de maquinaria: EC y RC. */
@@ -70,12 +74,12 @@ function machine(values = {}) {
 const form = useForm({
     policy: (props.policy?.policy ?? '').toUpperCase(),
     certificate: (props.policy?.certificate ?? '').toUpperCase(),
-    insurer: (props.policy?.insurer ?? '').toUpperCase(),
+    insurer_id: props.policy?.insurer_id ?? '',
     coverage: props.policy?.coverage ?? '',
     currency: props.policy?.currency ?? '',
     business_unit_id: props.policy?.business_unit_id ?? '',
     source: props.policy?.source ?? props.initialSource,
-    supplier: (props.policy?.supplier ?? '').toUpperCase(),
+    supplier_id: props.policy?.supplier_id ?? '',
     valid_from: props.policy?.valid_from ?? '',
     valid_until: props.policy?.valid_until ?? '',
     amount: props.policy?.amount ?? '',
@@ -114,6 +118,8 @@ const fromSupplier = computed(() => form.source === 'supplier');
 const statusOptions = computed(() =>
     props.statuses.map((value) => ({ value, label: (UNIT_STATUS[value]?.label ?? value).toUpperCase(), dot: UNIT_STATUS[value]?.dot })),
 );
+
+const insurerOptions = computed(() => catalogOptions(props.insurers));
 
 const businessUnitOptions = computed(() => props.businessUnits.map(({ id, name }) => ({ value: id, label: name.toUpperCase() })));
 
@@ -239,7 +245,7 @@ const CELL_ERROR = 'mt-0.5 text-[0.65rem] leading-tight font-medium text-red-600
             <p :class="SECTION_TITLE">Póliza de maquinaria</p>
 
             <!-- Primero de quién es: la unidad de negocio de toda la póliza y el beneficiario preferente -->
-            <PolicySourceFields :form="form" prefix="machinery" class="mt-3">
+            <PolicySourceFields :form="form" :beneficiaries="beneficiaries" prefix="machinery" class="mt-3">
                 <div>
                     <label for="machinery-business" :class="LABEL">Unidad de negocio <span :class="REQUIRED">*</span></label>
                     <FormSelect
@@ -258,19 +264,16 @@ const CELL_ERROR = 'mt-0.5 text-[0.65rem] leading-tight font-medium text-red-600
             <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div>
                     <label for="machinery-insurer" :class="LABEL">Aseguradora</label>
-                    <div class="relative">
-                        <input
-                            id="machinery-insurer"
-                            :value="form.insurer"
-                            @input="toUpper(form, 'insurer', $event)"
-                            type="text"
-                            autocomplete="off"
-                            :class="FIELD"
-                            :aria-invalid="Boolean(form.errors.insurer)"
-                        />
-                        <Landmark :class="ICON" />
-                    </div>
-                    <p v-if="form.errors.insurer" :class="ERROR">{{ form.errors.insurer }}</p>
+                    <FormSelect
+                        id="machinery-insurer"
+                        v-model="form.insurer_id"
+                        :options="insurerOptions"
+                        :icon="Landmark"
+                        placeholder="Selecciona la aseguradora"
+                        :invalid="Boolean(form.errors.insurer_id)"
+                    />
+                    <p v-if="!insurerOptions.length" class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">Todavía no hay aseguradoras en el catálogo.</p>
+                    <p v-if="form.errors.insurer_id" :class="ERROR">{{ form.errors.insurer_id }}</p>
                 </div>
 
                 <div>

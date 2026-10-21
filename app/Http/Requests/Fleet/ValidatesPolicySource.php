@@ -13,16 +13,6 @@ use Illuminate\Validation\Rule;
  */
 trait ValidatesPolicySource
 {
-    /**
-     * El proveedor se guarda siempre en mayúsculas.
-     *
-     * @return array<string, string>
-     */
-    private function uppercaseSource(): array
-    {
-        return is_string($this->input('supplier')) ? ['supplier' => mb_strtoupper($this->input('supplier'))] : [];
-    }
-
     /** Si lo que llega es una póliza del proveedor. */
     public function fromSupplier(): bool
     {
@@ -39,7 +29,7 @@ trait ValidatesPolicySource
     {
         return [
             'source' => ['required', Rule::in(UnitPolicy::SOURCES)],
-            'supplier' => ['exclude_unless:source,'.UnitPolicy::SUPPLIER, 'required', 'string', 'max:255'],
+            'supplier_id' => ['exclude_unless:source,'.UnitPolicy::SUPPLIER, 'required', 'integer', 'exists:beneficiaries,id'],
         ];
     }
 
@@ -48,7 +38,7 @@ trait ValidatesPolicySource
     {
         return [
             'source' => 'beneficiario preferente',
-            'supplier' => 'beneficiario preferente',
+            'supplier_id' => 'beneficiario preferente',
         ];
     }
 
@@ -56,7 +46,7 @@ trait ValidatesPolicySource
     private function sourceMessages(): array
     {
         return [
-            'supplier.required' => 'Indica quién es el beneficiario preferente: la agencia, financiera o arrendadora.',
+            'supplier_id.required' => 'Indica quién es el beneficiario preferente: la agencia, financiera o arrendadora.',
         ];
     }
 
@@ -72,7 +62,7 @@ trait ValidatesPolicySource
 
         return [
             'source' => $this->validated('source'),
-            'supplier' => $supplier ? $this->validated('supplier') : null,
+            'supplier_id' => $supplier ? $this->validated('supplier_id') : null,
         ];
     }
 }

@@ -133,12 +133,12 @@ class FleetController extends Controller
      */
     private function machineryPolicies(string $search, ?string $status, ?string $brand, ?int $businessUnit): LengthAwarePaginator
     {
-        return UnitPolicy::with(['machines', 'businessUnit'])
+        return UnitPolicy::with(['machines', 'businessUnit', 'insurer'])
             ->where('kind', UnitPolicy::MACHINERY)
             ->where('source', UnitPolicy::CORPORATE)
             ->when($search !== '', fn ($query) => $query->where(fn ($q) => $q
                 ->where('policy', 'like', "%{$search}%")
-                ->orWhere('insurer', 'like', "%{$search}%")
+                ->orWhereHas('insurer', fn ($q2) => $q2->where('name', 'like', "%{$search}%"))
                 ->orWhereHas('businessUnit', fn ($q2) => $q2->where('name', 'like', "%{$search}%"))
                 ->orWhereHas('machines', fn ($q2) => $q2->where(fn ($q3) => $q3
                     ->where('machine_type', 'like', "%{$search}%")
@@ -168,7 +168,7 @@ class FleetController extends Controller
             ->where(fn ($q2) => $q2->where('kind', UnitPolicy::VEHICLE)->whereHas('unit', $match))
             ->orWhere(fn ($q2) => $q2->where('kind', UnitPolicy::MACHINERY)->whereHas('machines', $match)));
 
-        return UnitPolicy::with(['unit.businessUnit', 'machines', 'businessUnit'])
+        return UnitPolicy::with(['unit.businessUnit', 'machines', 'businessUnit', 'supplier'])
             ->where('source', UnitPolicy::SUPPLIER)
             ->where(fn ($query) => $query
                 ->where('kind', UnitPolicy::MACHINERY)
@@ -186,7 +186,7 @@ class FleetController extends Controller
                                 ->whereColumn('newer.id', '>', 'unit_policies.id'))))))
             ->when($search !== '', fn ($query) => $query->where(fn ($q) => $q
                 ->where('policy', 'like', "%{$search}%")
-                ->orWhere('supplier', 'like', "%{$search}%")
+                ->orWhereHas('supplier', fn ($q2) => $q2->where('name', 'like', "%{$search}%"))
                 ->orWhereHas('businessUnit', fn ($q2) => $q2->where('name', 'like', "%{$search}%"))
                 ->orWhere(fn ($q2) => $covered($q2, fn ($unit) => $unit->where(fn ($u) => $u
                     ->where('machine_type', 'like', "%{$search}%")
@@ -232,7 +232,7 @@ class FleetController extends Controller
             // Si las máquinas no van todas igual, no hay un solo estado que mostrar.
             'status' => $statuses->count() === 1 ? $statuses->first() : null,
             'policy' => $policy->policy,
-            'supplier' => $policy->supplier,
+            'supplier' => $policy->supplier?->name,
             'valid_until' => $policy->second_payment_ends_on?->toDateString(),
             'coverage_status' => $policy->coverageStatus(),
             'machines' => $machinery ? $policy->machines->map(fn (Unit $machine) => [
@@ -322,7 +322,7 @@ class FleetController extends Controller
                 'policy_detail' => $policy ? [
                     'policy' => $policy->policy,
                     'certificate' => $policy->certificate,
-                    'insurer' => $policy->insurer,
+                    'insurer' => $policy->insurer?->name,
                     'coverage' => $policy->coverage,
                     'endorsement' => (bool) $policy->endorsement,
                     'financing' => (bool) $policy->financing,
@@ -398,14 +398,14 @@ class FleetController extends Controller
                 // al guardar se crea.
                 'policy' => $policy?->policy,
                 'certificate' => $policy?->certificate,
-                'insurer' => $policy?->insurer,
+                'insurer_id' => $policy?->insurer_id,
                 'coverage' => $policy?->coverage,
                 'endorsement' => (bool) $policy?->endorsement,
                 'financing' => (bool) $policy?->financing,
                 'valid_from' => $policy?->first_payment_starts_on?->toDateString(),
                 'valid_until' => $policy?->second_payment_ends_on?->toDateString(),
                 'source' => $policy?->source ?? UnitPolicy::CORPORATE,
-                'supplier' => $policy?->supplier,
+                'supplier_id' => $policy?->supplier_id,
                 'first_payment_amount' => $policy?->first_payment_amount,
                 'second_payment_amount' => $policy?->second_payment_amount,
                 // Sus documentos oficiales, para poder quitarlos. Los
@@ -415,7 +415,7 @@ class FleetController extends Controller
                     ->orderBy('id')
                     ->get(['id', 'name', 'size']),
             ],
-            'businessUnits' => BusinessUnit::orderBy('name')->get(['id', 'name']),
+            ...CatalogController::options(),
             'statuses' => Unit::STATUSES,
             'coverages' => UnitPolicy::COVERAGES[UnitPolicy::VEHICLE],
         ]);
@@ -624,7 +624,8 @@ class FleetController extends Controller
     {
         return [
             'source' => $policy->source ?? UnitPolicy::CORPORATE,
-            'supplier' => $policy->supplier,
+            'supplier' => $policy->supplier?->name,
+            'supplier_id' => $policy->supplier_id,
             'valid_from' => $policy->first_payment_starts_on?->toDateString(),
             'valid_until' => $policy->second_payment_ends_on?->toDateString(),
         ];

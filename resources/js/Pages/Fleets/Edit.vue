@@ -9,6 +9,8 @@ const props = defineProps({
     /** La unidad con sus valores tal como se capturan, más sus evidencias. */
     unit: { type: Object, required: true },
     businessUnits: { type: Array, default: () => [] },
+    insurers: { type: Array, default: () => [] },
+    beneficiaries: { type: Array, default: () => [] },
     statuses: { type: Array, default: () => [] },
     /** Coberturas de la póliza vehicular. */
     coverages: { type: Array, default: () => [] },
@@ -59,7 +61,7 @@ const breadcrumbs = [
                 </Link>
             </div>
 
-            <UnitForm :unit="unit" :business-units="businessUnits" :statuses="statuses" :coverages="coverages" />
+            <UnitForm :unit="unit" :business-units="businessUnits" :insurers="insurers" :beneficiaries="beneficiaries" :statuses="statuses" :coverages="coverages" />
         </div>
     </AppShell>
 </template>

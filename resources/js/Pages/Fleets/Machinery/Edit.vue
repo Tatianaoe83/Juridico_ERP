@@ -9,6 +9,8 @@ const props = defineProps({
     /** La póliza con sus valores tal como se capturan y sus máquinas con sus documentos. */
     policy: { type: Object, required: true },
     businessUnits: { type: Array, default: () => [] },
+    insurers: { type: Array, default: () => [] },
+    beneficiaries: { type: Array, default: () => [] },
     statuses: { type: Array, default: () => [] },
     machineryCoverages: { type: Array, default: () => [] },
     machineryCurrencies: { type: Object, default: () => ({}) },
@@ -54,6 +56,8 @@ const breadcrumbs = [
             <MachineryForm
                 :policy="policy"
                 :business-units="businessUnits"
+                :insurers="insurers"
+                :beneficiaries="beneficiaries"
                 :statuses="statuses"
                 :coverages="machineryCoverages"
                 :currencies="machineryCurrencies"

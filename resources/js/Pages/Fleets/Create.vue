@@ -21,6 +21,8 @@ const props = defineProps({
     types: { type: Array, default: () => [] },
     /** Catálogo: [{ id, name }]. Puede venir vacío si nadie lo ha llenado. */
     businessUnits: { type: Array, default: () => [] },
+    insurers: { type: Array, default: () => [] },
+    beneficiaries: { type: Array, default: () => [] },
     /** Valores del enum `status`, tal como los acepta el servidor. */
     statuses: { type: Array, default: () => [] },
     /** Coberturas de la póliza vehicular. */
@@ -93,10 +95,12 @@ const breadcrumbs = computed(() => [
                 </div>
             </section>
 
-            <UnitForm v-if="type === 'vehicle'" :business-units="businessUnits" :statuses="statuses" :coverages="coverages" :initial-source="source" />
+            <UnitForm v-if="type === 'vehicle'" :business-units="businessUnits" :insurers="insurers" :beneficiaries="beneficiaries" :statuses="statuses" :coverages="coverages" :initial-source="source" />
             <MachineryForm
                 v-else-if="type === 'machinery'"
                 :business-units="businessUnits"
+                :insurers="insurers"
+                :beneficiaries="beneficiaries"
                 :statuses="statuses"
                 :coverages="machineryCoverages"
                 :currencies="machineryCurrencies"

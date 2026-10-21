@@ -23,7 +23,7 @@ class StoreUnitRequest extends FormRequest
     }
 
     /**
-     * Marca, modelo, placa, asignación, póliza, certificado y aseguradora se
+     * Marca, modelo, placa, asignación, póliza y certificado se
      * guardan siempre en mayúsculas. El formulario ya los manda así; esto
      * cubre cualquier otra entrada.
      */
