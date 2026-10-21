@@ -79,11 +79,11 @@ class ConstructionPolicyCalendar
      */
     private function event(ConstructionPolicy $policy): array
     {
-        $policy->loadMissing('businessUnit');
+        $policy->loadMissing(['businessUnit', 'insurer']);
 
         $lines = array_filter([
             "Póliza: {$policy->policy}",
-            $policy->insurer ? "Aseguradora: {$policy->insurer}" : null,
+            $policy->insurer ? "Aseguradora: {$policy->insurer->name}" : null,
             "Obra: {$policy->project}",
             $policy->project_address ? "Dirección: {$policy->project_address}" : null,
             $policy->businessUnit ? "Unidad de negocio: {$policy->businessUnit->name}" : null,

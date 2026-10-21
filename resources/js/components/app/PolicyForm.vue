@@ -20,6 +20,7 @@ import {
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
 import FilePreviewDialog from '@/components/app/FilePreviewDialog.vue';
 import FormSelect from '@/components/app/FormSelect.vue';
+import { catalogOptions } from '@/lib/catalogs';
 import { POLICY_COVERAGES } from '@/lib/coverages';
 import { ACCEPT, FILE_KINDS, extensionOf, fileSize, kindOf } from '@/lib/files';
 import { money } from '@/lib/units';
@@ -39,6 +40,8 @@ const props = defineProps({
     coverages: { type: Array, default: () => [] },
     /** Catálogo: [{ id, name }]. */
     businessUnits: { type: Array, default: () => [] },
+    /** Catálogo: [{ id, name }]. */
+    insurers: { type: Array, default: () => [] },
 });
 
 /** IVA incluido en el monto. Igual que ConstructionPolicy::TAX_RATE. */
@@ -54,7 +57,7 @@ const form = useForm({
     project_address: (props.policy?.project_address ?? '').toUpperCase(),
     business_unit_id: props.policy?.business_unit_id ?? '',
     policy: (props.policy?.policy ?? '').toUpperCase(),
-    insurer: (props.policy?.insurer ?? '').toUpperCase(),
+    insurer_id: props.policy?.insurer_id ?? '',
     coverage: props.policy?.coverage ?? '',
     valid_from: props.policy?.valid_from ?? '',
     valid_until: props.policy?.valid_until ?? '',
@@ -82,6 +85,8 @@ function toUpper(field, event) {
 /* ---------- Opciones ---------- */
 
 const coverageOptions = computed(() => props.coverages.map((value) => ({ value, label: POLICY_COVERAGES[value] ?? value })));
+
+const insurerOptions = computed(() => catalogOptions(props.insurers));
 
 const businessUnitOptions = computed(() => props.businessUnits.map(({ id, name }) => ({ value: id, label: name.toUpperCase() })));
 
@@ -321,20 +326,17 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
 
                 <div>
                     <label for="policy-insurer" :class="LABEL">Aseguradora</label>
-                    <div class="relative">
-                        <input
-                            id="policy-insurer"
-                            :value="form.insurer"
-                            @input="toUpper('insurer', $event)"
-                            type="text"
-                            autocomplete="off"
-                            placeholder="Ej. Qualitas"
-                            :class="FIELD"
-                            :aria-invalid="Boolean(form.errors.insurer)"
-                        />
-                        <Landmark :class="ICON" />
-                    </div>
-                    <p v-if="form.errors.insurer" :class="ERROR">{{ form.errors.insurer }}</p>
+                    <FormSelect
+                        compact
+                        id="policy-insurer"
+                        v-model="form.insurer_id"
+                        :options="insurerOptions"
+                        :icon="Landmark"
+                        placeholder="Selecciona la aseguradora"
+                        :invalid="Boolean(form.errors.insurer_id)"
+                    />
+                    <p v-if="!insurerOptions.length" class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">Todavía no hay aseguradoras en el catálogo.</p>
+                    <p v-if="form.errors.insurer_id" :class="ERROR">{{ form.errors.insurer_id }}</p>
                 </div>
 
                 <div>

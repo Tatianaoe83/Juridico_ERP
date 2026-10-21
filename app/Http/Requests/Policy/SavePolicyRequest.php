@@ -23,7 +23,7 @@ class SavePolicyRequest extends FormRequest
     }
 
     /** Campos que se guardan siempre en mayúsculas. */
-    public const UPPERCASE = ['policy', 'insurer', 'project', 'project_address', 'comments'];
+    public const UPPERCASE = ['policy', 'project', 'project_address', 'comments'];
 
     /** El formulario ya los manda así; esto cubre cualquier otra entrada. */
     protected function prepareForValidation(): void
@@ -57,7 +57,7 @@ class SavePolicyRequest extends FormRequest
             'project_address' => ['nullable', 'string', 'max:255'],
             'business_unit_id' => ['required', 'integer', 'exists:business_units,id'],
             'policy' => ['required', 'string', 'max:255', Rule::unique('construction_policies', 'policy')->ignore($policy)],
-            'insurer' => ['nullable', 'string', 'max:255'],
+            'insurer_id' => ['nullable', 'integer', 'exists:insurers,id'],
             'coverage' => ['required', Rule::in(ConstructionPolicy::COVERAGES)],
 
             // Con endosos, el inicio no puede pasar del fin que ya tiene.
@@ -105,7 +105,7 @@ class SavePolicyRequest extends FormRequest
             'project_address' => 'dirección de la obra',
             'business_unit_id' => 'unidad de negocio',
             'policy' => 'número de póliza',
-            'insurer' => 'aseguradora',
+            'insurer_id' => 'aseguradora',
             'coverage' => 'cobertura',
             'valid_from' => 'inicio de vigencia',
             'valid_until' => 'fin de vigencia',

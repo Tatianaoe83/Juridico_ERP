@@ -20,14 +20,17 @@ import {
 } from 'lucide-vue-next';
 import { computed, nextTick } from 'vue';
 import FormSelect from '@/components/app/FormSelect.vue';
+import { catalogOptions } from '@/lib/catalogs';
 import { BOND_CATEGORIES } from '@/lib/coverages';
 
 /** El formulario de la fianza, el mismo para el alta y la edición. */
 const props = defineProps({
     /** null = alta · fianza cargada = edición. */
     bond: { type: Object, default: null },
-    /** Catálogo: [{ id, name }]. */
+    /** Catálogos: [{ id, name }]. */
     businessUnits: { type: Array, default: () => [] },
+    bondingCompanies: { type: Array, default: () => [] },
+    beneficiaries: { type: Array, default: () => [] },
     /** Valores del enum `category`. */
     categories: { type: Array, default: () => [] },
 });
@@ -37,8 +40,8 @@ const editing = computed(() => props.bond !== null);
 const FIELDS = [
     'business_unit_id',
     'bond',
-    'beneficiary',
-    'bonding_company',
+    'beneficiary_id',
+    'bonding_company_id',
     'amount',
     'requested_on',
     'issued_on',
@@ -53,7 +56,7 @@ const FIELDS = [
 ];
 
 /** Los de texto libre van siempre en mayúsculas. Igual que SaveBondRequest::UPPERCASE. */
-const UPPERCASE = ['bond', 'bonding_company', 'beneficiary', 'related', 'source_document', 'comments'];
+const UPPERCASE = ['bond', 'related', 'source_document', 'comments'];
 
 const form = useForm(
     Object.fromEntries(
@@ -79,13 +82,15 @@ function toUpper(field, event) {
 
 const businessUnitOptions = computed(() => props.businessUnits.map(({ id, name }) => ({ value: id, label: name })));
 
+const bondingCompanyOptions = computed(() => catalogOptions(props.bondingCompanies));
+
+const beneficiaryOptions = computed(() => catalogOptions(props.beneficiaries));
+
 const categoryOptions = computed(() => props.categories.map((value) => ({ value, label: BOND_CATEGORIES[value] ?? value })));
 
 /** Los de texto, en el orden en que se leen en el detalle. */
 const TEXTS = [
     { field: 'bond', label: 'Número de fianza', icon: ShieldCheck, required: true, placeholder: 'Ej. FZA-9988-B' },
-    { field: 'bonding_company', label: 'Afianzadora', icon: Building, placeholder: 'Ej. Fianzas Monterrey' },
-    { field: 'beneficiary', label: 'Beneficiario', icon: UserRound },
     { field: 'related', label: 'Relativo', icon: Link2, placeholder: 'Contrato o asunto al que se refiere' },
     { field: 'source_document', label: 'Docto. fuente', icon: FileText, placeholder: 'Ej. Contrato 045/2026' },
 ];
@@ -166,6 +171,36 @@ const SECTION_TITLE = 'text-[0.62rem] font-bold uppercase tracking-[0.14em] text
                         <component :is="input.icon" :class="ICON" />
                     </div>
                     <p v-if="form.errors[input.field]" :class="ERROR">{{ form.errors[input.field] }}</p>
+                </div>
+
+                <div>
+                    <label for="bond-bonding-company" :class="LABEL">Afianzadora</label>
+                    <FormSelect
+                        compact
+                        id="bond-bonding-company"
+                        v-model="form.bonding_company_id"
+                        :options="bondingCompanyOptions"
+                        :icon="Building"
+                        placeholder="Selecciona la afianzadora"
+                        :invalid="Boolean(form.errors.bonding_company_id)"
+                    />
+                    <p v-if="!bondingCompanyOptions.length" class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">Todavía no hay afianzadoras en el catálogo.</p>
+                    <p v-if="form.errors.bonding_company_id" :class="ERROR">{{ form.errors.bonding_company_id }}</p>
+                </div>
+
+                <div>
+                    <label for="bond-beneficiary" :class="LABEL">Beneficiario</label>
+                    <FormSelect
+                        compact
+                        id="bond-beneficiary"
+                        v-model="form.beneficiary_id"
+                        :options="beneficiaryOptions"
+                        :icon="UserRound"
+                        placeholder="Selecciona el beneficiario"
+                        :invalid="Boolean(form.errors.beneficiary_id)"
+                    />
+                    <p v-if="!beneficiaryOptions.length" class="mt-1 text-[0.7rem] text-slate-400 dark:text-brand-gray/70">Todavía no hay beneficiarios en el catálogo.</p>
+                    <p v-if="form.errors.beneficiary_id" :class="ERROR">{{ form.errors.beneficiary_id }}</p>
                 </div>
 
                 <div>

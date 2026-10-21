@@ -17,7 +17,7 @@ class SaveBondRequest extends FormRequest
     }
 
     /** Campos que se guardan siempre en mayúsculas. */
-    public const UPPERCASE = ['bond', 'bonding_company', 'beneficiary', 'related', 'source_document', 'comments'];
+    public const UPPERCASE = ['bond', 'related', 'source_document', 'comments'];
 
     /** El formulario ya los manda así; esto cubre cualquier otra entrada. */
     protected function prepareForValidation(): void
@@ -36,8 +36,8 @@ class SaveBondRequest extends FormRequest
         return [
             'business_unit_id' => ['required', 'integer', 'exists:business_units,id'],
             'bond' => ['required', 'string', 'max:255', Rule::unique('bonds', 'bond')->ignore($this->route('bond'))],
-            'beneficiary' => ['nullable', 'string', 'max:255'],
-            'bonding_company' => ['nullable', 'string', 'max:255'],
+            'beneficiary_id' => ['nullable', 'integer', 'exists:beneficiaries,id'],
+            'bonding_company_id' => ['nullable', 'integer', 'exists:bonding_companies,id'],
             'amount' => ['required', 'numeric', 'min:0', 'max:999999999999'],
 
             'requested_on' => ['nullable', 'date'],
@@ -66,8 +66,8 @@ class SaveBondRequest extends FormRequest
         return [
             'business_unit_id' => 'unidad de negocio',
             'bond' => 'número de fianza',
-            'beneficiary' => 'beneficiario',
-            'bonding_company' => 'afianzadora',
+            'beneficiary_id' => 'beneficiario',
+            'bonding_company_id' => 'afianzadora',
             'amount' => 'monto',
             'requested_on' => 'solicitud de emisión',
             'issued_on' => 'fecha de emisión',

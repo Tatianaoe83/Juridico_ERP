@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Policy\SavePolicyRequest;
 use App\Models\Bond;
-use App\Models\BusinessUnit;
 use App\Models\ConstructionPolicy;
 use App\Models\ConstructionPolicyDocument;
 use App\Models\ConstructionPolicyEndorsement;
@@ -95,6 +94,7 @@ class PolicyController extends Controller
     {
         $policy->load([
             'businessUnit:id,name',
+            'insurer:id,name',
             'creator:id,name',
             'documents.uploader:id,name',
             'endorsements.creator:id,name',
@@ -104,7 +104,7 @@ class PolicyController extends Controller
             'policy' => [
                 'id' => $policy->id,
                 'policy' => $policy->policy,
-                'insurer' => $policy->insurer,
+                'insurer' => $policy->insurer?->name,
                 'coverage' => $policy->coverage,
                 'status' => $policy->status(),
                 'project' => $policy->project,
@@ -187,7 +187,7 @@ class PolicyController extends Controller
                 'project_address' => $policy->project_address,
                 'business_unit_id' => $policy->business_unit_id,
                 'policy' => $policy->policy,
-                'insurer' => $policy->insurer,
+                'insurer_id' => $policy->insurer_id,
                 'coverage' => $policy->coverage,
                 'valid_from' => $policy->valid_from?->toDateString(),
                 'valid_until' => $policy->valid_until?->toDateString(),
@@ -303,7 +303,7 @@ class PolicyController extends Controller
     private function formOptions(): array
     {
         return [
-            'businessUnits' => BusinessUnit::orderBy('name')->get(['id', 'name']),
+            ...CatalogController::options(),
             'coverages' => ConstructionPolicy::COVERAGES,
             'categories' => Bond::CATEGORIES,
         ];
@@ -316,7 +316,7 @@ class PolicyController extends Controller
      */
     private function policies(): Collection
     {
-        return ConstructionPolicy::with('businessUnit:id,name')
+        return ConstructionPolicy::with(['businessUnit:id,name', 'insurer:id,name'])
             ->withSum('endorsements', 'amount')
             ->get()
             ->map(fn (ConstructionPolicy $policy) => [
@@ -324,7 +324,7 @@ class PolicyController extends Controller
                 'type' => 'policy',
                 'id' => $policy->id,
                 'number' => $policy->policy,
-                'provider' => $policy->insurer,
+                'provider' => $policy->insurer?->name,
                 'coverage' => $policy->coverage,
                 // Sobre qué: la obra con su dirección.
                 'subject' => $policy->project,
@@ -335,7 +335,7 @@ class PolicyController extends Controller
                 // Lo que cuesta con todo y endosos; sin ningún monto capturado, nada.
                 'amount' => $policy->amount === null && ! $policy->endorsements_sum_amount ? null : $policy->total(),
                 'status' => $policy->status(),
-                'search' => [$policy->policy, $policy->insurer, $policy->project, $policy->project_address, $policy->businessUnit?->name],
+                'search' => [$policy->policy, $policy->insurer?->name, $policy->project, $policy->project_address, $policy->businessUnit?->name],
             ]);
     }
 
@@ -344,25 +344,25 @@ class PolicyController extends Controller
      */
     private function bonds(): Collection
     {
-        return Bond::with('businessUnit:id,name')
+        return Bond::with(['businessUnit:id,name', 'bondingCompany:id,name', 'beneficiary:id,name'])
             ->get()
             ->map(fn (Bond $bond) => [
                 'key' => "bond-{$bond->id}",
                 'type' => 'bond',
                 'id' => $bond->id,
                 'number' => $bond->bond,
-                'provider' => $bond->bonding_company,
+                'provider' => $bond->bondingCompany?->name,
                 'coverage' => null,
                 'category' => $bond->category,
                 // Sobre qué: a quién se garantiza y el asunto.
-                'subject' => $bond->beneficiary,
+                'subject' => $bond->beneficiary?->name,
                 'detail' => $bond->related,
                 'business_unit' => $bond->businessUnit?->name,
                 'valid_from' => $bond->valid_from?->toDateString(),
                 'valid_until' => $bond->valid_until?->toDateString(),
                 'amount' => (float) $bond->amount,
                 'status' => $bond->status(),
-                'search' => [$bond->bond, $bond->bonding_company, $bond->beneficiary, $bond->related, $bond->source_document, $bond->businessUnit?->name],
+                'search' => [$bond->bond, $bond->bondingCompany?->name, $bond->beneficiary?->name, $bond->related, $bond->source_document, $bond->businessUnit?->name],
             ]);
     }
 

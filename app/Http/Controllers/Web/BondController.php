@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Policy\SaveBondRequest;
 use App\Models\Bond;
-use App\Models\BusinessUnit;
 use App\Services\BondCalendar;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,7 +22,7 @@ class BondController extends Controller
     /** GET /polizas/fianzas/{bond} */
     public function show(Bond $bond): Response
     {
-        $bond->load(['creator:id,name', 'businessUnit:id,name']);
+        $bond->load(['creator:id,name', 'businessUnit:id,name', 'bondingCompany:id,name', 'beneficiary:id,name']);
 
         return Inertia::render('Policies/BondShow', [
             'bond' => [
@@ -56,7 +55,7 @@ class BondController extends Controller
     {
         return Inertia::render('Policies/Edit', [
             'type' => 'bond',
-            'businessUnits' => BusinessUnit::orderBy('name')->get(['id', 'name']),
+            ...CatalogController::options(),
             'categories' => Bond::CATEGORIES,
             'bond' => [...$this->values($bond), 'id' => $bond->id],
         ]);
@@ -113,8 +112,10 @@ class BondController extends Controller
         return [
             'business_unit_id' => $bond->business_unit_id,
             'bond' => $bond->bond,
-            'beneficiary' => $bond->beneficiary,
-            'bonding_company' => $bond->bonding_company,
+            'beneficiary_id' => $bond->beneficiary_id,
+            'beneficiary' => $bond->beneficiary?->name,
+            'bonding_company_id' => $bond->bonding_company_id,
+            'bonding_company' => $bond->bondingCompany?->name,
             'amount' => $bond->amount !== null ? (float) $bond->amount : null,
             'requested_on' => $bond->requested_on?->toDateString(),
             'issued_on' => $bond->issued_on?->toDateString(),

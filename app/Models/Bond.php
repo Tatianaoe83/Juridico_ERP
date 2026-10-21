@@ -44,6 +44,16 @@ class Bond extends Model
         return $this->belongsTo(BusinessUnit::class);
     }
 
+    public function bondingCompany(): BelongsTo
+    {
+        return $this->belongsTo(BondingCompany::class);
+    }
+
+    public function beneficiary(): BelongsTo
+    {
+        return $this->belongsTo(Beneficiary::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

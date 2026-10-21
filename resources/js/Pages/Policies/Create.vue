@@ -18,6 +18,9 @@ const props = defineProps({
     coverages: { type: Array, default: () => [] },
     /** Catálogo: [{ id, name }], para la póliza de obra y la fianza. */
     businessUnits: { type: Array, default: () => [] },
+    insurers: { type: Array, default: () => [] },
+    bondingCompanies: { type: Array, default: () => [] },
+    beneficiaries: { type: Array, default: () => [] },
     /** Valores del enum `category` de la fianza. */
     categories: { type: Array, default: () => [] },
 });
@@ -107,8 +110,8 @@ const breadcrumbs = computed(() => [
                 leave-to-class="opacity-0"
             >
                 <KeepAlive>
-                    <BondForm v-if="current === 'bond'" key="bond" :business-units="businessUnits" :categories="categories" />
-                    <PolicyForm v-else key="policy" :coverages="coverages" :business-units="businessUnits" />
+                    <BondForm v-if="current === 'bond'" key="bond" :business-units="businessUnits" :bonding-companies="bondingCompanies" :beneficiaries="beneficiaries" :categories="categories" />
+                    <PolicyForm v-else key="policy" :coverages="coverages" :business-units="businessUnits" :insurers="insurers" />
                 </KeepAlive>
             </Transition>
         </div>
