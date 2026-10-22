@@ -17,9 +17,8 @@ class DatabaseSeeder extends Seeder
      * `admin` se le dejan esos dos permisos fuera de alcance a propósito.
      */
     private const ACCOUNTS = [
-        ['super@example.com', 'Super Admin', 'superadmin'],
-        ['admin@example.com', 'Admin', 'admin'],
-        ['test@example.com', 'Test User', 'user'],
+        ['econg@proser.com.mx', 'Super Admin', 'superadmin'],
+        ['tordonez@proser.com.mx', 'Super Admin', 'superadmin'],
     ];
 
     public function run(): void
