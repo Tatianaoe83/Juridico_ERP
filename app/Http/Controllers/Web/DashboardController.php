@@ -23,13 +23,6 @@ use Inertia\Response;
  */
 class DashboardController extends Controller
 {
-    /**
-     * Cuántos documentos faltantes se listan; el conteo sí es de todos. Lo que
-     * tiene fecha va completo: ya viene acotado a la ventana de aviso y la
-     * franja de vencimientos necesita cada punto.
-     */
-    private const DOCUMENTS_LIMIT = 8;
-
     /** Lo urgente primero: lo vencido antes que lo que está por vencer. */
     private const PRIORITY = ['overdue', 'expired', 'expiring', 'pending'];
 
@@ -41,7 +34,8 @@ class DashboardController extends Controller
         $canPolicies = $user->can('polizas.view');
 
         $licenses = $user->can('licencias.view') ? $this->licenses() : null;
-        $payments = $canFleets ? $this->payments() : null;
+        // shortcut: pagos de flotilla ocultos hasta que exista su función en flotillas; volver a $canFleets ? $this->payments() : null.
+        $payments = null;
         $policies = $canPolicies ? $this->policies() : null;
         $documents = $canFleets || $canPolicies ? $this->documents($canFleets, $canPolicies) : null;
 
@@ -49,16 +43,31 @@ class DashboardController extends Controller
             'licenses' => $licenses ? $this->section($licenses) : null,
             'payments' => $payments ? $this->section($payments) : null,
             'policies' => $policies ? $this->section($policies) : null,
-            'documents' => $documents ? $this->section($documents, self::DOCUMENTS_LIMIT) : null,
-            // Alertas activas: todo lo vencido o dentro de la ventana de aviso.
-            // Los documentos faltantes van aparte: no tienen fecha.
-            'alerts' => collect([$licenses, $payments, $policies])->filter()->sum(fn (Collection $rows) => $rows->count()),
+            // Van todos: el card de documentos desplaza lo que no quepa junto a Vencidos.
+            'documents' => $documents ? $this->section($documents) : null,
+            'alerts' => $this->alerts($user->can('licencias.view'), $canFleets, $canPolicies),
             'warning_days' => CoverageStatus::WARNING_DAYS,
         ]);
     }
 
+    /**
+     * Alertas activas: registros con el recordatorio recurrente prendido que
+     * aún no vencen, o sea, que todavía van a mandar correo. Mismos filtros que
+     * SendExpirationReminders, sin la fecha del día. Solo de los módulos que
+     * el usuario puede ver.
+     */
+    private function alerts(bool $licenses, bool $fleets, bool $policies): int
+    {
+        $today = today();
+
+        return ($licenses ? License::where('reminders_enabled', true)->whereDate('valid_until', '>=', $today)->count() : 0)
+            + ($fleets ? UnitPolicy::where('reminders_enabled', true)->whereNull('cancelled_on')->whereDate('second_payment_ends_on', '>=', $today)->count() : 0)
+            + ($policies ? ConstructionPolicy::where('reminders_enabled', true)->whereDate('valid_until', '>=', $today)->count() : 0)
+            + ($policies ? Bond::where('reminders_enabled', true)->whereNull('cancelled_on')->whereDate('valid_until', '>=', $today)->count() : 0);
+    }
+
     /** Conteo por estado y la lista, ordenada por urgencia y fecha. */
-    private function section(Collection $rows, ?int $limit = null): array
+    private function section(Collection $rows): array
     {
         return [
             'total' => $rows->count(),
@@ -68,7 +77,6 @@ class DashboardController extends Controller
                     fn (array $a, array $b) => array_search($a['status'], self::PRIORITY) <=> array_search($b['status'], self::PRIORITY),
                     fn (array $a, array $b) => ($a['date'] ?? '9999-12-31') <=> ($b['date'] ?? '9999-12-31'),
                 ])
-                ->when($limit, fn (Collection $sorted) => $sorted->take($limit))
                 ->values(),
         ];
     }

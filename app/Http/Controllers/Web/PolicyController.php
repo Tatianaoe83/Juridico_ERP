@@ -346,6 +346,7 @@ class PolicyController extends Controller
                 // Lo que cuesta con todo y endosos; sin ningún monto capturado, nada.
                 'amount' => $policy->amount === null && ! $policy->endorsements_sum_amount ? null : $policy->total(),
                 'status' => $policy->status(),
+                'reminders_enabled' => $policy->reminders_enabled,
                 'search' => [$policy->policy, $policy->insurer?->name, $policy->project?->name, $policy->project?->address, $policy->businessUnit?->name],
             ]);
     }

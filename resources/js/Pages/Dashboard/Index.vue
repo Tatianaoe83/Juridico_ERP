@@ -1,16 +1,20 @@
 <script setup>
-import { Head, Link, usePage } from '@inertiajs/vue3';
-import { CircleCheck } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { BarElement, CategoryScale, Chart as ChartJS, Legend, LinearScale, Tooltip } from 'chart.js';
+import { BellRing, CalendarClock, CircleCheck, FileBadge, FileWarning, LayoutDashboard, ShieldCheck, Truck } from 'lucide-vue-next';
+import { computed } from 'vue';
+import { Bar } from 'vue-chartjs';
 import AppShell from '@/Layouts/AppShell.vue';
+import { useTheme } from '@/composables/useTheme';
 import { localDate } from '@/lib/licenses';
 import { money } from '@/lib/units';
+
+ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
 /**
  * Cada sección es { total, counts: { estado: n }, items: [{ key, title,
  * subtitle, date, status, href, amount?, currency? }] }, o null si el rol no
- * puede ver ese módulo. Licencias, pagos y pólizas llegan completos; los
- * documentos, solo los primeros.
+ * puede ver ese módulo. Todo llega completo.
  */
 const props = defineProps({
     licenses: { type: Object, default: null },
@@ -22,6 +26,7 @@ const props = defineProps({
 });
 
 const page = usePage();
+const { isDark } = useTheme();
 
 const breadcrumbs = [{ label: 'Dashboard' }];
 
@@ -34,6 +39,8 @@ const daysFrom = (iso) => Math.round((localDate(iso) - today.value) / 86_400_000
 
 const shortDate = (date) => date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }).replace('.', '');
 
+const longToday = computed(() => today.value.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
+
 function remaining(days) {
     if (days === 0) return 'hoy';
     if (days < 0) return days === -1 ? 'ayer' : `hace ${-days} días`;
@@ -43,23 +50,30 @@ function remaining(days) {
 
 /* ---------- Módulos ---------- */
 
-/**
- * Cada módulo tiene su forma en la franja: el color dice el estado y la forma
- * el módulo, así nada depende solo del color.
- */
+// overdue y expiring: el estado con que cada módulo marca lo vencido y lo por vencer.
 const MODULES = {
-    licenses: { label: 'Licencia', shape: 'rounded-full', href: '/licencias' },
-    payments: { label: 'Pago', shape: 'rounded-[2px]', href: '/flotillas' },
-    policies: { label: 'Póliza', shape: 'rotate-45 rounded-[1px] scale-[0.85]', href: '/polizas' },
+    licenses: { label: 'Licencia', plural: 'Licencias', overdue: 'expired', expiring: 'expiring', href: '/licencias', badge: 'bg-blue-50 text-blue-700 ring-blue-600/15 dark:bg-blue-400/10 dark:text-blue-300 dark:ring-blue-400/20' },
+    payments: { label: 'Pago', plural: 'Pagos de flotilla', overdue: 'overdue', expiring: 'pending', href: '/flotillas', badge: 'bg-cyan-50 text-cyan-700 ring-cyan-600/15 dark:bg-cyan-400/10 dark:text-cyan-300 dark:ring-cyan-400/20' },
+    policies: { label: 'Póliza', plural: 'Pólizas de obra y fianzas', overdue: 'expired', expiring: 'expiring', href: '/polizas', badge: 'bg-amber-50 text-amber-700 ring-amber-600/15 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/20' },
 };
 
 const visibleModules = computed(() => Object.keys(MODULES).filter((module) => props[module]));
 
 const count = (section, ...statuses) => statuses.reduce((sum, status) => sum + (section?.counts[status] ?? 0), 0);
 
-/* ---------- Cifras ---------- */
+/* ---------- Indicadores ---------- */
 
-const overdueTotal = computed(() => count(props.licenses, 'expired') + count(props.payments, 'overdue') + count(props.policies, 'expired'));
+function overdue(n, one, many) {
+    return n ? `${n} ${n === 1 ? one : many}` : 'Nada vencido';
+}
+
+/** El número grande es el total; abajo, cuánto ya venció y cuánto está por vencer. */
+function breakdown(section) {
+    const expired = count(section, 'expired');
+    const expiring = count(section, 'expiring');
+
+    return `${expired} ${expired === 1 ? 'vencida' : 'vencidas'} · ${expiring} por vencer`;
+}
 
 const figures = computed(() =>
     [
@@ -67,32 +81,40 @@ const figures = computed(() =>
             key: 'alerts',
             label: 'Alertas activas',
             value: props.alerts,
-            note: overdueTotal.value ? `${overdueTotal.value} ya vencidas` : 'Ninguna vencida',
-            urgent: overdueTotal.value > 0,
+            note: 'Con recordatorio por correo',
+            urgent: false,
+            icon: BellRing,
+            tone: 'from-brand-light to-brand text-white shadow-brand/25',
             href: null,
         },
         props.licenses && {
             key: 'licenses',
-            label: 'Permisos por vencer',
-            value: count(props.licenses, 'expiring'),
-            note: overdue(count(props.licenses, 'expired'), 'vencido', 'vencidos'),
+            label: 'Licencias',
+            value: props.licenses.total,
+            note: breakdown(props.licenses),
             urgent: count(props.licenses, 'expired') > 0,
+            icon: FileBadge,
+            tone: 'from-blue-500 to-blue-700 text-white shadow-blue-600/25',
             href: '/licencias',
         },
         props.payments && {
             key: 'payments',
-            label: 'Flotillas con pago pendiente',
+            label: 'Pagos pendientes',
             value: count(props.payments, 'pending'),
             note: overdue(count(props.payments, 'overdue'), 'atrasado', 'atrasados'),
             urgent: count(props.payments, 'overdue') > 0,
+            icon: Truck,
+            tone: 'from-cyan-500 to-cyan-700 text-white shadow-cyan-600/25',
             href: '/flotillas',
         },
         props.policies && {
             key: 'policies',
-            label: 'Pólizas por vencer',
-            value: count(props.policies, 'expiring'),
-            note: overdue(count(props.policies, 'expired'), 'vencida', 'vencidas'),
+            label: 'Pólizas de obra y fianzas',
+            value: props.policies.total,
+            note: breakdown(props.policies),
             urgent: count(props.policies, 'expired') > 0,
+            icon: ShieldCheck,
+            tone: 'from-amber-400 to-amber-600 text-white shadow-amber-500/25',
             href: '/polizas',
         },
         props.documents && {
@@ -101,14 +123,12 @@ const figures = computed(() =>
             value: props.documents.total,
             note: props.documents.total ? 'Sin archivo en el expediente' : 'Expedientes completos',
             urgent: false,
+            icon: FileWarning,
+            tone: 'from-slate-400 to-slate-600 text-white shadow-slate-500/25',
             href: null,
         },
     ].filter(Boolean),
 );
-
-function overdue(n, one, many) {
-    return n ? `Más ${n} ${n === 1 ? one : many}` : 'Nada vencido';
-}
 
 /* ---------- Pendientes con fecha ---------- */
 
@@ -118,67 +138,63 @@ const items = computed(() =>
         .sort((a, b) => a.days - b.days),
 );
 
-/* ---------- Plazos ---------- */
+/** Por atender: solo lo ya vencido; lo que viene va en próximos vencimientos. */
+const overdueRows = computed(() => items.value.filter((item) => item.days < 0));
 
-/**
- * Lo vencido y luego cuatro semanas desde hoy. La última llega hasta el fin de
- * la ventana de aviso (día 30), así que tiene un par de días más que las otras.
- */
-const PERIODS = [
-    { key: 'overdue', label: 'Vencido', from: -Infinity, to: -1 },
-    { key: 'week1', label: 'Esta semana', from: 0, to: 7 },
-    { key: 'week2', label: 'Semana 2', from: 8, to: 14 },
-    { key: 'week3', label: 'Semana 3', from: 15, to: 21 },
-    { key: 'week4', label: 'Semana 4', from: 22, to: Infinity },
-];
+/** Lo que vence primero de hoy en adelante. */
+const upcoming = computed(() => items.value.filter((item) => item.days >= 0).slice(0, 5));
 
-const PLURALS = { licenses: ['licencia', 'licencias'], payments: ['pago', 'pagos'], policies: ['póliza', 'pólizas'] };
+/* ---------- Gráfica ---------- */
 
-function dayLabel(days) {
-    const date = new Date(today.value);
-    date.setDate(date.getDate() + days);
+const chartText = computed(() => (isDark.value ? '#a7a8a9' : '#64748b'));
+const chartGrid = computed(() => (isDark.value ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)'));
 
-    return shortDate(date);
-}
+/** [claro, oscuro] */
+const STATUS_COLORS = { overdue: ['#dc2626', '#f87171'], expiring: ['#f59e0b', '#fbbf24'] };
 
-const periods = computed(() => {
-    const list = PERIODS.map((period) => {
-        const rows = items.value.filter((item) => item.days >= period.from && item.days <= period.to);
+const barData = computed(() => ({
+    labels: visibleModules.value.map((module) => MODULES[module].plural),
+    datasets: [
+        { key: 'overdue', label: 'Vencido' },
+        { key: 'expiring', label: 'Por vencer' },
+    ].map(({ key, label }) => ({
+        label,
+        data: visibleModules.value.map((module) => count(props[module], MODULES[module][key])),
+        backgroundColor: STATUS_COLORS[key][isDark.value ? 1 : 0],
+        borderRadius: 4,
+        borderSkipped: false,
+        maxBarThickness: 28,
+    })),
+}));
 
-        return {
-            ...period,
-            rows,
-            range: period.key === 'overdue' ? 'Antes de hoy' : `${dayLabel(period.from)} al ${dayLabel(Math.min(period.to, props.warning_days))}`,
-            modules: visibleModules.value.map((module) => ({ module, count: rows.filter((item) => item.module === module).length })),
-        };
-    });
+const barOptions = computed(() => ({
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    // Tocar un módulo abre su listado.
+    onClick: (_event, elements) => elements.length && router.visit(MODULES[visibleModules.value[elements[0].index]].href),
+    onHover: (event, elements) => (event.native.target.style.cursor = elements.length ? 'pointer' : 'default'),
+    plugins: {
+        legend: { position: 'bottom', labels: { color: chartText.value, usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 8, padding: 16 } },
+    },
+    scales: {
+        x: { stacked: true, beginAtZero: true, ticks: { color: chartText.value, precision: 0 }, grid: { color: chartGrid.value }, border: { display: false } },
+        y: { stacked: true, grid: { display: false }, ticks: { color: chartText.value, font: { weight: 600 } }, border: { display: false } },
+    },
+}));
 
-    // Las barras se miden contra la columna más cargada: así se comparan entre sí.
-    const max = Math.max(1, ...list.map((period) => period.rows.length));
+/* ---------- Estilos ---------- */
 
-    return list.map((period) => ({
-        ...period,
-        modules: period.modules.map((entry) => ({ ...entry, width: (entry.count / max) * 100 })),
-    }));
-});
+const CARD =
+    'rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgb(2_29_73/0.04),0_8px_24px_-12px_rgb(2_29_73/0.08)] dark:border-white/[0.08] dark:bg-brand-deep dark:shadow-none';
 
-/** El plazo elegido filtra la lista de abajo; tocarlo otra vez la deja completa. */
-const selected = ref(null);
+const CARD_HEAD = 'flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 md:px-5 dark:border-white/[0.06]';
 
-function select(key) {
-    selected.value = selected.value === key ? null : key;
-}
+const BADGE = 'inline-flex items-center rounded-md px-2 py-0.5 text-[0.68rem] font-semibold ring-1 ring-inset whitespace-nowrap';
 
-const markerTone = (item) => (item.days < 0 ? 'bg-red-500 dark:bg-red-400' : 'bg-amber-500 dark:bg-amber-400');
-
-/* ---------- Cola ---------- */
-
-const groups = computed(() => periods.value.filter((period) => period.rows.length && (!selected.value || period.key === selected.value)));
-
-const PANEL = 'rounded-xl border border-slate-200/80 bg-white dark:border-white/[0.08] dark:bg-brand-deep';
-
-const ROW_LINK =
-    'transition-colors duration-150 hover:bg-slate-50 focus-visible:bg-brand/[0.05] focus-visible:outline-none dark:hover:bg-white/[0.04] dark:focus-visible:bg-white/[0.07]';
+const TH = 'px-4 py-2 text-left text-[0.68rem] font-bold whitespace-nowrap md:px-5';
+const TD = 'px-4 py-2.5 md:px-5';
 </script>
 
 <template>
@@ -186,181 +202,219 @@ const ROW_LINK =
 
     <AppShell :breadcrumbs="breadcrumbs">
         <div class="mx-auto flex max-w-7xl flex-col gap-4">
-            <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Dashboard</h1>
+            <!-- Encabezado -->
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <span
+                        class="grid size-9 place-content-center rounded-xl bg-gradient-to-br from-brand-light to-brand text-white shadow-md shadow-brand/25 ring-1 ring-white/10"
+                    >
+                        <LayoutDashboard class="size-4" />
+                    </span>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-tight text-brand dark:text-white">Dashboard</h1>
+                        <p class="text-xs text-slate-500 first-letter:uppercase dark:text-brand-gray">{{ longToday }}</p>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-brand-gray">
+                    Ventana de aviso: <span class="font-bold text-slate-800 dark:text-white">{{ warning_days }} días</span>
+                </p>
+            </div>
 
-            <!-- Cifras: un solo panel, una celda por indicador -->
-            <section
-                :class="PANEL"
-                class="flex flex-wrap gap-px overflow-hidden bg-slate-200/80 dark:bg-white/[0.08]"
-                aria-label="Indicadores"
-            >
-                <!-- Las celdas crecen hasta llenar su fila: con 3, 4 o 5 indicadores no quedan huecos -->
+            <!-- Indicadores -->
+            <!-- Las tarjetas se reparten el ancho: con 2, 3 o 4 según el rol no quedan huecos -->
+            <section class="grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] gap-3" aria-label="Indicadores">
                 <component
                     :is="figure.href ? Link : 'div'"
                     v-for="figure in figures"
                     :key="figure.key"
                     :href="figure.href ?? undefined"
-                    class="flex min-w-[10rem] flex-1 flex-col gap-1 bg-white px-4 py-3.5 dark:bg-brand-deep"
-                    :class="figure.href && ROW_LINK"
+                    :class="[CARD, figure.href && 'transition-[border-color,transform] duration-150 hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-white/20']"
+                    class="flex items-start justify-between gap-3 p-4"
                 >
-                    <span class="text-[0.78rem] font-medium text-slate-500 dark:text-brand-gray">{{ figure.label }}</span>
-                    <span
-                        class="text-[2rem] leading-none font-bold tabular-nums"
-                        :class="figure.key === 'alerts' && figure.value ? 'text-brand dark:text-white' : 'text-slate-900 dark:text-white'"
-                    >
-                        {{ figure.value }}
-                    </span>
-                    <span
-                        class="text-xs"
-                        :class="figure.urgent ? 'font-semibold text-red-600 dark:text-red-400' : 'text-slate-400 dark:text-brand-gray/70'"
-                    >
-                        {{ figure.note }}
+                    <div class="flex min-w-0 flex-col gap-1">
+                        <span class="text-[0.78rem] font-medium text-slate-500 dark:text-brand-gray">{{ figure.label }}</span>
+                        <span class="text-3xl leading-none font-bold text-slate-900 tabular-nums dark:text-white">{{ figure.value }}</span>
+                        <span
+                            class="mt-1 text-xs"
+                            :class="figure.urgent ? 'font-semibold text-red-600 dark:text-red-400' : 'text-slate-400 dark:text-brand-gray/70'"
+                        >
+                            {{ figure.note }}
+                        </span>
+                    </div>
+                    <span class="grid size-10 shrink-0 place-content-center rounded-xl bg-gradient-to-br shadow-md" :class="figure.tone">
+                        <component :is="figure.icon" class="size-5" />
                     </span>
                 </component>
             </section>
 
-            <!-- Plazos: cuánto vence en cada uno; elegir uno filtra la lista de abajo -->
-            <section v-if="visibleModules.length" aria-labelledby="periods-title">
-                <h2 id="periods-title" class="sr-only">Vencimientos por plazo</h2>
-                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                    <button
-                        v-for="period in periods"
-                        :key="period.key"
-                        type="button"
-                        :class="[
-                            PANEL,
-                            selected === period.key
-                                ? 'border-brand ring-2 ring-brand/20 dark:border-white/50 dark:ring-white/15'
-                                : 'hover:border-slate-300 dark:hover:border-white/20',
-                            period.key === 'overdue' && period.rows.length ? 'border-t-[3px] border-t-red-500 dark:border-t-red-400' : '',
-                        ]"
-                        class="flex cursor-pointer flex-col gap-3 p-4 text-left transition-[border-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/30 disabled:cursor-default disabled:opacity-60 dark:focus-visible:ring-white/30"
-                        :disabled="!period.rows.length"
-                        :aria-pressed="selected === period.key"
-                        @click="select(period.key)"
-                    >
-                        <span>
-                            <span
-                                class="block text-sm font-bold"
-                                :class="period.key === 'overdue' && period.rows.length ? 'text-red-700 dark:text-red-300' : 'text-slate-800 dark:text-white'"
-                            >
-                                {{ period.label }}
-                            </span>
-                            <span class="block text-xs text-slate-400 tabular-nums dark:text-brand-gray/70">{{ period.range }}</span>
-                        </span>
-
-                        <span class="text-[2rem] leading-none font-bold text-slate-900 tabular-nums dark:text-white">{{ period.rows.length }}</span>
-
-                        <span class="flex flex-col gap-1.5">
-                            <span v-for="entry in period.modules" :key="entry.module" class="flex flex-col gap-1">
-                                <span class="flex items-center gap-1.5 text-xs text-slate-600 dark:text-brand-gray">
-                                    <span class="size-2 shrink-0 bg-slate-400 dark:bg-brand-gray" :class="MODULES[entry.module].shape" aria-hidden="true" />
-                                    <span class="font-semibold tabular-nums">{{ entry.count }}</span>
-                                    {{ PLURALS[entry.module][entry.count === 1 ? 0 : 1] }}
-                                </span>
-                                <span class="h-1 overflow-hidden rounded-full bg-slate-100 dark:bg-white/[0.06]" aria-hidden="true">
-                                    <span
-                                        class="block h-full rounded-full transition-[width] duration-300"
-                                        :class="period.key === 'overdue' ? 'bg-red-500 dark:bg-red-400' : 'bg-brand dark:bg-brand-gray'"
-                                        :style="{ width: `${entry.width}%` }"
-                                    />
-                                </span>
-                            </span>
-                        </span>
-                    </button>
-                </div>
-            </section>
-
-            <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
-                <!-- Cola: los pendientes de cada plazo, o solo los del plazo elegido -->
-                <section v-if="visibleModules.length" :class="PANEL" class="overflow-hidden lg:col-span-2" aria-labelledby="queue-title">
-                    <div class="flex items-center justify-between gap-3 border-b border-slate-200/80 px-4 py-3 md:px-5 dark:border-white/[0.08]">
-                        <h2 id="queue-title" class="text-sm font-bold text-slate-800 dark:text-white">Por atender</h2>
-                        <button
-                            v-if="selected"
-                            type="button"
-                            class="cursor-pointer rounded-md text-xs font-semibold text-brand hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25 dark:text-brand-gray dark:hover:text-white"
-                            @click="selected = null"
-                        >
-                            Ver todos los plazos
-                        </button>
+            <!-- Gráficas -->
+            <div v-if="visibleModules.length" class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <section :class="CARD" class="lg:col-span-2" aria-labelledby="chart-title">
+                    <div :class="CARD_HEAD">
+                        <div>
+                            <h2 id="chart-title" class="text-sm font-bold text-slate-800 dark:text-white">Estado por módulo</h2>
+                            <p class="text-xs text-slate-400 dark:text-brand-gray/70">Vencido y por vencer en los próximos {{ warning_days }} días</p>
+                        </div>
                     </div>
-
-                    <div v-for="group in groups" :key="group.key">
-                        <h3
-                            class="flex items-baseline gap-2 bg-slate-50 px-4 py-1.5 text-xs font-semibold md:px-5 dark:bg-white/[0.03]"
-                            :class="group.key === 'overdue' ? 'text-red-700 dark:text-red-300' : 'text-slate-600 dark:text-brand-gray'"
-                        >
-                            {{ group.label }}
-                            <span class="font-normal text-slate-400 tabular-nums dark:text-brand-gray/70">{{ group.rows.length }}</span>
-                        </h3>
-
-                        <ul class="divide-y divide-slate-100 dark:divide-white/[0.05]">
-                            <li v-for="item in group.rows" :key="item.key">
-                                <Link :href="item.href" class="grid grid-cols-[3.5rem_1fr_auto] items-center gap-x-3 px-4 py-2.5 md:px-5" :class="ROW_LINK">
-                                    <span class="text-xs font-semibold text-slate-700 tabular-nums dark:text-slate-200">{{ shortDate(localDate(item.date)) }}</span>
-
-                                    <span class="min-w-0">
-                                        <span class="flex items-center gap-2">
-                                            <span class="size-2 shrink-0" :class="[MODULES[item.module].shape, markerTone(item)]" aria-hidden="true" />
-                                            <span class="truncate text-sm font-semibold text-slate-800 dark:text-white" :title="item.title">{{ item.title }}</span>
-                                        </span>
-                                        <span class="block truncate pl-4 text-xs text-slate-500 dark:text-brand-gray/80" :title="item.subtitle">
-                                            {{ item.key.startsWith('bond-') ? 'Fianza' : MODULES[item.module].label }}<template v-if="item.subtitle">, {{ item.subtitle }}</template>
-                                        </span>
-                                    </span>
-
-                                    <span class="text-right">
-                                        <span v-if="item.amount != null" class="block text-xs font-semibold text-slate-700 tabular-nums dark:text-slate-200">
-                                            {{ money(item.amount, item.currency) }}
-                                        </span>
-                                        <span
-                                            class="block text-xs whitespace-nowrap"
-                                            :class="item.days < 0 ? 'font-semibold text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-brand-gray/80'"
-                                        >
-                                            {{ item.days < 0 ? 'Venció' : 'Vence' }} {{ remaining(item.days) }}
-                                        </span>
+                    <div class="flex flex-col gap-3 p-4">
+                        <div class="h-52">
+                            <Bar :data="barData" :options="barOptions" aria-label="Vencido y por vencer por módulo" role="img" />
+                        </div>
+                        <!-- La gráfica da la proporción; esto, el número exacto -->
+                        <ul class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                            <li v-for="module in visibleModules" :key="module">
+                                <Link
+                                    :href="MODULES[module].href"
+                                    class="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2 text-xs transition-colors duration-150 hover:border-slate-300 dark:border-white/[0.06] dark:hover:border-white/20"
+                                >
+                                    <span class="font-semibold text-slate-700 dark:text-slate-200">{{ MODULES[module].plural }}</span>
+                                    <span class="flex gap-1.5 tabular-nums">
+                                        <span class="font-bold text-red-600 dark:text-red-400" title="Vencido">{{ count(props[module], MODULES[module].overdue) }}</span>
+                                        <span class="text-slate-300 dark:text-white/20">/</span>
+                                        <span class="font-bold text-amber-600 dark:text-amber-400" title="Por vencer">{{ count(props[module], MODULES[module].expiring) }}</span>
                                     </span>
                                 </Link>
                             </li>
                         </ul>
                     </div>
-
-                    <p v-if="!groups.length" class="flex items-center gap-2 px-4 py-8 text-sm text-slate-500 md:px-5 dark:text-brand-gray">
-                        <CircleCheck class="size-4 text-emerald-600 dark:text-emerald-400" />
-                        Nada vence ni está atrasado en los próximos {{ warning_days }} días.
-                    </p>
                 </section>
 
-                <!-- Documentos: no tienen fecha, por eso no van en la franja -->
-                <section v-if="documents" :class="PANEL" class="overflow-hidden" aria-labelledby="documents-title">
-                    <h2 id="documents-title" class="border-b border-slate-200/80 px-4 py-3 text-sm font-bold text-slate-800 dark:border-white/[0.08] dark:text-white">
-                        Documentos faltantes
-                    </h2>
+                <section :class="CARD" class="overflow-hidden" aria-labelledby="upcoming-title">
+                    <div :class="CARD_HEAD">
+                        <h2 id="upcoming-title" class="text-sm font-bold text-slate-800 dark:text-white">Próximos vencimientos</h2>
+                        <CalendarClock class="size-4 text-slate-400 dark:text-brand-gray/70" />
+                    </div>
 
-                    <ul v-if="documents.items.length" class="divide-y divide-slate-100 dark:divide-white/[0.05]">
-                        <li v-for="item in documents.items" :key="item.key">
-                            <Link :href="item.href" class="block px-4 py-2.5" :class="ROW_LINK">
-                                <span class="block truncate text-sm font-semibold text-slate-800 dark:text-white" :title="item.title">{{ item.title }}</span>
-                                <span class="block text-xs text-slate-500 dark:text-brand-gray/80">{{ item.subtitle }}</span>
+                    <ul v-if="upcoming.length" class="divide-y divide-slate-100 dark:divide-white/[0.05]">
+                        <li v-for="item in upcoming" :key="item.key">
+                            <Link
+                                :href="item.href"
+                                class="flex items-center gap-3 px-4 py-2.5 transition-colors duration-150 hover:bg-slate-50/80 focus-visible:bg-brand/[0.05] focus-visible:outline-none md:px-5 dark:hover:bg-white/[0.025]"
+                            >
+                                <span
+                                    class="flex w-11 shrink-0 flex-col items-center rounded-lg py-1 leading-tight"
+                                    :class="item.days <= 7 ? 'bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300' : 'bg-slate-50 text-slate-600 dark:bg-white/[0.05] dark:text-brand-gray'"
+                                >
+                                    <span class="text-sm font-bold tabular-nums">{{ localDate(item.date).getDate() }}</span>
+                                    <span class="text-[0.6rem] font-semibold uppercase">{{ shortDate(localDate(item.date)).split(' ')[1] }}</span>
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-sm font-semibold text-slate-800 dark:text-white" :title="item.title">{{ item.title }}</span>
+                                    <span class="block truncate text-xs text-slate-500 dark:text-brand-gray/80">
+                                        {{ item.key.startsWith('bond-') ? 'Fianza' : MODULES[item.module].label }} · vence {{ remaining(item.days) }}
+                                    </span>
+                                </span>
                             </Link>
                         </li>
                     </ul>
 
-                    <p v-else class="flex items-center gap-2 px-4 py-8 text-sm text-slate-500 dark:text-brand-gray">
+                    <p v-else class="flex items-center gap-2 px-4 py-10 text-sm text-slate-500 md:px-5 dark:text-brand-gray">
+                        <CircleCheck class="size-4 text-emerald-600 dark:text-emerald-400" />
+                        Nada por vencer en los próximos {{ warning_days }} días.
+                    </p>
+                </section>
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 lg:auto-rows-[minmax(18rem,auto)] lg:grid-cols-3">
+                <!-- Tabla de pendientes -->
+                <section v-if="visibleModules.length" :class="CARD" class="overflow-hidden lg:col-span-2" aria-labelledby="queue-title">
+                    <div :class="CARD_HEAD">
+                        <h2 id="queue-title" class="text-sm font-bold text-slate-800 dark:text-white">Vencidos</h2>
+                        <span
+                            v-if="overdueRows.length"
+                            class="rounded-md bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700 tabular-nums dark:bg-red-400/15 dark:text-red-300"
+                        >
+                            {{ overdueRows.length }}
+                        </span>
+                    </div>
+
+                    <div v-if="overdueRows.length" class="max-h-[28rem] overflow-auto">
+                        <table class="w-full text-[0.8rem]">
+                            <thead class="sticky top-0 z-10 bg-slate-50 text-slate-500 dark:bg-brand-deep dark:text-brand-gray">
+                                <tr>
+                                    <th :class="TH">Venció</th>
+                                    <th :class="TH">Concepto</th>
+                                    <th :class="[TH, 'hidden sm:table-cell']">Módulo</th>
+                                    <th :class="[TH, 'text-right']">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-white/[0.05]">
+                                <tr
+                                    v-for="item in overdueRows"
+                                    :key="item.key"
+                                    class="cursor-pointer transition-colors duration-150 hover:bg-slate-50/80 dark:hover:bg-white/[0.025]"
+                                    @click="router.visit(item.href)"
+                                >
+                                    <td :class="TD" class="font-semibold whitespace-nowrap text-slate-700 tabular-nums dark:text-slate-200">
+                                        {{ shortDate(localDate(item.date)) }}
+                                    </td>
+                                    <td :class="TD" class="w-full max-w-0">
+                                        <Link
+                                            :href="item.href"
+                                            class="block truncate font-semibold text-slate-800 hover:underline focus-visible:underline focus-visible:outline-none dark:text-white"
+                                            :title="item.title"
+                                            @click.stop
+                                        >
+                                            {{ item.title }}
+                                        </Link>
+                                        <span class="block truncate text-xs text-slate-500 dark:text-brand-gray/80" :title="item.subtitle">
+                                            {{ item.subtitle }}<template v-if="item.amount != null"> · {{ money(item.amount, item.currency) }}</template>
+                                        </span>
+                                    </td>
+                                    <td :class="TD" class="hidden sm:table-cell">
+                                        <span :class="[BADGE, MODULES[item.module].badge]">
+                                            {{ item.key.startsWith('bond-') ? 'Fianza' : MODULES[item.module].label }}
+                                        </span>
+                                    </td>
+                                    <td :class="TD" class="text-right">
+                                        <span :class="BADGE" class="bg-red-50 text-red-700 ring-red-600/15 dark:bg-red-400/10 dark:text-red-300 dark:ring-red-400/20">
+                                            Venció {{ remaining(item.days) }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p v-else class="flex items-center gap-2 px-4 py-10 text-sm text-slate-500 md:px-5 dark:text-brand-gray">
+                        <CircleCheck class="size-4 text-emerald-600 dark:text-emerald-400" />
+                        Nada vencido.
+                    </p>
+                </section>
+
+                <!-- Documentos: no tienen fecha, por eso no van en la gráfica. En computadora
+                     va absoluto: no estira la fila, toma el alto de Vencidos y desplaza lo que sobre. -->
+                <div v-if="documents" class="relative">
+                <section :class="CARD" class="flex flex-col overflow-hidden lg:absolute lg:inset-0" aria-labelledby="documents-title">
+                    <div :class="CARD_HEAD" class="shrink-0">
+                        <h2 id="documents-title" class="text-sm font-bold text-slate-800 dark:text-white">Documentos faltantes</h2>
+                        <span v-if="documents.total" class="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600 tabular-nums dark:bg-white/[0.06] dark:text-brand-gray">
+                            {{ documents.total }}
+                        </span>
+                    </div>
+
+                    <ul v-if="documents.items.length" class="max-h-[28rem] divide-y divide-slate-100 overflow-y-auto lg:max-h-none lg:min-h-0 lg:flex-1 dark:divide-white/[0.05]">
+                        <li v-for="item in documents.items" :key="item.key">
+                            <Link
+                                :href="item.href"
+                                class="flex items-start gap-3 px-4 py-2.5 transition-colors duration-150 hover:bg-slate-50/80 focus-visible:bg-brand/[0.05] focus-visible:outline-none md:px-5 dark:hover:bg-white/[0.025]"
+                            >
+                                <FileWarning class="mt-0.5 size-4 shrink-0 text-slate-400 dark:text-brand-gray/70" />
+                                <span class="min-w-0">
+                                    <span class="block truncate text-sm font-semibold text-slate-800 dark:text-white" :title="item.title">{{ item.title }}</span>
+                                    <span class="block text-xs text-slate-500 dark:text-brand-gray/80">{{ item.subtitle }}</span>
+                                </span>
+                            </Link>
+                        </li>
+                    </ul>
+
+                    <p v-else class="flex items-center gap-2 px-4 py-10 text-sm text-slate-500 md:px-5 dark:text-brand-gray">
                         <CircleCheck class="size-4 text-emerald-600 dark:text-emerald-400" />
                         Cada póliza tiene sus archivos.
                     </p>
-
-                    <p
-                        v-if="documents.total > documents.items.length"
-                        class="border-t border-slate-200/80 px-4 py-2 text-xs text-slate-400 dark:border-white/[0.08] dark:text-brand-gray/70"
-                    >
-                        {{ documents.total - documents.items.length }} más sin mostrar.
-                    </p>
                 </section>
+                </div>
             </div>
         </div>
     </AppShell>
 </template>
-
