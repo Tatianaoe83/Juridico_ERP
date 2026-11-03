@@ -35,9 +35,9 @@ const breadcrumbs = [{ label: 'Inicio', href: '/dashboard' }, { label: 'Flotilla
 /* ---------- Pestañas ---------- */
 
 const TABS = [
-    { value: 'vehicles', label: 'AUTOMÓVILES', icon: Truck },
-    { value: 'machinery', label: 'MAQUINARIA', icon: Tractor },
-    { value: 'supplier', label: 'PREFERENTES', icon: Store },
+    { value: 'vehicles', label: 'Automóviles', icon: Truck },
+    { value: 'machinery', label: 'Maquinaria', icon: Tractor },
+    { value: 'supplier', label: 'Preferentes', icon: Store },
 ];
 
 const machinery = computed(() => props.tab === 'machinery');
