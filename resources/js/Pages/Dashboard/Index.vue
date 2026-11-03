@@ -41,7 +41,6 @@ const daysFrom = (iso) => Math.round((localDate(iso) - today.value) / 86_400_000
 
 const shortDate = (date) => date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }).replace('.', '');
 
-const longToday = computed(() => today.value.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
 
 function remaining(days) {
     if (days === 0) return 'hoy';
@@ -192,14 +191,8 @@ const TD = 'px-5 py-3.5 md:px-6';
                     >
                         <LayoutDashboard class="size-5" />
                     </span>
-                    <div>
-                        <h1 class="text-2xl font-bold tracking-tight text-brand dark:text-white">Dashboard</h1>
-                        <p class="text-sm text-slate-500 first-letter:uppercase dark:text-brand-gray">{{ longToday }}</p>
-                    </div>
+                    <h1 class="text-2xl font-bold tracking-tight text-brand dark:text-white">Dashboard</h1>
                 </div>
-                <p class="text-sm text-slate-500 dark:text-brand-gray">
-                    Ventana de aviso: <span class="font-bold text-slate-800 dark:text-white">{{ warning_days }} días</span>
-                </p>
             </div>
 
             <!-- Indicadores -->
