@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, router } from '@inertiajs/vue3';
-import { Building2, ChevronDown, ChevronLeft, ChevronRight, Eye, ListFilter, Pencil, Plus, Search, Store, Tractor, Trash2, Truck, Wallet, Wrench, X } from 'lucide-vue-next';
+import { Building2, ChevronDown, ChevronLeft, ChevronRight, Eye, ListFilter, Pencil, Plus, Search, ShieldAlert, Store, Tractor, Trash2, Truck, Wallet, Wrench, X } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
@@ -118,6 +118,9 @@ const status = ref(props.filters.status ?? '');
 const brand = ref(props.filters.brand ?? '');
 const businessUnit = ref(props.filters.business_unit ?? '');
 
+// Pólizas con los dos semestres vencidos: no salen en la lista normal, solo con este filtro.
+const archived = ref(Boolean(props.filters.archived));
+
 function visit(params) {
     router.get(
         '/flotillas',
@@ -127,6 +130,7 @@ function visit(params) {
             ...(status.value ? { status: status.value } : {}),
             ...(brand.value ? { brand: brand.value } : {}),
             ...(businessUnit.value ? { business_unit: businessUnit.value } : {}),
+            ...(archived.value ? { archived: 1 } : {}),
             ...params,
         },
         { preserveState: true, preserveScroll: true, replace: true },
@@ -143,15 +147,16 @@ watch(search, () => {
 
 // Los de lista se eligen de una vez: van directo. Cambiar cualquiera vuelve a
 // la página 1, porque `visit` no arrastra la que estaba.
-watch([status, brand, businessUnit], () => visit({}));
+watch([status, brand, businessUnit, archived], () => visit({}));
 
-const filtering = computed(() => Boolean(search.value || status.value || brand.value || businessUnit.value));
+const filtering = computed(() => Boolean(search.value || status.value || brand.value || businessUnit.value || archived.value));
 
 function clearFilters() {
     search.value = '';
     status.value = '';
     brand.value = '';
     businessUnit.value = '';
+    archived.value = false;
 }
 
 /** Lo aplicado, en fichas: se ve de un vistazo y cada una se quita sola. */
@@ -164,6 +169,7 @@ const activeFilters = computed(() =>
             label: props.options.businessUnits.find((o) => o.value === businessUnit.value)?.label,
             clear: () => (businessUnit.value = ''),
         },
+        { key: 'archived', label: archived.value ? 'Vencidas' : '', clear: () => (archived.value = false) },
     ].filter((chip) => chip.label),
 );
 
@@ -441,6 +447,22 @@ const PAGE_BTN =
                             label="Filtrar por unidad de negocio"
                             width="@xl:w-56"
                         />
+
+                        <button
+                            type="button"
+                            :aria-pressed="archived"
+                            class="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3 text-[0.75rem] font-semibold ring-1 ring-inset transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25"
+                            :class="
+                                archived
+                                    ? 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-400/10 dark:text-red-300 dark:ring-red-400/25'
+                                    : 'bg-slate-100 text-slate-500 ring-slate-200/70 hover:text-slate-800 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/[0.06] dark:hover:text-white'
+                            "
+                            title="Pólizas con los dos semestres vencidos"
+                            @click="archived = !archived"
+                        >
+                            <ShieldAlert class="size-3.5" />
+                            Vencidas
+                        </button>
 
                         <p class="col-span-2 shrink-0 text-xs text-slate-500 @xl:col-span-1 @xl:ml-auto dark:text-brand-gray">
                             <span class="font-bold text-slate-800 dark:text-white">{{ range.total }}</span>

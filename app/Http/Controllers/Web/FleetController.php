@@ -57,10 +57,13 @@ class FleetController extends Controller
         // La unidad de negocio viene del catálogo: se filtra por su id.
         $businessUnit = (int) $request->query('business_unit') ?: null;
 
+        // Por defecto se ocultan las pólizas con los dos semestres vencidos; se ven aparte.
+        $archived = $request->boolean('archived');
+
         $rows = match ($tab) {
-            'machinery' => $this->machineryPolicies($search, $status, $brand, $businessUnit),
-            'supplier' => $this->supplierPolicies($search, $status, $brand, $businessUnit),
-            default => $this->vehicles($search, $status, $brand, $businessUnit),
+            'machinery' => $this->machineryPolicies($search, $status, $brand, $businessUnit, $archived),
+            'supplier' => $this->supplierPolicies($search, $status, $brand, $businessUnit, $archived),
+            default => $this->vehicles($search, $status, $brand, $businessUnit, $archived),
         };
 
         return Inertia::render('Fleets/Index', [
@@ -84,6 +87,7 @@ class FleetController extends Controller
                 'status' => $status,
                 'brand' => $brand,
                 'business_unit' => $businessUnit ? (string) $businessUnit : null,
+                'archived' => $archived,
             ],
             'options' => [
                 // Las marcas salen de lo capturado: nadie mantiene catálogo y
@@ -103,11 +107,15 @@ class FleetController extends Controller
      * Las unidades que llevan su propia póliza. Las máquinas de una póliza de
      * maquinaria y las de póliza del proveedor van en las otras pestañas.
      */
-    private function vehicles(string $search, ?string $status, ?string $brand, ?int $businessUnit): LengthAwarePaginator
+    private function vehicles(string $search, ?string $status, ?string $brand, ?int $businessUnit, bool $archived): LengthAwarePaginator
     {
+        // Las unidades sin póliza siguen saliendo: están por asignar, no vencidas.
+        $expired = fn ($query) => $query->whereDate('second_payment_ends_on', '<', today());
+
         return Unit::with('currentPolicy')
             ->whereNull('unit_policy_id')
             ->whereDoesntHave('currentPolicy', fn ($query) => $query->where('source', UnitPolicy::SUPPLIER))
+            ->when($archived, fn ($query) => $query->whereHas('currentPolicy', $expired), fn ($query) => $query->whereDoesntHave('currentPolicy', $expired))
             ->when($search !== '', fn ($query) => $query->where(fn ($q) => $q
                 // En todos los periodos: una póliza vieja también lleva a su unidad.
                 ->whereHas('policies', fn ($q2) => $q2->where('policy', 'like', "%{$search}%"))
@@ -131,11 +139,12 @@ class FleetController extends Controller
      * la póliza; el estado y la marca se aplican a sus máquinas: sale la
      * póliza si alguna coincide.
      */
-    private function machineryPolicies(string $search, ?string $status, ?string $brand, ?int $businessUnit): LengthAwarePaginator
+    private function machineryPolicies(string $search, ?string $status, ?string $brand, ?int $businessUnit, bool $archived): LengthAwarePaginator
     {
         return UnitPolicy::with(['machines', 'businessUnit', 'insurer'])
             ->where('kind', UnitPolicy::MACHINERY)
             ->where('source', UnitPolicy::CORPORATE)
+            ->tap(fn ($query) => self::byExpiry($query, $archived))
             ->when($search !== '', fn ($query) => $query->where(fn ($q) => $q
                 ->where('policy', 'like', "%{$search}%")
                 ->orWhereHas('insurer', fn ($q2) => $q2->where('name', 'like', "%{$search}%"))
@@ -161,7 +170,18 @@ class FleetController extends Controller
      * cualquiera de las máquinas; la unidad de negocio, a la del automóvil o
      * a la de la póliza de maquinaria.
      */
-    private function supplierPolicies(string $search, ?string $status, ?string $brand, ?int $businessUnit): LengthAwarePaginator
+    /**
+     * Vencida = los dos semestres ya cerraron (el segundo cierra al final de la
+     * vigencia). Con uno todavía vigente, la póliza sigue en la lista normal.
+     */
+    private static function byExpiry($query, bool $archived): void
+    {
+        $archived
+            ? $query->whereDate('second_payment_ends_on', '<', today())
+            : $query->where(fn ($q) => $q->whereNull('second_payment_ends_on')->orWhereDate('second_payment_ends_on', '>=', today()));
+    }
+
+    private function supplierPolicies(string $search, ?string $status, ?string $brand, ?int $businessUnit, bool $archived): LengthAwarePaginator
     {
         // El automóvil o alguna de las máquinas.
         $covered = fn ($query, $match) => $query->where(fn ($q) => $q
@@ -170,6 +190,7 @@ class FleetController extends Controller
 
         return UnitPolicy::with(['unit.businessUnit', 'machines', 'businessUnit', 'supplier'])
             ->where('source', UnitPolicy::SUPPLIER)
+            ->tap(fn ($query) => self::byExpiry($query, $archived))
             ->where(fn ($query) => $query
                 ->where('kind', UnitPolicy::MACHINERY)
                 // Del automóvil, solo la vigente: la más reciente de su unidad,

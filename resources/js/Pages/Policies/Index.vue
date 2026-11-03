@@ -49,6 +49,9 @@ const search = ref(props.filters.search ?? '');
 // Vacío = pólizas y fianzas.
 const type = ref(props.filters.type ?? '');
 
+// Vencidas y canceladas no salen en la lista normal; se ven al activar este filtro.
+const archived = ref(Boolean(props.filters.archived));
+
 const TYPE_TABS = [
     { value: '', label: 'Todas' },
     { value: 'policy', label: 'Pólizas' },
@@ -61,6 +64,7 @@ function visit(params) {
         {
             ...(search.value ? { search: search.value } : {}),
             ...(type.value ? { type: type.value } : {}),
+            ...(archived.value ? { archived: 1 } : {}),
             ...params,
         },
         { preserveState: true, preserveScroll: true, replace: true },
@@ -76,13 +80,14 @@ watch(search, () => {
 });
 
 // El tipo se elige de una vez: va directo y vuelve a la página 1.
-watch(type, () => visit({}));
+watch([type, archived], () => visit({}));
 
-const filtering = computed(() => Boolean(search.value || type.value));
+const filtering = computed(() => Boolean(search.value || type.value || archived.value));
 
 function clearFilters() {
     search.value = '';
     type.value = '';
+    archived.value = false;
 }
 
 function goTo(page) {
@@ -365,6 +370,22 @@ const PAGE_BTN =
                                 {{ tab.label }}
                             </button>
                         </div>
+
+                        <button
+                            type="button"
+                            :aria-pressed="archived"
+                            class="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 self-start rounded-lg px-3 text-[0.75rem] font-semibold ring-1 ring-inset transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/25 @xl:self-auto"
+                            :class="
+                                archived
+                                    ? 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-400/10 dark:text-red-300 dark:ring-red-400/25'
+                                    : 'bg-slate-100 text-slate-500 ring-slate-200/70 hover:text-slate-800 dark:bg-white/[0.05] dark:text-brand-gray dark:ring-white/[0.06] dark:hover:text-white'
+                            "
+                            @click="archived = !archived"
+                        >
+                            <ShieldAlert class="size-3.5" />
+                            Vencidas y canceladas
+                            <span class="tabular-nums">({{ stats.archived }})</span>
+                        </button>
                     </div>
 
                     <div class="flex items-center gap-3 text-xs text-slate-500 dark:text-brand-gray">
