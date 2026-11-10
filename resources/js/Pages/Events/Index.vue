@@ -1,6 +1,6 @@
 <script setup>
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { CalendarCheck, CalendarPlus, Eye, Loader2, Lock, MapPin, Pencil, ShieldCheck, Trash2, TriangleAlert, UserPlus, Users } from 'lucide-vue-next';
+import { CalendarCheck, CalendarPlus, Eye, Loader2, Lock, MapPin, Pencil, Trash2, TriangleAlert, UserPlus, Users } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import ConfirmDeleteDialog from '@/components/app/ConfirmDeleteDialog.vue';
@@ -9,12 +9,8 @@ import { useEventDisplay } from '@/composables/useEventDisplay';
 import { usePermissions } from '@/composables/usePermissions';
 
 const props = defineProps({
-    /** delegated = cada quien su Outlook · application = buzón general. */
-    mode: { type: String, default: 'delegated' },
-    /** Hay calendario disponible: cuenta vinculada o buzón general configurado. */
+    /** El buzón general (MS_MAILBOX) está configurado. */
     connected: { type: Boolean, default: false },
-    /** La vinculación incluye Calendars.ReadWrite. */
-    canWrite: { type: Boolean, default: false },
     timezone: { type: String, default: 'UTC' },
     /** Próximos 30 días, tal como los devuelve Graph. */
     upcoming: { type: Array, default: () => [] },
@@ -159,40 +155,17 @@ const DANGER_ACTION =
 
         </div>
 
-        <!-- Sin cuenta vinculada -->
+        <!-- Buzón general sin configurar -->
         <div
             v-if="!connected"
             class="grid place-content-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white p-16 text-center dark:border-white/15 dark:bg-brand-deep"
         >
             <CalendarPlus class="mx-auto size-8 text-slate-300 dark:text-white/25" />
-            <template v-if="mode === 'delegated'">
-                <p class="font-bold text-slate-800 dark:text-white">Conecta tu cuenta de Outlook</p>
-                <p class="max-w-md text-[0.8rem] leading-relaxed text-slate-500 dark:text-brand-gray">
-                    Para crear eventos y compartir el calendario hace falta vincular tu cuenta de Microsoft 365.
-                </p>
-                <a href="/auth/microsoft/redirect" :class="[PRIMARY_BTN, 'mx-auto mt-2']">Conectar con Outlook</a>
-            </template>
-            <template v-else>
-                <p class="font-bold text-slate-800 dark:text-white">El calendario general no está configurado</p>
-                <p class="max-w-md text-[0.8rem] leading-relaxed text-slate-500 dark:text-brand-gray">
-                    Falta indicar el buzón general en
-                    <code class="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-white/10">MS_MAILBOX</code>. Avisa al administrador.
-                </p>
-            </template>
-        </div>
-
-        <!-- Vinculada, pero sin permiso de escritura -->
-        <div
-            v-else-if="!canWrite"
-            class="grid place-content-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white p-16 text-center dark:border-white/15 dark:bg-brand-deep"
-        >
-            <ShieldCheck class="mx-auto size-8 text-slate-300 dark:text-white/25" />
-            <p class="font-bold text-slate-800 dark:text-white">Falta permiso para crear eventos</p>
+            <p class="font-bold text-slate-800 dark:text-white">El calendario general no está configurado</p>
             <p class="max-w-md text-[0.8rem] leading-relaxed text-slate-500 dark:text-brand-gray">
-                Tu cuenta se vinculó cuando la app solo pedía lectura. Reconéctala para conceder
-                <code class="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-white/10">Calendars.ReadWrite</code>.
+                Falta indicar el buzón general en
+                <code class="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-white/10">MS_MAILBOX</code>. Avisa al administrador.
             </p>
-            <a href="/auth/microsoft/redirect" :class="[PRIMARY_BTN, 'mx-auto mt-2']">Reconectar cuenta</a>
         </div>
 
         <div v-else class="grid items-start gap-3 tall:gap-4 lg:grid-cols-3">

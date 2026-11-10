@@ -26,8 +26,7 @@ Route::get('/', function () {
         : redirect()->route('login');
 })->name('home');
 
-// El callback atiende las dos entradas: alta por SSO (invitado) y
-// consentimiento del calendario (con sesión). Por eso va sin middleware.
+// Vuelta del inicio de sesión con Microsoft (SSO).
 Route::get('/auth/microsoft/callback', [MicrosoftController::class, 'callback'])
     ->name('microsoft.callback');
 
@@ -247,14 +246,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/permisos', [PermissionController::class, 'store'])->name('permissions.store');
         Route::patch('/permisos/{permission}', [PermissionController::class, 'update'])->name('permissions.update');
         Route::delete('/permisos/{permission}', [PermissionController::class, 'destroy'])->name('permissions.destroy');
-    });
-
-    // Vinculación con Microsoft 365
-    Route::middleware('can:calendar.link')->group(function () {
-        Route::get('/auth/microsoft/redirect', [MicrosoftController::class, 'redirect'])
-            ->name('microsoft.redirect');
-        Route::delete('/auth/microsoft', [MicrosoftController::class, 'destroy'])
-            ->name('microsoft.destroy');
     });
 });
 
