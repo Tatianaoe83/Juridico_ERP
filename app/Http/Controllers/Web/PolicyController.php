@@ -45,6 +45,9 @@ class PolicyController extends Controller
         CoverageStatus::CANCELLED,
     ];
 
+    /** Lo que ya no corre: no sale en la lista normal, solo al pedir las archivadas. */
+    private const ARCHIVED = [CoverageStatus::EXPIRED, CoverageStatus::CANCELLED];
+
     public function __construct(private readonly ConstructionPolicyCalendar $calendar) {}
 
     public function index(Request $request): Response
@@ -54,11 +57,15 @@ class PolicyController extends Controller
         // Un tipo que no existe se ignora en vez de dejar la tabla vacía.
         $type = in_array($request->query('type'), self::TYPES, true) ? $request->query('type') : null;
 
+        // Por defecto, solo lo que sigue en pie; las vencidas y canceladas se ven aparte.
+        $archived = $request->boolean('archived');
+
         // Son decenas, no miles: se juntan aquí y se pagina sobre la lista.
         $all = $this->policies()->concat($this->bonds());
 
         $rows = $all
             ->when($type, fn (Collection $rows) => $rows->where('type', $type))
+            ->filter(fn (array $row) => in_array($row['status'], self::ARCHIVED, true) === $archived)
             ->when($search !== '', fn (Collection $rows) => $rows->filter(fn (array $row) => $this->matches($row, $search)))
             ->sortBy([
                 fn (array $a, array $b) => array_search($a['status'], self::PRIORITY) <=> array_search($b['status'], self::PRIORITY),
@@ -81,7 +88,7 @@ class PolicyController extends Controller
                 ],
             ],
             'stats' => $this->stats($all),
-            'filters' => ['search' => $search, 'type' => $type],
+            'filters' => ['search' => $search, 'type' => $type, 'archived' => $archived],
         ]);
     }
 
@@ -401,6 +408,7 @@ class PolicyController extends Controller
             'active' => $count(CoverageStatus::ACTIVE),
             'expiring' => $count(CoverageStatus::EXPIRING),
             'expired' => $count(CoverageStatus::EXPIRED),
+            'archived' => $count(...self::ARCHIVED),
             'warning_days' => CoverageStatus::WARNING_DAYS,
         ];
     }

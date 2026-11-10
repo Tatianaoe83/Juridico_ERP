@@ -26,7 +26,6 @@ class RoleSeeder extends Seeder
 
         // Calendario
         'calendar.view',
-        'calendar.link',
         'calendar.share',
 
         // Eventos
@@ -62,7 +61,6 @@ class RoleSeeder extends Seeder
             'users.create',
             'users.update',
             'calendar.view',
-            'calendar.link',
             'calendar.share',
             'events.create',
             'events.update',
@@ -71,7 +69,6 @@ class RoleSeeder extends Seeder
 
         'user' => [
             'calendar.view',
-            'calendar.link',
             'events.create',
             'events.update',
             'events.delete',

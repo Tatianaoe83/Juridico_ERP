@@ -34,6 +34,7 @@ class DashboardController extends Controller
         $canPolicies = $user->can('polizas.view');
 
         $licenses = $user->can('licencias.view') ? $this->licenses() : null;
+        $fleets = $canFleets ? $this->fleets() : null;
         // shortcut: pagos de flotilla ocultos hasta que exista su función en flotillas; volver a $canFleets ? $this->payments() : null.
         $payments = null;
         $policies = $canPolicies ? $this->policies() : null;
@@ -41,9 +42,10 @@ class DashboardController extends Controller
 
         return Inertia::render('Dashboard/Index', [
             'licenses' => $licenses ? $this->section($licenses) : null,
+            'fleets' => $fleets ? $this->section($fleets) : null,
             'payments' => $payments ? $this->section($payments) : null,
             'policies' => $policies ? $this->section($policies) : null,
-            // Van todos: el card de documentos desplaza lo que no quepa junto a Vencidos.
+            // Van todos: el card de documentos desplaza lo que no quepa.
             'documents' => $documents ? $this->section($documents) : null,
             'alerts' => $this->alerts($user->can('licencias.view'), $canFleets, $canPolicies),
             'warning_days' => CoverageStatus::WARNING_DAYS,
@@ -81,10 +83,11 @@ class DashboardController extends Controller
         ];
     }
 
-    /** Licencias vencidas o por vencer: la misma regla que su módulo. */
+    /** Licencias por vencer: la misma regla que su módulo. */
     private function licenses(): Collection
     {
         return License::with('businessUnit:id,name')
+            ->whereDate('valid_until', '>=', today())
             ->whereDate('valid_until', '<=', today()->addDays(License::WARNING_DAYS))
             ->get()
             ->map(fn (License $license) => [
@@ -95,6 +98,38 @@ class DashboardController extends Controller
                 'status' => $license->status(),
                 'href' => '/licencias?search='.urlencode($license->name),
             ]);
+    }
+
+    /**
+     * Pólizas de flotilla por vencer, con la misma regla que el resumen de su
+     * módulo: algún semestre del periodo vigente cierra dentro de la ventana; en
+     * las de maquinaria y las del proveedor, el fin de vigencia.
+     */
+    private function fleets(): Collection
+    {
+        $today = today();
+        $limit = $today->copy()->addDays(Unit::WARNING_DAYS);
+
+        return UnitPolicy::with('unit:id,brand,model,plate,economic_number')
+            ->whereIn('kind', UnitPolicy::KINDS)
+            ->whereDoesntHave('renewal')
+            ->whereNull('cancelled_on')
+            ->where(fn ($query) => $query
+                ->whereBetween('first_payment_ends_on', [$today, $limit])
+                ->orWhereBetween('second_payment_ends_on', [$today, $limit]))
+            ->get()
+            ->map(function (UnitPolicy $policy) use ($today) {
+                $first = $policy->first_payment_ends_on?->gte($today);
+
+                return [
+                    'key' => "fleet-{$policy->id}",
+                    'title' => $this->unitName($policy),
+                    'subtitle' => "Póliza {$policy->policy} · ".($first ? 'fin del 1er semestre' : 'fin de vigencia'),
+                    'date' => ($first ? $policy->first_payment_ends_on : $policy->second_payment_ends_on)->toDateString(),
+                    'status' => 'expiring',
+                    'href' => $this->fleetUrl($policy),
+                ];
+            });
     }
 
     /**
@@ -139,7 +174,7 @@ class DashboardController extends Controller
             ->values();
     }
 
-    /** Pólizas de obra y fianzas vencidas o por vencer. */
+    /** Pólizas de obra y fianzas por vencer. */
     private function policies(): Collection
     {
         $policies = ConstructionPolicy::with('project:id,name')
@@ -165,14 +200,13 @@ class DashboardController extends Controller
             ]);
 
         return $policies->concat($bonds)
-            ->whereIn('status', [CoverageStatus::EXPIRED, CoverageStatus::EXPIRING])
+            ->where('status', CoverageStatus::EXPIRING)
             ->values();
     }
 
     /**
-     * Lo que falta subir: en flotillas, los documentos oficiales y el
-     * comprobante de cada semestre ya pagado; en obra, la póliza misma.
-     * Los documentos oficiales los formularios los cuelgan de la unidad (o de
+     * Lo que falta subir: en flotillas, los documentos oficiales; en obra, la
+     * póliza misma. Las vencidas no cuentan. Los documentos oficiales los formularios los cuelgan de la unidad (o de
      * cada máquina), no de la póliza: se buscan en los dos lados.
      */
     private function documents(bool $fleets, bool $policies): Collection
@@ -184,37 +218,29 @@ class DashboardController extends Controller
                 'unit:id,brand,model,plate,economic_number',
                 'unit.evidences:id,unit_id,type',
                 'machines.evidences:id,unit_id,type',
-                'evidences:id,unit_policy_id,type,payment',
+                'evidences:id,unit_policy_id,type',
             ])
                 ->whereIn('kind', UnitPolicy::KINDS)
                 ->whereDoesntHave('renewal')
                 ->whereNull('cancelled_on')
                 ->get()
+                // Se mide contra el fin de vigencia: con el 1er semestre vencido y el 2º vigente, sigue saliendo.
+                ->reject(fn (UnitPolicy $policy) => $policy->coverageStatus() === CoverageStatus::EXPIRED)
                 ->each(function (UnitPolicy $policy) use ($rows) {
-                    $missing = [];
-
                     $official = $policy->evidences
                         ->concat($policy->unit?->evidences ?? [])
                         ->concat($policy->machines->flatMap->evidences)
                         ->contains('type', UnitEvidence::OFFICIAL_DOCUMENT);
 
                     if (! $official) {
-                        $missing[] = 'documentos oficiales';
-                    }
-
-                    foreach (UnitPolicy::PAYMENTS as $payment) {
-                        $receipt = $policy->evidences->contains(fn (UnitEvidence $evidence) => $evidence->type === UnitEvidence::PAYMENT_RECEIPT && $evidence->payment === $payment);
-
-                        if ($policy->isPaid($payment) && ! $receipt) {
-                            $missing[] = 'comprobante del '.($payment === 'first' ? '1er' : '2º').' semestre';
-                        }
-                    }
-
-                    if ($missing) {
                         $rows->push([
                             'key' => "unit-policy-{$policy->id}",
+                            'module' => 'fleets',
+                            'type' => 'Flotilla',
                             'title' => $this->unitName($policy),
-                            'subtitle' => 'Falta: '.implode(', ', $missing),
+                            // La maquinaria ya trae la póliza en el título.
+                            'subtitle' => $policy->unit ? "Póliza {$policy->policy}" : null,
+                            'missing' => ['Documentos oficiales'],
                             'date' => null,
                             'status' => 'missing',
                             'href' => $this->fleetUrl($policy),
@@ -227,10 +253,14 @@ class DashboardController extends Controller
             ConstructionPolicy::with('project:id,name')
                 ->whereDoesntHave('documents')
                 ->get()
+                ->reject(fn (ConstructionPolicy $policy) => $policy->status() === CoverageStatus::EXPIRED)
                 ->each(fn (ConstructionPolicy $policy) => $rows->push([
                     'key' => "policy-{$policy->id}",
+                    'module' => 'policies',
+                    'type' => 'Póliza de obra',
                     'title' => "Póliza {$policy->policy}",
-                    'subtitle' => 'Falta: documento de la póliza',
+                    'subtitle' => $policy->project?->name,
+                    'missing' => ['Documento de la póliza'],
                     'date' => null,
                     'status' => 'missing',
                     'href' => "/polizas/{$policy->id}",

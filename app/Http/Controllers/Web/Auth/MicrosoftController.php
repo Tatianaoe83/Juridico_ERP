@@ -30,15 +30,6 @@ class MicrosoftController extends Controller
         return $this->start($request, MicrosoftOAuth::LOGIN_SCOPES);
     }
 
-    /**
-     * Consentimiento del calendario para quien ya entró. Añade Calendars.Read
-     * sobre lo ya concedido (consentimiento incremental).
-     */
-    public function redirect(Request $request): RedirectResponse
-    {
-        return $this->start($request, MicrosoftOAuth::CALENDAR_SCOPES);
-    }
-
     /** Manda al usuario a la pantalla de consentimiento de Microsoft. */
     private function start(Request $request, string $scopes): RedirectResponse
     {
@@ -125,14 +116,6 @@ class MicrosoftController extends Controller
         }
 
         return redirect()->route('calendar.index')->with('success', 'Cuenta de Outlook conectada.');
-    }
-
-    /** Desvincula la cuenta y borra los tokens guardados. */
-    public function destroy(Request $request): RedirectResponse
-    {
-        $request->user()->microsoftAccount?->delete();
-
-        return back()->with('success', 'Cuenta de Outlook desvinculada.');
     }
 
     /** Un invitado no puede volver al calendario; lo regresa al login. */

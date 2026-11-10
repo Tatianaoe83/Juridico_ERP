@@ -107,24 +107,25 @@
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
+    --color-brand-gray: #a3b1c9; /* gris con tinte del azul de marca, solo en oscuro */
+    --background: oklch(0.15 0.035 262);
     --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
+    --card: oklch(0.21 0.045 262);
     --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
+    --popover: oklch(0.21 0.045 262);
     --popover-foreground: oklch(0.985 0 0);
     --primary: oklch(0.922 0 0);
     --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
+    --secondary: oklch(0.26 0.05 262);
     --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
+    --muted: oklch(0.26 0.05 262);
+    --muted-foreground: oklch(0.72 0.03 262);
+    --accent: oklch(0.26 0.05 262);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
+    --ring: oklch(0.55 0.08 262);
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
@@ -147,6 +148,16 @@
   body {
     @apply bg-background text-foreground;
     @apply font-sans;
+    }
+
+  /* Scrollbars delgadas con los colores de marca; se heredan a todo contenedor con scroll. */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(2 29 73 / 0.25) transparent;
+    }
+  html.dark {
+    color-scheme: dark;
+    scrollbar-color: rgb(163 177 201 / 0.3) transparent;
     }
 }
 

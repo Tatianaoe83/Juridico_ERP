@@ -45,6 +45,8 @@ class LicenseController extends Controller
                 ->orWhereHas('businessUnit', fn ($q2) => $q2->where('name', 'like', "%{$search}%"))
                 ->orWhere('authority', 'like', "%{$search}%")))
             ->when($status, fn ($query) => $query->inStatus($status))
+            // Sin estado elegido, las vencidas no se muestran: se consultan con el filtro «Vencida».
+            ->when(! $status, fn ($query) => $query->whereDate('valid_until', '>=', today()))
             ->when($company, fn ($query) => $query->where('business_unit_id', $company))
             ->when($authority, fn ($query) => $query->where('authority', $authority))
             ->when($year, fn ($query) => $query->whereYear('valid_until', $year))

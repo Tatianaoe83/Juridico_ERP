@@ -1,13 +1,11 @@
 <script setup>
-import { Head, router } from '@inertiajs/vue3';
+import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { CalendarDays, ChevronLeft, ChevronRight, Loader2, RefreshCw, TriangleAlert, Unlink, X } from 'lucide-vue-next';
+import { CalendarDays, ChevronLeft, ChevronRight, Loader2, RefreshCw, TriangleAlert, X } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from '@/Layouts/AppShell.vue';
 import EventShowDialog from '@/components/app/EventShowDialog.vue';
 import { useEventDisplay } from '@/composables/useEventDisplay';
-import { usePermissions } from '@/composables/usePermissions';
-import { useSwal } from '@/composables/useSwal';
 
 /**
  * Agenda del mes, de solo lectura.
@@ -17,17 +15,13 @@ import { useSwal } from '@/composables/useSwal';
  * de la app para leer una hora es un viaje de ida.
  */
 const props = defineProps({
-    /** null cuando el usuario aún no vincula su cuenta de Microsoft. */
+    /** null cuando falta configurar el buzón general (MS_MAILBOX). */
     connection: { type: Object, default: null },
-    /** 'delegated' = cada quien conecta la suya · 'application' = la app lee el buzón */
-    mode: { type: String, default: 'delegated' },
     timezone: { type: String, default: 'UTC' },
 });
 
 const breadcrumbs = [{ label: 'Inicio', href: '/dashboard' }, { label: 'Calendario' }];
 
-const { confirmDelete, blocks } = useSwal();
-const { can } = usePermissions();
 const { guests, longDayLabel, timeLabel, startLabel } = useEventDisplay();
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -208,29 +202,6 @@ function move(months) {
     cursor.value = new Date(cursor.value.getFullYear(), cursor.value.getMonth() + months, 1);
 }
 
-async function disconnect() {
-    const ok = await confirmDelete({
-        title: '¿Desvincular cuenta?',
-        // Se detalla qué sobrevive: sin eso la gente asume que borra su agenda.
-        html: blocks.stack(
-            blocks.lead(`Se desconecta <span class="font-medium">${props.connection.email}</span>`),
-            blocks.panel({
-                label: 'Se pierde',
-                tone: 'danger',
-                items: ['El acceso guardado a tu cuenta de Microsoft', 'La vista del calendario, hasta reconectar'],
-            }),
-            blocks.panel({
-                label: 'No se toca',
-                items: ['Tus eventos, que siguen en Outlook', 'El calendario y con quién está compartido'],
-            }),
-            blocks.note('Al reconectar se recupera todo, incluida la lista de compartidos.'),
-        ),
-        confirmText: 'Desvincular',
-    });
-
-    if (ok) router.delete('/auth/microsoft');
-}
-
 // Envueltas a propósito: watch y onMounted pasan argumentos que load()
 // interpretaría como `fresh` y saltarían el caché en cada cambio de mes.
 watch(cursor, () => load());
@@ -278,46 +249,20 @@ const CHIP =
                         <RefreshCw class="size-4" :class="loading && 'animate-spin'" />
                         Actualizar
                     </button>
-                    <button
-                        v-if="mode === 'delegated' && can('calendar.link')"
-                        type="button"
-                        :class="GHOST_BTN"
-                        @click="disconnect"
-                    >
-                        <Unlink class="size-4" />
-                        Desvincular
-                    </button>
                 </div>
-
-                <!-- Redirección fuera de la app: enlace normal, no Inertia -->
-                <a
-                    v-else-if="mode === 'delegated'"
-                    href="/auth/microsoft/redirect"
-                    class="inline-flex h-9 items-center gap-2 rounded-xl bg-brand px-4 text-[0.8rem] font-semibold text-white shadow-md shadow-brand/25 transition-all duration-150 hover:bg-brand/90 hover:shadow-lg hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/25 active:translate-y-px dark:bg-brand-light dark:shadow-black/30 dark:hover:bg-brand-light/90"
-                >
-                    Conectar con Outlook
-                </a>
             </div>
 
-            <!-- Sin vincular -->
+            <!-- Buzón general sin configurar -->
             <div
                 v-if="!connection"
                 class="grid place-content-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white p-16 text-center dark:border-white/15 dark:bg-brand-deep"
             >
                 <CalendarDays class="mx-auto size-8 text-slate-300 dark:text-white/25" />
-                <template v-if="mode === 'delegated'">
-                    <p class="font-bold text-slate-800 dark:text-white">Tu agenda de Outlook aún no está conectada</p>
-                    <p class="max-w-md text-[0.8rem] leading-relaxed text-slate-500 dark:text-brand-gray">
-                        Al conectar, el sistema lee los eventos de tu calendario de Microsoft 365. Es solo lectura y puedes desvincular cuando quieras.
-                    </p>
-                </template>
-                <template v-else>
-                    <p class="font-bold text-slate-800 dark:text-white">El calendario general no está configurado</p>
-                    <p class="max-w-md text-[0.8rem] leading-relaxed text-slate-500 dark:text-brand-gray">
-                        Falta indicar el buzón general en
-                        <code class="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-white/10">MS_MAILBOX</code>. Avisa al administrador.
-                    </p>
-                </template>
+                <p class="font-bold text-slate-800 dark:text-white">El calendario general no está configurado</p>
+                <p class="max-w-md text-[0.8rem] leading-relaxed text-slate-500 dark:text-brand-gray">
+                    Falta indicar el buzón general en
+                    <code class="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-white/10">MS_MAILBOX</code>. Avisa al administrador.
+                </p>
             </div>
 
             <!-- Calendario -->
@@ -329,9 +274,6 @@ const CHIP =
                 >
                     <TriangleAlert class="size-4 shrink-0" />
                     <span>{{ error }}</span>
-                    <a v-if="mode === 'delegated'" href="/auth/microsoft/redirect" class="ml-auto font-semibold underline underline-offset-2">
-                        Reconectar
-                    </a>
                 </p>
 
                 <div

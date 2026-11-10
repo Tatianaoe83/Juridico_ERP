@@ -33,7 +33,6 @@ class PermissionCatalog
         'users.delete' => 'Eliminar usuarios',
         'roles.manage' => 'Administrar roles y permisos',
         'calendar.view' => 'Ver calendario',
-        'calendar.link' => 'Vincular Microsoft 365',
         'calendar.share' => 'Compartir calendario',
         'events.create' => 'Crear eventos',
         'events.update' => 'Editar eventos',
